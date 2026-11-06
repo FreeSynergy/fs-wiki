@@ -1,8 +1,7 @@
 # fs-text — design
 
 Text core of the FreeSynergy wiki: **text + layers** (ADR 0042). Pure Rust library, no GUI,
-no dependency on `fs-store` (all types are `serde`-serialisable so the store can persist them
-later). ADRs: 0033 (one marking mechanism), 0034 (passage / page), 0039 (three editors),
+no dependency on `fs-store` (all types are `serde`-serialisable; `fs-wiki-core` in the same workspace stores them). ADRs: 0033 (one marking mechanism), 0034 (passage / page), 0039 (three editors),
 0042 (database is the truth, files are exports), 0027 (UUIDv7), 0013 (no copying).
 
 ## Layout (ADR 0043: one concept per file, <= 200 lines, `mod.rs` only declares)
@@ -132,7 +131,7 @@ stay in `pending_sync` until `mark_synced`. `reset` = "reset undo history". All 
 
 ## State
 
-Works and is tested (46 tests: unit tests next to the code, integration tests per feature,
+Works and is tested (48 tests, the last two (`tests/serde_form.rs`) prove the JSON form of a document that `fs-wiki-core` stores: every mark kind, points, attributes and containers round-trip, also through `serde_json::Value`; before: 46 tests: unit tests next to the code, integration tests per feature,
 property tests, corpus round trip):
 * model, text behind `TextStorage`, anchors, mark registry/behaviour/edit rules, point/range, merge, unmark;
 * property tests (`proptest`): marks stay valid under random edits, undo restores text and marks
