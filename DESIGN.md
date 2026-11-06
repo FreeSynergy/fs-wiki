@@ -3,10 +3,12 @@
 `fs-wiki` is the wiki program of FreeSynergy and the **owner of the text interface** (ADR 0031, 0050): every text is a wiki
 entry, a collection of texts is a wiki. The database is the truth, files are exports (ADR 0042). The contract is `texts.capnp`
 in [`fs-interfaces`](https://github.com/FreeSynergy/fs-interfaces) (ADR 0045); this program is its provider. This repo holds
-two crates and no GUI:
+three crates; the GUI lives only in `fs-wiki-app`, on [`fs-components`](https://github.com/FreeSynergy/fs-components) (Blinc):
 
 * `crates/fs-text`: the **library** of text + layers (document, marks, Markdown, outside changes, links, templates, history).
   No storage, no interface. Its own design is in [`crates/fs-text/DESIGN.md`](crates/fs-text/DESIGN.md).
+* `crates/fs-wiki-app`: the **first visible part**, a thin shell: imports a folder of Markdown files, maps texts to the neutral
+  blocks of `fs-components`, and offers the wiki to the reader workbench as its data source. No Blinc type appears in it.
 * `crates/fs-wiki-core`: the **program core**. The trait `Texts` (Rust form of `Texts` in `texts.capnp`) and `WikiRepo`, its
   implementation over `fs-store`.
 
@@ -17,7 +19,7 @@ consumers have tested it, then 1.0, then only version jumps.) Nothing here is de
 
 ## State
 
-Version 0.1.0 (first tag). Built on `fs-store` v0.2.0 and `fs-interfaces` v0.4.0 (git tags).
+Version 0.1.x (the app crate is new and untagged until reviewed). Built on `fs-store` v0.2.0 and `fs-interfaces` v0.4.0 (git tags).
 
 | Area | State |
 |---|---|
@@ -36,6 +38,11 @@ Version 0.1.0 (first tag). Built on `fs-store` v0.2.0 and `fs-interfaces` v0.4.0
 | `export_text(id, media_type)`: Markdown, layers not written | done |
 | Media types (`TextFormat`, Factory): `text/markdown` (parameters and case ignored); anything else is `Error::MediaType` | done |
 | Example `cargo run -p fs-wiki-core --example manifesto`: imports `fs-documentation/docs/en/manifesto.md`, reads it back (identical), lists its links | done |
+| `fs-wiki-app` (binary): `--docs` (default `../fs-documentation/docs/en`), `--store` (file; default in memory), `--export` (enables the Export button), `--snapshot` + `--step` (a picture without a window, see below) | done |
+| App: import of every `*.md` under the folder, path = relative path; failures collected with their reason and shown as the first entry "Import problems (n)" | done |
+| App: tree of pages, open, read with formatting, follow links (also relative `.md` links, resolved **in the app**, `source/resolve.rs`), back, search by name and content (`Texts::find`, first 200 hits) | done |
+| App: edit (Markdown text of the page; save = `import_external` against the stored document, then `Texts::edit`, so layers stay; the database is the truth, no file is written) and explicit Export (writes `<export folder>/<path>`) | done; typing in the real window not verified |
+| App tests | 15: `map` 5, `resolve` 4, `import` 2 (folder unchanged, failures listed), `source` 4 (also: save never writes the folder, export only when asked) |
 | Tests | 72: 46 `fs-text` as before + 2 `fs-text` serde + 24 `fs-wiki-core` (`texts_crud` 6, `texts_list` 2, `links` 3, `move_text` 5, `outside_change` 6, `provider` 2) |
 | capnp-rpc server, GUI, editors, collections / shelves (ADR 0034), named passages' registry, templates in the program | **not started** |
 
@@ -61,8 +68,21 @@ has a `Pattern:` line. For `fs-text` see its own DESIGN.md.
 | `path.rs` | Newtype | `TextPath`: only valid paths exist |
 | `error.rs` | none | plain error enum |
 
+`fs-wiki-app/src`:
+
+| Module | Pattern | Why |
+|---|---|---|
+| `import.rs` | Template method | collect, import each, report; the folder is only read |
+| `map/` | Adapter (+ Composite builder in `nest.rs`) | `fs-text` document to the neutral blocks: flat blocks with containers become nested lists/quotes; unknown things become plain text |
+| `source/wiki.rs` | Adapter over `Texts` | the reader's `DataSource`; sync calls through a runtime handle |
+| `source/resolve.rs` | Strategy (pure function) | relative links against the page they are on, `#fragment` and `?query` dropped, folders to `index.md` |
+| `source/problems.rs` | Adapter | failed imports as a page of the neutral model |
+| `args.rs` | Builder-like parser | no extra crate for seven options |
+
 ## Decisions
 
+* **Relative links are resolved in the app, not in `fs-wiki-core`.** `fs-wiki-core` keeps its literal path rule (wiki links `[[a/b]]`); documentation links are `../x/y.md#z`. Moving it into the core would change what a link means in the contract; whether it should is a question for the owner.
+* **The app is read, edit, export:** save goes to the database (`Texts::edit`); a file is only written by the explicit Export action (ADR 0042, 0046). A session that only reads and edits leaves the docs folder unchanged (tests `import`, `source`).
 * **The database is the truth** (ADR 0042): `WikiRepo` never writes a file. `export_text` returns the text; the caller writes it.
   A file that comes back is an `import_text`, which is a diff, not a replacement.
 * **A text's path is part of the record**, and indexed. A move changes the path of one text and the *links* in others, nothing else.
@@ -77,6 +97,10 @@ has a `Pattern:` line. For `fs-text` see its own DESIGN.md.
 * `serde`, `serde_json`, `thiserror`, `async-trait`, `tokio` (sync only).
 
 ## Open points
+
+First visible part (provisional, for the owner): the name of the reader and of the `fs-components-*` crates; `index.md` as the start page; the sidebar shows page titles, folders their name; import problems as a first tree entry; search results capped at 200; the Export folder is explicit (`--export`), never implied.
+
+Measured on `fs-documentation/docs/en` (1389 pages, 510 folders, 6.3 MB), release build, 32 cores: import into an in-memory store **27 s** (the whole startup; debug build 330 s), peak memory **440 MB**, 0 failed. A second start with `--store file` still takes 31 s: importing an existing path is a diff per page. The tree is built whole (1900 nodes); the picture and the window then take well under a second. Reading and search results of `find` over all pages were not timed separately.
 
 Questions for the owner (all provisional, easy to reverse):
 

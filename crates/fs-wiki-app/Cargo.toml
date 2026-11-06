@@ -1,0 +1,14 @@
+[package]
+name = "fs-wiki-app"
+description = "The wiki app of FreeSynergy, first visible part: reads, edits and exports the documentation in a window, on fs-components"
+edition = "2024"
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+fs-text = { path = "../fs-text" }
+fs-wiki-core = { path = "../fs-wiki-core" }
+fs-store = { git = "https://github.com/FreeSynergy/fs-store", tag = "v0.2.0" }
+fs-components-widgets = { git = "https://github.com/FreeSynergy/fs-components", rev = "49f632461e04adaa3a1071ecf8130a42613f8441" }  # provisional: becomes tag v0.1.x once reviewed
+fs-components-workbenches = { git = "https://github.com/FreeSynergy/fs-components", rev = "49f632461e04adaa3a1071ecf8130a42613f8441" }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
