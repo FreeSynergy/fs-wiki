@@ -13,10 +13,9 @@ impl Imp<'_> {
     pub(super) fn event(&mut self, idx: usize, ev: &Event, range: &Range<usize>) {
         match ev {
             Event::Start(tag) => self.start(idx, tag, range),
-            Event::End(end) => self.end(end),
-            Event::Text(t) => self.text(t),
+            Event::End(end) => self.end(*end),
+            Event::Text(t) | Event::InlineMath(t) | Event::DisplayMath(t) => self.text(t),
             Event::Code(c) => self.code(c),
-            Event::InlineMath(t) | Event::DisplayMath(t) => self.text(t),
             Event::Html(h) | Event::InlineHtml(h) => self.html(h),
             Event::FootnoteReference(label) => self.footnote_ref(label),
             Event::SoftBreak => self.text("\n"),
@@ -44,13 +43,13 @@ impl Imp<'_> {
     fn start(&mut self, idx: usize, tag: &Tag, range: &Range<usize>) {
         match tag {
             Tag::Paragraph | Tag::Heading { .. } | Tag::CodeBlock(_) | Tag::HtmlBlock => {
-                self.start_leaf_block(tag)
+                self.start_leaf_block(tag);
             }
             Tag::BlockQuote(_) | Tag::List(_) | Tag::Item | Tag::FootnoteDefinition(_) => {
-                self.start_container(idx, tag, range)
+                self.start_container(idx, tag, range);
             }
             Tag::Table(_) | Tag::TableHead | Tag::TableRow | Tag::TableCell => {
-                self.start_table(tag)
+                self.start_table(tag);
             }
             Tag::MetadataBlock(k) => self.start_front_matter(*k),
             Tag::Emphasis | Tag::Strong | Tag::Strikethrough => self.start_span(tag, range),
@@ -59,7 +58,7 @@ impl Imp<'_> {
         }
     }
 
-    fn end(&mut self, end: &TagEnd) {
+    fn end(&mut self, end: TagEnd) {
         match end {
             TagEnd::Paragraph
             | TagEnd::Heading(_)
@@ -68,7 +67,7 @@ impl Imp<'_> {
             | TagEnd::CodeBlock
             | TagEnd::Table => self.flush(),
             TagEnd::BlockQuote(_) | TagEnd::List(_) | TagEnd::Item | TagEnd::FootnoteDefinition => {
-                self.end_container(end)
+                self.end_container(end);
             }
             TagEnd::TableHead | TagEnd::TableRow => {
                 self.lists.pop();

@@ -11,10 +11,10 @@ pub(super) fn escape_into(out: &mut String, chars: &[char], p: usize, cx: Ctx, b
     let prev = if p > 0 { Some(chars[p - 1]) } else { None };
     let next = chars.get(p + 1).copied();
     // text edges count as non-blank: a delimiter run may sit right next to them
-    let ws = |o: Option<char>| o.map(|c| c.is_whitespace()).unwrap_or(false);
+    let ws = |o: Option<char>| o.is_some_and(char::is_whitespace);
     let line_start =
         !cx.table && !cx.heading && (p == 0 || matches!(chars[p - 1], '\n' | HARD_BREAK));
-    let next_blank = matches!(next, None | Some(' ') | Some('\n') | Some(HARD_BREAK));
+    let next_blank = matches!(next, None | Some(' ' | '\n' | HARD_BREAK));
     let esc = match c {
         HARD_BREAK => {
             out.push_str("\\\n");
@@ -24,15 +24,13 @@ pub(super) fn escape_into(out: &mut String, chars: &[char], p: usize, cx: Ctx, b
             out.push(' ');
             return;
         }
-        '\\' => next
-            .map(|n| n.is_ascii_punctuation() || n == '\n')
-            .unwrap_or(true),
+        '\\' => next.is_none_or(|n| n.is_ascii_punctuation() || n == '\n'),
         '`' => true,
         '*' => !(ws(prev) && ws(next)),
         '_' => {
             !((ws(prev) && ws(next))
-                || (prev.map(char::is_alphanumeric).unwrap_or(false)
-                    && next.map(char::is_alphanumeric).unwrap_or(false)))
+                || (prev.is_some_and(char::is_alphanumeric)
+                    && next.is_some_and(char::is_alphanumeric)))
         }
         '[' => {
             brackets
@@ -48,12 +46,11 @@ pub(super) fn escape_into(out: &mut String, chars: &[char], p: usize, cx: Ctx, b
                 || rest
                     .split(';')
                     .next()
-                    .map(|w| {
+                    .is_some_and(|w| {
                         rest.contains(';')
                             && !w.is_empty()
                             && w.chars().all(|c| c.is_ascii_alphanumeric())
                     })
-                    .unwrap_or(false)
         }
         '~' => prev == Some('~') || next == Some('~'),
         '|' => cx.table,
@@ -62,7 +59,7 @@ pub(super) fn escape_into(out: &mut String, chars: &[char], p: usize, cx: Ctx, b
             n <= 6
                 && matches!(
                     chars.get(p + n).copied(),
-                    None | Some(' ') | Some('\n') | Some(HARD_BREAK)
+                    None | Some(' ' | '\n' | HARD_BREAK)
                 )
         }
         '>' if line_start => true,

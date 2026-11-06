@@ -7,7 +7,7 @@ use super::state::Imp;
 use crate::doc::{Align, BlockKind};
 use pulldown_cmark::{Alignment, Tag};
 
-fn align(a: &Alignment) -> Align {
+fn align(a: Alignment) -> Align {
     match a {
         Alignment::None => Align::None,
         Alignment::Left => Align::Left,
@@ -22,7 +22,7 @@ impl Imp<'_> {
             Tag::Table(al) => {
                 self.flush();
                 self.leaf = Some(Leaf::new(BlockKind::Table {
-                    align: al.iter().map(align).collect(),
+                    align: al.iter().copied().map(align).collect(),
                 }));
                 self.pending_tight = true; // "no row yet"
             }

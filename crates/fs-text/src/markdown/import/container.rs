@@ -59,7 +59,7 @@ impl Imp<'_> {
         self.item_start.push(self.blocks.len());
     }
 
-    pub(super) fn end_container(&mut self, end: &TagEnd) {
+    pub(super) fn end_container(&mut self, end: TagEnd) {
         self.flush();
         match end {
             TagEnd::BlockQuote(_) => {

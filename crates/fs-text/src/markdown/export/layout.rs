@@ -53,6 +53,6 @@ pub(super) fn render_in_containers(
             l.push_str(&line);
             out.push(l);
         }
-        fresh.iter_mut().for_each(|f| *f = false);
+        fresh.fill(false);
     }
 }

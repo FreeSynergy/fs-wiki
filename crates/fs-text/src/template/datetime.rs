@@ -27,6 +27,9 @@ pub struct DateTime {
 impl DateTime {
     /// Convert Unix seconds (UTC).
     #[must_use]
+    // Civil-calendar arithmetic: every narrowed value is a small, non-negative calendar field
+    // (day 1-31, month 1-12, seconds of day, weekday 0-6) by construction.
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     pub fn from_unix(secs: i64) -> Self {
         let days = secs.div_euclid(86_400);
         let rem = secs.rem_euclid(86_400) as u32;
@@ -43,7 +46,7 @@ impl DateTime {
         let year = if m <= 2 { y + 1 } else { y };
         let leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
         let cum = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
-        let yday = cum[(m - 1) as usize] + d + if leap && m > 2 { 1 } else { 0 };
+        let yday = cum[(m - 1) as usize] + d + u32::from(leap && m > 2);
         Self {
             year,
             month: m,

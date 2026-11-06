@@ -3,6 +3,8 @@
 //! Pattern: Strategy by dialect — `> [!note]+ Title` (Obsidian) or `!!! note "Title"` (mkdocs),
 //! chosen by [`ExportOptions::admonitions`].
 
+use std::fmt::Write as _;
+
 use super::options::ExportOptions;
 
 /// Header after the container `prefix`: `prefix` + dialect-specific header.
@@ -21,7 +23,7 @@ pub(super) fn callout_header(
         });
         h.push_str(ty);
         if !title.is_empty() {
-            h.push_str(&format!(" \"{title}\""));
+            let _ = write!(h, " \"{title}\"");
         }
     } else {
         h.push_str("> [!");

@@ -53,6 +53,9 @@ pub fn plan_external_import_with(
 }
 
 /// Plan, apply and return `(forward ops, inverse ops in undo order)`.
+///
+/// # Panics
+/// Never for ops produced by the planner: they are valid for `doc` by construction.
 #[must_use]
 pub fn import_external(doc: &mut Document, new_text: &str) -> (Vec<Op>, Vec<Op>) {
     let ops = plan_external_import(doc, new_text);

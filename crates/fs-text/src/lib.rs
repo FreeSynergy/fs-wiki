@@ -4,6 +4,15 @@
 //! (commands), [`import_markdown`] / [`export_markdown`] (Markdown adapter behind the
 //! [`Importer`] / [`Exporter`] traits).
 #![deny(missing_docs)]
+#![warn(clippy::pedantic)]
+// Pedantic lints that would only add noise to this crate's small, documented API:
+// results of pure getters/builders are used by callers anyway, and names repeat their module
+// on purpose (`markdown::import_markdown`).
+#![allow(
+    clippy::missing_errors_doc,
+    clippy::must_use_candidate,
+    clippy::module_name_repetitions
+)]
 
 pub mod anchor;
 pub mod doc;

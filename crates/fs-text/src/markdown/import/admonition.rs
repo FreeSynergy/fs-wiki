@@ -21,7 +21,7 @@ pub fn convert_admonitions(src: &str) -> String {
                 match fence {
                     None => fence = Some((c, n)),
                     Some((fc, fnn)) if fc == c && n >= fnn && t[n..].trim().is_empty() => {
-                        fence = None
+                        fence = None;
                     }
                     _ => {}
                 }
@@ -68,7 +68,7 @@ pub fn convert_admonitions(src: &str) -> String {
                 }
                 for l in body {
                     if l.trim().is_empty() {
-                        out.push(format!("{}>", base));
+                        out.push(format!("{base}>"));
                     } else {
                         out.push(format!("{}> {}", base, &l[ind + 4..]));
                     }

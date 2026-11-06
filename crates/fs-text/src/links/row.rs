@@ -36,7 +36,7 @@ pub struct LinkRow {
 pub fn extract_links(doc: &Document) -> Vec<LinkRow> {
     let mut rows = Vec::new();
     for b in &doc.blocks {
-        for m in b.marks.iter() {
+        for m in &b.marks {
             if !matches!(m.kind, MarkKind::Link | MarkKind::Image) {
                 continue;
             }
