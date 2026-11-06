@@ -34,13 +34,10 @@ pub fn problems_document(failures: &[Failure]) -> Document {
         .map(|f| {
             let name = f.path.chars().count();
             let text = format!("{}: {}", f.path, f.reason);
-            ListItem {
-                task: None,
-                blocks: vec![Block::Paragraph(Inline::new(
-                    text,
-                    vec![Mark::new(MarkKind::Strong, 0, name)],
-                ))],
-            }
+            ListItem::new(vec![Block::Paragraph(Inline::new(
+                text,
+                vec![Mark::new(MarkKind::Strong, 0, name)],
+            ))])
         })
         .collect();
     blocks.push(Block::List {
@@ -48,8 +45,5 @@ pub fn problems_document(failures: &[Failure]) -> Document {
         start: 1,
         items,
     });
-    Document {
-        title: "Import problems".into(),
-        blocks,
-    }
+    Document::new("Import problems", blocks)
 }

@@ -11,10 +11,7 @@ use super::table::table;
 
 /// The document as the components draw it, titled `title`.
 pub fn to_document(title: &str, doc: &Doc) -> Document {
-    Document {
-        title: title.to_string(),
-        blocks: nest(&doc.blocks.iter().collect::<Vec<_>>(), 0),
-    }
+    Document::new(title, nest(&doc.blocks.iter().collect::<Vec<_>>(), 0))
 }
 
 /// One block without its containers.

@@ -9,9 +9,17 @@ use fs_text::{Block, Container};
 
 use super::blocks::{leaf, paragraph};
 
+/// How many containers deep blocks are nested before the rest is shown flat.
+const MAX_DEPTH: usize = 24;
+
 /// The nested blocks of `blocks`, looking at the container at `depth`.
 pub(super) fn nest(blocks: &[&Block], depth: usize) -> Vec<Out> {
     let mut out = Vec::new();
+    if depth >= MAX_DEPTH {
+        // Deeper containers are not drawn as containers (a stack of thousands would overflow the
+        // stack of the layout); their blocks are still shown.
+        return blocks.iter().map(|b| leaf(b)).collect();
+    }
     let mut i = 0;
     while i < blocks.len() {
         let Some(first) = blocks[i].attrs.containers.get(depth) else {
@@ -87,10 +95,8 @@ fn list(ordered: bool, blocks: &[&Block], depth: usize) -> Out {
             if items.is_empty() {
                 start = number.unwrap_or(1);
             }
-            items.push(ListItem {
-                task: *task,
-                blocks: nest(&blocks[i..j], depth + 1),
-            });
+            let item = ListItem::new(nest(&blocks[i..j], depth + 1));
+            items.push(task.map_or(item.clone(), |done| item.task(done)));
         }
         i = j;
     }

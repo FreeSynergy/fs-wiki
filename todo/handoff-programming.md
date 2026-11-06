@@ -1,0 +1,1 @@
+- 2026-11-06: fs-wiki-app (read, links, search, edit with revision, guarded export) on branch wiki-app, depends on fs-components by rev until its tag exists; not for main. See DESIGN.md.

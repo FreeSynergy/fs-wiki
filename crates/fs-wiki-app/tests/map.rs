@@ -82,3 +82,15 @@ fn footnote_references_are_written_out() {
     assert!(b[0].plain_text().contains("[^1]"), "{b:?}");
     assert!(b.iter().any(|x| x.plain_text().contains("the note")));
 }
+
+#[test]
+fn deeply_nested_quotes_and_lists_do_not_overflow() {
+    let deep = ">".repeat(1000) + " bottom\n";
+    let b = blocks(&deep);
+    assert!(b.iter().any(|x| x.plain_text().contains("bottom")));
+    let nested = (0..300)
+        .map(|i| format!("{}- item\n", "  ".repeat(i)))
+        .collect::<String>();
+    let b = blocks(&nested);
+    assert!(!b.is_empty());
+}

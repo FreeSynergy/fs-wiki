@@ -2,7 +2,7 @@
 //!
 //! Pattern: Table-driven tests of a pure function.
 
-use fs_components_workbenches::LinkTarget::{External, Missing, Page};
+use fs_components_workbenches::LinkTarget::{Document as Page, External, Missing};
 use fs_wiki_app::resolve;
 
 fn pages(p: &str) -> bool {
