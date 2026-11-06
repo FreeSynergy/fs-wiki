@@ -4,10 +4,12 @@
 //! (not over `WikiRepo`). The trait is async, the workbench is not: calls go through a runtime
 //! handle.
 
+mod export;
 mod problems;
 mod resolve;
 mod wiki;
 
+pub use export::export_markdown_to;
 pub use problems::{Failure, PROBLEMS_PATH};
 pub use resolve::resolve;
 pub use wiki::WikiSource;

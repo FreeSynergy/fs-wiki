@@ -5,7 +5,7 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use fs_components_workbenches::{Options, Step, launch, snapshot};
+use fs_components_workbenches::{Labels, Options, Picture, Step, launch, snapshot};
 use fs_store::{Store, TursoStore};
 use fs_wiki_app::args::{HELP, parse};
 use fs_wiki_app::{WikiSource, import_folder};
@@ -44,30 +44,32 @@ fn run() -> Result<(), String> {
         report.failures.len(),
         started.elapsed()
     );
-    let mut source = WikiSource::new(wiki, runtime.handle().clone(), report.failures);
-    if let Some(root) = &args.export {
-        source = source.with_export_root(root.clone());
-    }
-    let source = Arc::new(source);
+    let source = Arc::new(WikiSource::new(
+        wiki,
+        runtime.handle().clone(),
+        report.failures,
+    ));
+    let export_target = args.export.as_ref().map(|p| p.display().to_string());
+    let mut labels = Labels::default();
+    labels.search = "Search pages".into();
     if let Some(file) = &args.snapshot {
-        let steps: Vec<Step> = args.steps.iter().filter_map(|s| step(s)).collect();
-        let reader =
-            snapshot(source, &steps, args.size.0, args.size.1, file).map_err(|e| e.to_string())?;
+        let mut picture = Picture::new(source, args.size.0, args.size.1);
+        picture.labels = labels;
+        picture.export_target = export_target;
+        picture.steps = args.steps.iter().filter_map(|s| step(s)).collect();
+        let shot = snapshot(picture, file).map_err(|e| e.to_string())?;
         eprintln!(
             "wrote {}, showing {:?}",
             file.display(),
-            reader.current_path()
+            shot.reader.current_path()
         );
         return Ok(());
     }
-    launch(
-        &Options {
-            title: "FreeSynergy Wiki".into(),
-            ..Options::default()
-        },
-        source,
-    )
-    .map_err(|e| e.to_string())
+    let mut options = Options::default();
+    options.title = "FreeSynergy Wiki".into();
+    options.labels = labels;
+    options.export_target = export_target;
+    launch(&options, source).map_err(|e| e.to_string())
 }
 
 /// `open:<path>`, `follow:<href>`, `back`, `search:<term>`.
@@ -80,6 +82,8 @@ fn step(text: &str) -> Option<Step> {
         None if text == "back" => Some(Step::Back),
         None if text == "edit" => Some(Step::Edit),
         None if text == "save" => Some(Step::Save),
+        None if text == "cancel" => Some(Step::Cancel),
+        Some(("scroll", n)) => n.parse().ok().map(Step::Scroll),
         None if text == "export" => Some(Step::Export),
         _ => {
             eprintln!("fs-wiki-app: ignoring unknown step {text:?}");

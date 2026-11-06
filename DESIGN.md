@@ -43,8 +43,9 @@ Version 0.1.x (the app crate is new and untagged until reviewed). Built on `fs-s
 | `fs-wiki-app` (binary): `--docs` (default `../fs-documentation/docs/en`), `--store` (file; default in memory), `--export` (enables the Export button), `--snapshot` + `--step` (a picture without a window, see below) | done |
 | App: import of every `*.md` under the folder, path = relative path; failures collected with their reason and shown as the first entry "Import problems (n)" | done |
 | App: tree of pages, open, read with formatting, follow links (also relative `.md` links, resolved **in the app**, `source/resolve.rs`), back, search by name and content (`Texts::find`, first 200 hits) | done |
-| App: edit (Markdown text of the page; save = `import_external` against the stored document, then `Texts::edit`, so layers stay; the database is the truth, no file is written) and explicit Export (writes `<export folder>/<path>`) | done; typing in the real window not verified |
-| App tests | 15: `map` 5, `resolve` 4, `import` 2 (folder unchanged, failures listed), `source` 4 (also: save never writes the folder, export only when asked) |
+| App: edit (Markdown text of the page; save = compare the revision, then `import_external` against the stored document and `Texts::edit`, so layers stay; the database is the truth, no file is written). Revision = the store's `updated` time of the text; **the compare is in the adapter and not atomic** (`Texts::edit` has no revision; a compare-and-set in `fs-wiki-core` is a wish) | done; typing in the real window not verified |
+| App: explicit Export (`source/export.rs`): the path is checked as a path (`TextPath`), the file is written below the target only, symbolic links are not followed, an existing file with other content is a conflict and is replaced only after the person presses Export a second time | done |
+| App tests | 22: `map` 6 (also 1000 nested quotes), `resolve` 4, `import` 2 (folder unchanged, failures listed), `source` 6 (save never writes the folder, revision conflict, draft kept), `export` 4 (paths that leave the target, no silent replace, symbolic links) |
 | capnp-rpc server, GUI, editors, collections / shelves (ADR 0034), named passages' registry, templates in the program | **not started** |
 
 ## Structure and pattern map (ADR 0043)
@@ -102,7 +103,7 @@ has a `Pattern:` line. For `fs-text` see its own DESIGN.md.
 
 First visible part (provisional, for the owner): the name of the reader and of the `fs-components-*` crates; `index.md` as the start page; the sidebar shows page titles, folders their name; import problems as a first tree entry; search results capped at 200; the Export folder is explicit (`--export`), never implied.
 
-Measured on `fs-documentation/docs/en` (1389 pages, 510 folders, 6.3 MB), release build, 32 cores: import into an in-memory store **27 s** (the whole startup; debug build 330 s), peak memory **440 MB**, 0 failed. A second start with `--store file` still takes 31 s: importing an existing path is a diff per page. The tree is built whole (1900 nodes); the picture and the window then take well under a second. Reading and search results of `find` over all pages were not timed separately.
+Measured on `fs-documentation/docs/en` (1389 pages, 510 folders, 6.3 MB), release build, 32 cores: import into an in-memory store **27 s** (the whole startup; debug build 330 s), peak memory **440 MB**, 0 failed. A second start with `--store file` still takes 31 s: importing an existing path is a diff per page. **The reader calls the source on the interface thread** (`examples/timing.rs`, same machine): list of all pages 284 ms once at start, `get_by_path` + mapping of a page 20 ms (a click on a link or a tree row), `find` 34 to 59 ms per search keystroke. Tolerable for now, provisional; a worker thread or an async trait is the next step. The tree is built whole (1900 nodes); the picture and the window then take well under a second. Reading and search results of `find` over all pages were not timed separately.
 
 Questions for the owner (all provisional, easy to reverse):
 

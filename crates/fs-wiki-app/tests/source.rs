@@ -7,7 +7,7 @@ mod common;
 use std::sync::Arc;
 
 use common::{fingerprint, temp_dir, wiki, write_files};
-use fs_components_workbenches::{DataSource, LinkTarget, Reader};
+use fs_components_workbenches::{DocumentSource, ErrorKind, Labels, LinkTarget, Reader};
 use fs_wiki_app::{PROBLEMS_PATH, WikiSource, import_folder};
 
 fn source(
@@ -43,19 +43,19 @@ fn lists_reads_finds_and_follows_relative_links() {
     assert_eq!(titles, ["Bee", "Home"]);
     assert_eq!(src.start().as_deref(), Some("index.md"));
     assert_eq!(src.read("a/b.md").unwrap().title, "Bee");
-    assert!(src.read("nope.md").unwrap_err().0.contains("no page"));
+    assert_eq!(src.read("nope.md").unwrap_err().kind, ErrorKind::NotFound);
     let hits = src.find("unique-needle").unwrap();
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].path, "a/b.md");
     assert_eq!(
         src.resolve("a/b.md", "../index.md"),
-        LinkTarget::Page("index.md".into())
+        LinkTarget::Document("index.md".into())
     );
     assert_eq!(
         src.resolve("index.md", "zzz.md"),
         LinkTarget::Missing("zzz.md".into())
     );
-    let mut reader = Reader::new(Arc::new(src));
+    let mut reader = Reader::new(Arc::new(src), Labels::default());
     reader.open("a/b.md");
     reader.follow("../index.md");
     assert_eq!(reader.current_path(), Some("index.md"));
@@ -83,10 +83,15 @@ fn failed_imports_are_a_page_in_the_list() {
 fn saving_changes_the_database_and_never_the_file() {
     let (_rt, dir, src) = source(&[("p.md", "# P\n\nold text\n")], "save");
     let before = fingerprint(&dir);
-    let text = src.source_text("p.md").unwrap();
-    assert!(text.contains("old text"));
-    src.save("p.md", &text.replace("old", "new")).unwrap();
-    assert!(src.source_text("p.md").unwrap().contains("new text"));
+    let editable = src.source_text("p.md").unwrap();
+    assert!(editable.text.contains("old text"));
+    src.save(
+        "p.md",
+        &editable.text.replace("old", "new"),
+        editable.revision.as_deref(),
+    )
+    .unwrap();
+    assert!(src.source_text("p.md").unwrap().text.contains("new text"));
     assert!(
         src.read("p.md")
             .unwrap()
@@ -99,38 +104,70 @@ fn saving_changes_the_database_and_never_the_file() {
         before,
         "saving must not write the folder"
     );
-    assert!(!src.can_export());
-    assert!(src.export("p.md").is_err());
-    assert_eq!(fingerprint(&dir), before);
     std::fs::remove_dir_all(dir).unwrap();
 }
 
 #[test]
-fn export_writes_only_when_asked_and_only_to_the_given_folder() {
-    let (rt, dir, src) = source(&[("p.md", "# P\n\nbody\n")], "export");
-    let out = temp_dir("export-out");
-    let src = src.with_export_root(out.clone());
-    src.save("p.md", "# P\n\nedited body\n").unwrap();
-    assert!(!out.join("p.md").exists(), "saving is not exporting");
-    assert!(src.can_export());
-    let message = src.export("p.md").unwrap();
-    assert!(message.contains("p.md"));
-    assert!(
-        std::fs::read_to_string(out.join("p.md"))
-            .unwrap()
-            .contains("edited body")
-    );
-    assert!(
-        std::fs::read_to_string(dir.join("p.md"))
-            .unwrap()
-            .contains("body\n")
-    );
-    assert!(
-        !std::fs::read_to_string(dir.join("p.md"))
-            .unwrap()
-            .contains("edited")
-    );
+fn a_save_from_an_old_revision_is_a_conflict_and_writes_nothing() {
+    let (rt, dir, src) = source(&[("p.md", "# P\n\nold text\n")], "conflict");
+    let mine = src.source_text("p.md").unwrap();
+    assert_eq!(src.read("p.md").unwrap().revision, mine.revision);
+    // Someone else saves in between.
+    let other = src.source_text("p.md").unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(5));
+    src.save(
+        "p.md",
+        &other.text.replace("old", "THEIRS"),
+        other.revision.as_deref(),
+    )
+    .unwrap();
+    let err = src
+        .save(
+            "p.md",
+            &mine.text.replace("old", "mine"),
+            mine.revision.as_deref(),
+        )
+        .unwrap_err();
+    assert_eq!(err.kind, ErrorKind::Conflict);
+    assert!(src.source_text("p.md").unwrap().text.contains("THEIRS"));
     drop(rt);
     std::fs::remove_dir_all(dir).unwrap();
-    std::fs::remove_dir_all(out).unwrap();
+}
+
+#[test]
+fn the_reader_keeps_the_draft_on_a_conflict() {
+    let (_rt, dir, src) = source(&[("p.md", "# P\n\ntext\n")], "reader-conflict");
+    let src = Arc::new(src);
+    let mut reader = Reader::new(src.clone(), Labels::default());
+    reader.open("p.md");
+    reader.begin_edit();
+    let theirs = src.source_text("p.md").unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(5));
+    src.save(
+        "p.md",
+        &theirs.text.replace("text", "theirs"),
+        theirs.revision.as_deref(),
+    )
+    .unwrap();
+    reader.set_draft("# P\n\nmine\n");
+    reader.save();
+    assert!(
+        reader
+            .editing()
+            .unwrap()
+            .error
+            .as_ref()
+            .unwrap()
+            .contains("Someone else")
+    );
+    assert!(src.source_text("p.md").unwrap().text.contains("theirs"));
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn the_problems_page_is_not_editable() {
+    let (_rt, dir, src) = source(&[("bad#.md", "x")], "noedit");
+    assert!(!src.can_edit(PROBLEMS_PATH));
+    assert!(src.can_edit("anything.md"));
+    std::fs::remove_dir_all(dir).unwrap();
 }

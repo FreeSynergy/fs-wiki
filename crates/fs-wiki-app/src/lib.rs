@@ -17,4 +17,4 @@ pub mod source;
 
 pub use import::{Report, import_folder};
 pub use map::to_document;
-pub use source::{Failure, PROBLEMS_PATH, WikiSource, resolve};
+pub use source::{Failure, PROBLEMS_PATH, WikiSource, export_markdown_to, resolve};

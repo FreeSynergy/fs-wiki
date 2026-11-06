@@ -1,16 +1,23 @@
 //! `WikiSource`.
 //!
-//! Pattern: Adapter over `Texts` (Repository) — maps entries, reads, finds and link resolution
-//! to the workbench's `DataSource`.
+//! Pattern: Adapter over `Texts` (Repository) — maps entries, reads, finds, link resolution,
+//! editing and export to the workbench's `DocumentSource`.
+//!
+//! Revision: the store's `updated` time of the text. `Texts::edit` has no revision, so `save`
+//! compares the revision in the adapter and then edits; this is **not atomic** (another writer
+//! can slip in between the compare and the edit; a store-level compare-and-set is a wish for
+//! `fs-wiki-core`).
 
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use fs_components_widgets::Document;
-use fs_components_workbenches::{DataSource, Entry, Hit, LinkTarget, ReadError};
-use fs_wiki_core::{MARKDOWN, Paging, TextFormat, Texts};
+use fs_components_workbenches::{
+    DocumentSource, EditableText, Entry, Hit, LinkTarget, SourceError,
+};
+use fs_wiki_core::{MARKDOWN, Paging, TextEntry, TextFormat, Texts};
 use tokio::runtime::Handle;
 
+use super::export::export_markdown_to;
 use super::problems::{Failure, PROBLEMS_PATH, problems_document};
 use super::resolve::resolve;
 use crate::map::to_document;
@@ -23,7 +30,14 @@ pub struct WikiSource {
     texts: Arc<dyn Texts>,
     runtime: Handle,
     failures: Vec<Failure>,
-    export_root: Option<PathBuf>,
+}
+
+fn failed(e: &dyn std::fmt::Display) -> SourceError {
+    SourceError::failed(e.to_string())
+}
+
+fn revision_of(entry: &TextEntry) -> String {
+    format!("{:?}", entry.envelope.updated)
 }
 
 impl WikiSource {
@@ -33,16 +47,7 @@ impl WikiSource {
             texts,
             runtime,
             failures,
-            export_root: None,
         }
-    }
-
-    /// Allow the Export action: it writes the Markdown of a page to `root/<path>`. Nothing else
-    /// ever writes into that folder.
-    #[must_use]
-    pub fn with_export_root(mut self, root: PathBuf) -> Self {
-        self.export_root = Some(root);
-        self
     }
 
     fn exists(&self, path: &str) -> bool {
@@ -51,54 +56,56 @@ impl WikiSource {
             Ok(Some(_))
         )
     }
+
+    fn entry(&self, path: &str) -> Result<TextEntry, SourceError> {
+        self.runtime
+            .block_on(self.texts.get_by_path(path))
+            .map_err(|e| failed(&e))?
+            .ok_or_else(|| SourceError::not_found(format!("there is no document \"{path}\"")))
+    }
 }
 
-impl DataSource for WikiSource {
-    fn entries(&self, prefix: &str) -> Result<Vec<Entry>, ReadError> {
+impl DocumentSource for WikiSource {
+    fn entries(&self, prefix: &str) -> Result<Vec<Entry>, SourceError> {
         let mut out = Vec::new();
         if !self.failures.is_empty() && PROBLEMS_PATH.starts_with(prefix) {
-            out.push(Entry {
-                path: PROBLEMS_PATH.into(),
-                title: format!("Import problems ({})", self.failures.len()),
-            });
+            out.push(Entry::new(
+                PROBLEMS_PATH,
+                format!("Import problems ({})", self.failures.len()),
+            ));
         }
         let texts = self
             .runtime
             .block_on(self.texts.list(prefix, Paging::default()))
-            .map_err(|e| ReadError(e.to_string()))?;
-        out.extend(texts.into_iter().map(|t| Entry {
-            path: t.path,
-            title: t.envelope.name,
-        }));
+            .map_err(|e| failed(&e))?;
+        out.extend(
+            texts
+                .into_iter()
+                .map(|t| Entry::new(t.path, t.envelope.name)),
+        );
         Ok(out)
     }
 
-    fn read(&self, path: &str) -> Result<Document, ReadError> {
+    fn read(&self, path: &str) -> Result<Document, SourceError> {
         if path == PROBLEMS_PATH {
             return Ok(problems_document(&self.failures));
         }
-        match self.runtime.block_on(self.texts.get_by_path(path)) {
-            Ok(Some(t)) => Ok(to_document(&t.envelope.name, &t.document)),
-            Ok(None) => Err(ReadError(format!("there is no page \"{path}\""))),
-            Err(e) => Err(ReadError(e.to_string())),
-        }
+        let t = self.entry(path)?;
+        Ok(to_document(&t.envelope.name, &t.document).with_revision(revision_of(&t)))
     }
 
     fn resolve(&self, from: &str, href: &str) -> LinkTarget {
         resolve(from, href, &|p| self.exists(p))
     }
 
-    fn find(&self, term: &str) -> Result<Vec<Hit>, ReadError> {
+    fn find(&self, term: &str) -> Result<Vec<Hit>, SourceError> {
         let found = self
             .runtime
             .block_on(self.texts.find(term, Paging::new(MAX_HITS, 0)))
-            .map_err(|e| ReadError(e.to_string()))?;
+            .map_err(|e| failed(&e))?;
         Ok(found
             .into_iter()
-            .map(|t| Hit {
-                path: t.path,
-                title: t.envelope.name,
-            })
+            .map(|t| Hit::new(t.path, t.envelope.name))
             .collect())
     }
 
@@ -106,31 +113,29 @@ impl DataSource for WikiSource {
         self.exists("index.md").then(|| "index.md".to_string())
     }
 
-    fn can_edit(&self) -> bool {
-        true
+    fn can_edit(&self, path: &str) -> bool {
+        path != PROBLEMS_PATH
     }
 
-    fn source_text(&self, path: &str) -> Result<String, ReadError> {
-        let err = |e: &dyn std::fmt::Display| ReadError(e.to_string());
-        let entry = self
+    fn source_text(&self, path: &str) -> Result<EditableText, SourceError> {
+        let entry = self.entry(path)?;
+        let text = self
             .runtime
-            .block_on(self.texts.get_by_path(path))
-            .map_err(|e| err(&e))?
-            .ok_or_else(|| ReadError(format!("there is no page \"{path}\"")))?;
-        self.runtime
             .block_on(self.texts.export_text(entry.id, MARKDOWN))
-            .map_err(|e| err(&e))
+            .map_err(|e| failed(&e))?;
+        Ok(EditableText::new(text, Some(revision_of(&entry))))
     }
 
     /// The edit goes to the database as the difference to the stored text (`Texts::edit`); layers
     /// stay with the text. No file is written.
-    fn save(&self, path: &str, text: &str) -> Result<(), ReadError> {
-        let err = |e: &dyn std::fmt::Display| ReadError(e.to_string());
-        let entry = self
-            .runtime
-            .block_on(self.texts.get_by_path(path))
-            .map_err(|e| err(&e))?
-            .ok_or_else(|| ReadError(format!("there is no page \"{path}\"")))?;
+    fn save(&self, path: &str, text: &str, revision: Option<&str>) -> Result<(), SourceError> {
+        let entry = self.entry(path)?;
+        if revision.is_some_and(|r| r != revision_of(&entry)) {
+            return Err(SourceError::conflict(
+                "Someone else changed this document since you started. Your text is kept; \
+                 copy it, cancel, and edit the new version.",
+            ));
+        }
         let mut document = entry.document.clone();
         if !TextFormat::Markdown.import_external(&mut document, text) {
             return Ok(());
@@ -138,24 +143,15 @@ impl DataSource for WikiSource {
         self.runtime
             .block_on(self.texts.edit(entry.id, document))
             .map(|_| ())
-            .map_err(|e| err(&e))
+            .map_err(|e| failed(&e))
     }
 
-    fn can_export(&self) -> bool {
-        self.export_root.is_some()
+    fn can_export(&self, path: &str) -> bool {
+        path != PROBLEMS_PATH
     }
 
-    fn export(&self, path: &str) -> Result<String, ReadError> {
-        let root = self
-            .export_root
-            .as_ref()
-            .ok_or_else(|| ReadError("export is not switched on (--export)".into()))?;
-        let markdown = self.source_text(path)?;
-        let file = root.join(path);
-        if let Some(dir) = file.parent() {
-            std::fs::create_dir_all(dir).map_err(|e| ReadError(e.to_string()))?;
-        }
-        std::fs::write(&file, markdown).map_err(|e| ReadError(e.to_string()))?;
-        Ok(format!("Exported to {}.", file.display()))
+    fn export(&self, path: &str, target: &str, overwrite: bool) -> Result<String, SourceError> {
+        let markdown = self.source_text(path)?.text;
+        export_markdown_to(path, target, &markdown, overwrite)
     }
 }

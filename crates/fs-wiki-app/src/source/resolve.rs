@@ -15,7 +15,7 @@ pub fn resolve(from: &str, href: &str, exists: &dyn Fn(&str) -> bool) -> LinkTar
     let page = href.split('#').next().unwrap_or("");
     let page = page.split('?').next().unwrap_or("");
     if page.is_empty() {
-        return LinkTarget::Page(from.to_string());
+        return LinkTarget::Document(from.to_string());
     }
     let decoded = percent_decode(page);
     let Some(path) = join(from, &decoded) else {
@@ -31,7 +31,7 @@ pub fn resolve(from: &str, href: &str, exists: &dyn Fn(&str) -> bool) -> LinkTar
     candidates
         .into_iter()
         .find(|c| !c.is_empty() && !c.ends_with('/') && exists(c))
-        .map_or_else(|| LinkTarget::Missing(path), LinkTarget::Page)
+        .map_or_else(|| LinkTarget::Missing(path), LinkTarget::Document)
 }
 
 fn is_external(href: &str) -> bool {
