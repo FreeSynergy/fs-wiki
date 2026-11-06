@@ -17,6 +17,7 @@ impl Imp<'_> {
             Tag::BlockQuote(_) => {
                 self.containers.push(Container::Quote { inst });
                 self.fresh_quote.push(true);
+                self.quote_start.push(self.blocks.len());
             }
             Tag::List(start) => {
                 let tight = !self.loose.contains(&idx);
@@ -63,6 +64,11 @@ impl Imp<'_> {
         self.flush();
         match end {
             TagEnd::BlockQuote(_) => {
+                if self.quote_start.pop() == Some(self.blocks.len()) {
+                    // empty quote: the person wrote it, so keep it as an empty paragraph
+                    self.leaf = Some(Leaf::new(BlockKind::Paragraph));
+                    self.flush();
+                }
                 self.containers.pop();
                 self.fresh_quote.pop();
             }

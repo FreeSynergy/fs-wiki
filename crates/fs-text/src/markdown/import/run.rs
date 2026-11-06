@@ -19,11 +19,11 @@ pub fn import_markdown(src: &str) -> Document {
     let events: Vec<(Event, Range<usize>)> = Parser::new_ext(&src, options())
         .into_offset_iter()
         .collect();
-    let mut s = Imp::new(&src, loose_lists(&events));
+    let mut s = Imp::new(&src, loose_lists(&src, &events));
     for (idx, (ev, range)) in events.iter().enumerate() {
         s.event(idx, ev, range);
     }
-    s.flush();
+    s.finish();
     Document {
         id: new_id(),
         blocks: s.blocks,

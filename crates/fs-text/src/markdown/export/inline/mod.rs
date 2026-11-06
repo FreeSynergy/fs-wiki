@@ -10,7 +10,9 @@ mod delim;
 mod emit;
 mod escape;
 mod plan;
+mod variant;
+mod verify;
 mod writer;
 
 pub(super) use ctx::Ctx;
-pub(super) use emit::inline;
+pub(super) use verify::inline;

@@ -17,6 +17,7 @@ mod leaf;
 mod loose;
 mod options;
 mod run;
+mod separator;
 mod state;
 mod table;
 mod wikilink;

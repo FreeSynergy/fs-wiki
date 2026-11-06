@@ -6,7 +6,14 @@
 use super::ctx::Ctx;
 use crate::markdown::HARD_BREAK;
 
-pub(super) fn escape_into(out: &mut String, chars: &[char], p: usize, cx: Ctx, brackets: bool) {
+/// `(context, inside a link, written as is)`: a `raw` char is a delimiter character that is
+/// left unescaped on purpose so it joins the delimiter run next to it.
+pub(super) fn escape_into(out: &mut String, chars: &[char], p: usize, how: (Ctx, bool, bool)) {
+    let (cx, brackets, raw) = how;
+    if raw {
+        out.push(chars[p]);
+        return;
+    }
     let c = chars[p];
     let prev = if p > 0 { Some(chars[p - 1]) } else { None };
     let next = chars.get(p + 1).copied();

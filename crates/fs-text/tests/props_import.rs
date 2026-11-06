@@ -17,10 +17,6 @@ proptest! {
         Just("| a | b |\n|---|---|\n| 1 | 2 |".to_string()), Just("[l](u) `c` ~~s~~".to_string()),
         "[a-z*_\\[\\]#> -]{1,12}", ], 1..6)) {
         let src = parts.join("\n\n");
-        // Runs of three delimiters: see `known_issue_rule_of_three`.
-        prop_assume!(!src.contains("***") && !src.contains("___"));
-        // Two lists with only an empty quote between them: see `known_issue_adjacent_lists`.
-        prop_assume!(!parts.iter().any(|p| p.trim_matches([' ', '>']).is_empty()));
         let d1 = import_markdown(&src);
         let out = export_markdown(&d1, ExportOptions::default());
         let d2 = import_markdown(&out);
@@ -38,24 +34,4 @@ fn delimiters_of_neighbours_stay_as_written() {
         assert_eq!(out.trim_end(), src);
         assert!(d.same_content(&import_markdown(&out)), "{src}");
     }
-}
-
-/// Known issue (DESIGN.md): CommonMark's rule of three pairs `*a *b**\\*` differently from
-/// `*a *b***`. No text is lost, only the nesting of the marks changes.
-#[test]
-#[ignore = "known issue: a nested emphasis ending in front of a literal star"]
-fn known_issue_rule_of_three() {
-    let d = import_markdown("*[ *#***");
-    let out = export_markdown(&d, ExportOptions::default());
-    assert!(d.same_content(&import_markdown(&out)), "{out}");
-}
-
-/// Known issue (DESIGN.md): two lists with nothing written between them become one on re-import.
-/// No text is lost, only the split into two lists, and an empty quote has no block at all.
-#[test]
-#[ignore = "known issue: adjacent lists of the same type merge"]
-fn known_issue_adjacent_lists() {
-    let d = import_markdown("1. x\n2. y\n\n>\n\n1. x\n2. y");
-    let out = export_markdown(&d, ExportOptions::default());
-    assert!(d.same_content(&import_markdown(&out)), "{out}");
 }

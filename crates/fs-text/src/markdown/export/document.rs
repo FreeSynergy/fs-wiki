@@ -3,7 +3,7 @@
 //! Pattern: Template method — decides per block whether a blank line separates it from the
 //! previous one (tight lists, glued blocks) and delegates the rendering.
 
-use super::container::{common, cont_prefix, tight_join};
+use super::container::{common, cont_prefix, lists_would_merge, tight_join};
 use super::layout::render_in_containers;
 use super::options::ExportOptions;
 use crate::doc::{Block, BlockKind, Container, Document};
@@ -36,6 +36,11 @@ pub fn export_blocks(blocks: &[Block], opts: ExportOptions) -> String {
             let glued = b.attrs.extra.contains_key("glue") && !two_paras;
             if !(tight || glued) {
                 let pfx: String = cs[..k].iter().map(|c| cont_prefix(c, opts)).collect();
+                if k < cs.len() && prev.get(k).is_some_and(|p| lists_would_merge(p, &cs[k])) {
+                    // two lists of one type would read back as one: a comment keeps them apart
+                    out.push(pfx.trim_end().to_string());
+                    out.push(format!("{pfx}<!-- -->"));
+                }
                 out.push(pfx.trim_end().to_string());
             }
         }

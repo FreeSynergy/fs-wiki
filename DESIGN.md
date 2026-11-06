@@ -99,11 +99,30 @@ Not done / limits:
 * `subscribe` (`text.subscribe`) is not built; the capnp-rpc server is not written.
 * Offset paging (`Paging`) costs O(offset) in the store; the wire `Cursor` will wrap the offset.
 
-## Known issue: Markdown round trip
+## Markdown round trip
 
-A nested emphasis that ends right before a literal star (`*a *b***`) comes back with other nesting, because of CommonMark's
-rule of three. No text is lost and only runs of three delimiters (`***`, `___`) are affected. `known_issue_rule_of_three` holds the case, and the
-property test leaves out `***` and `___` until the export is reworked.
+The property `markdown_model_is_stable` (import, export, import gives the same content) holds
+without exclusions. Real text stays clean: `2 * 3`, `snake_case` and `a_b` get no backslashes.
 
-Two lists with nothing written between them become one on re-import, and an empty quote (`>`) has no block at all. No text is
-lost. `known_issue_adjacent_lists` holds the case, and the property test leaves out parts that are only an empty quote.
+* **Runs of delimiters.** CommonMark pairs `*`/`_` runs by flanking and the rule of three, which no
+  local escaping rule predicts. `inline` therefore writes the plain, escaped form first and reads
+  it back; only when the text or the emphasis differs, other writing variants are tried (`variant`:
+  a literal delimiter char joins the run before an opener or after a closer, an emphasis keeps its
+  `*` behind a `*`) and the first one that reads back right wins. Text that already reads back is
+  untouched. A `_` span stays `_` when punctuation (a link end, a `*` closer) stands next to it.
+* **Empty quote.** `>` is something the person wrote, so it is a block: an empty paragraph inside the
+  quote (like an empty list item). It also keeps the lists around it apart.
+* **Adjacent lists.** Two lists of one type with no block between them (for example around a link
+  definition, which is not a block) would read back as one. The export puts `<!-- -->` between them,
+  the usual way to say it in Markdown and invisible in other tools. The importer does not keep this
+  comment as a block when it stands between two lists, because the model already says "two lists"
+  (a different list marker needs no comment). Every other comment stays an HTML block.
+* **Loose lists** are also recognised by a blank line before the next item (`*`, `* #`), not only by
+  a paragraph in an item. A nested tight list in a loose item gets its blank line.
+* **Thematic break** behind a `-` marker is written `***` (`- ---` is one rule, no item).
+* **Wide table rows.** Cells beyond the header width are dropped by the parser; the importer reads them
+  from the row's source and widens the table (empty header cells), so no text is lost.
+
+`tests/real_docs.rs` (`--ignored`) imports and exports every file of the documentation tree and
+checks that no word is lost and a second round is stable. Link reference definitions
+(`[x]: /url`) are not part of the model and are still not written back.

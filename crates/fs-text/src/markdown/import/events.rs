@@ -13,7 +13,7 @@ impl Imp<'_> {
     pub(super) fn event(&mut self, idx: usize, ev: &Event, range: &Range<usize>) {
         match ev {
             Event::Start(tag) => self.start(idx, tag, range),
-            Event::End(end) => self.end(*end),
+            Event::End(end) => self.end(*end, range),
             Event::Text(t) | Event::InlineMath(t) | Event::DisplayMath(t) => self.text(t),
             Event::Code(c) => self.code(c),
             Event::Html(h) | Event::InlineHtml(h) => self.html(h),
@@ -58,7 +58,7 @@ impl Imp<'_> {
         }
     }
 
-    fn end(&mut self, end: TagEnd) {
+    fn end(&mut self, end: TagEnd, range: &Range<usize>) {
         match end {
             TagEnd::Paragraph
             | TagEnd::Heading(_)
@@ -69,8 +69,9 @@ impl Imp<'_> {
             TagEnd::BlockQuote(_) | TagEnd::List(_) | TagEnd::Item | TagEnd::FootnoteDefinition => {
                 self.end_container(end);
             }
+            TagEnd::TableCell => self.cell_end = range.end,
             TagEnd::TableHead | TagEnd::TableRow => {
-                self.lists.pop();
+                self.end_row(matches!(end, TagEnd::TableHead), range);
             }
             TagEnd::Emphasis
             | TagEnd::Strong

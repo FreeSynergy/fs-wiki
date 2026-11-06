@@ -9,27 +9,47 @@ use super::ctx::Ctx;
 use super::delim::delim;
 use super::escape::escape_into;
 use super::plan::{plan, Em};
+use super::variant::Variant;
 use crate::mark::{Mark, MarkKind, MarkValue};
 use crate::markdown::{md_syntax, MarkWriter};
 
-fn delimiter(m: &Mark, chars: &[char], e: &Em, star_follows: bool) -> &'static str {
+fn delimiter(m: &Mark, chars: &[char], e: &Em, stars: (bool, bool)) -> &'static str {
     match m.kind {
-        MarkKind::Emphasis => delim(m, chars, e.s, e.e, "*", "_", star_follows),
-        MarkKind::Strong => delim(m, chars, e.s, e.e, "**", "__", star_follows),
+        MarkKind::Emphasis => delim(m, chars, e.s, e.e, "*", "_", stars),
+        MarkKind::Strong => delim(m, chars, e.s, e.e, "**", "__", stars),
         _ => "",
     }
 }
 
-/// Does a span that writes `*` open right where `e` ends? A span that keeps `_` does not count:
+/// Does a span that writes a punctuation char sit right behind `e` (it opens where `e` ends),
+/// or right in front of it (it ends where `e` starts)? Such a neighbour makes the delimiter run
+/// of `e` stand next to punctuation, not next to a word. A span that keeps `_` does not count:
 /// two `_` runs would fuse.
-fn star_follows(ems: &[Em], marks: &[&Mark], e: &Em) -> bool {
-    ems.iter().any(|o| {
+fn punct_runs(ems: &[Em], marks: &[&Mark], k: usize) -> (bool, bool) {
+    let e = &ems[k];
+    let punct = |o: &Em| {
         let m = marks[o.m];
-        o.s == e.e
-            && o.e > o.s
-            && matches!(m.kind, MarkKind::Emphasis | MarkKind::Strong)
-            && m.value != MarkValue::Name("_".into())
-    })
+        match m.kind {
+            MarkKind::Emphasis | MarkKind::Strong => {
+                o.e > o.s && m.value != MarkValue::Name("_".into())
+            }
+            MarkKind::Html => false,
+            _ => o.e > o.s || m.is_point(),
+        }
+    };
+    // behind: a span opening where `e` ends, or one enclosing `e` that closes where it does
+    let behind = |(j, o): (usize, &Em)| {
+        (o.s == e.e || (o.e == e.e && (o.s < e.s || (o.s == e.s && j < k)))) && punct(o)
+    };
+    // in front: a span ending where `e` starts, or one enclosing `e` that opens where it does
+    let in_front = |(j, o): (usize, &Em)| {
+        let encloses = o.e > e.e || (o.e == e.e && j < k);
+        (o.e == e.s || (o.s == e.s && (encloses || marks[o.m].is_point()))) && punct(o)
+    };
+    (
+        ems.iter().enumerate().any(behind),
+        ems.iter().enumerate().any(in_front),
+    )
 }
 
 fn open_str(m: &Mark, d: &str) -> String {
@@ -51,31 +71,36 @@ fn apart_from_star<'a>(d: &'a str, out: &str, chars: &[char], e: &Em) -> &'a str
     }
 }
 
-/// Render `chars[lo..hi]` with the marks that fall into the window.
-pub(in crate::markdown::export) fn inline(
+/// Render `chars[lo..hi]` with the marks that fall into the window, written as `how` says.
+pub(super) fn sweep(
     chars: &[char],
     marks: &[&Mark],
-    lo: usize,
-    hi: usize,
+    (lo, hi): (usize, usize),
     cx: Ctx,
+    how: Variant,
 ) -> String {
     let ems = plan(marks, lo, hi, cx.opts);
     let chars = &chars[lo..hi];
     let n = chars.len();
     let mut ds: Vec<&str> = ems
         .iter()
-        .map(|e| delimiter(marks[e.m], chars, e, star_follows(&ems, marks, e)))
+        .enumerate()
+        .map(|(k, e)| delimiter(marks[e.m], chars, e, punct_runs(&ems, marks, k)))
         .collect();
     let mut out = String::new();
     let mut stack: Vec<usize> = Vec::new(); // indices into ems
     let mut opened = vec![false; ems.len()];
     let mut p = 0usize;
     loop {
+        // last char of a closer written at this position, and `out.len()` right after it
+        let mut after_close: Option<(char, usize)> = None;
         // closes (marks above a closing one are closed and re-opened)
         while let Some(j) = stack.iter().position(|&i| ems[i].e <= p) {
             let above: Vec<usize> = stack.split_off(j);
             for &i in above.iter().rev() {
-                out.push_str(&close_str(marks[ems[i].m], ds[i]));
+                let c = close_str(marks[ems[i].m], ds[i]);
+                out.push_str(&c);
+                after_close = c.chars().last().map(|c| (c, out.len()));
             }
             for &i in above.iter().skip(1) {
                 if ems[i].e > p {
@@ -111,7 +136,9 @@ pub(in crate::markdown::export) fn inline(
                     atom_end = Some(e.e);
                 }
             } else {
-                ds[k] = apart_from_star(ds[k], &out, chars, e);
+                if !how.keep_star {
+                    ds[k] = apart_from_star(ds[k], &out, chars, e);
+                }
                 out.push_str(&open_str(m, ds[k]));
                 stack.push(k);
             }
@@ -126,7 +153,14 @@ pub(in crate::markdown::export) fn inline(
         let in_link = stack
             .iter()
             .any(|&i| matches!(marks[ems[i].m].kind, MarkKind::Link | MarkKind::Image));
-        escape_into(&mut out, chars, p, cx, in_link);
+        let raw = how.raw_delimiter_char(
+            chars[p],
+            p,
+            &ems,
+            &ds,
+            after_close.filter(|a| a.1 == out.len()),
+        );
+        escape_into(&mut out, chars, p, (cx, in_link, raw));
         p += 1;
     }
     // anything left open (shouldn't be): close

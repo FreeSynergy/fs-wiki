@@ -7,7 +7,19 @@ use super::callout::callout_header;
 use super::container::{common, cont_prefix, marker};
 use super::leaf::render_block;
 use super::options::ExportOptions;
-use crate::doc::{Block, Container};
+use crate::doc::{Block, BlockKind, Container};
+
+/// A thematic break that is not read as part of the prefix: `- ---` is one rule and no item,
+/// so a rule behind `-` marks (`> - `, `1. - `) is written with `*`.
+fn rule_apart_from(prefix: &str) -> String {
+    let tail = prefix.trim_end_matches(|c: char| c == '-' || c.is_whitespace());
+    if prefix[tail.len()..].contains('-') {
+        "***"
+    } else {
+        "---"
+    }
+    .into()
+}
 
 pub(super) fn render_in_containers(
     b: &Block,
@@ -47,6 +59,11 @@ pub(super) fn render_in_containers(
     }
     for line in render_block(b, opts) {
         let mut l = prefix(&fresh, cs.len());
+        let line = if b.attrs.kind == BlockKind::ThematicBreak {
+            rule_apart_from(&l)
+        } else {
+            line
+        };
         if line.is_empty() {
             out.push(l.trim_end().to_string());
         } else {

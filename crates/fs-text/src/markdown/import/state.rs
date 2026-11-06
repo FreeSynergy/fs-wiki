@@ -5,6 +5,7 @@
 
 use super::blockref::extract_block_ref;
 use super::leaf::Leaf;
+use super::table::widen_table;
 use crate::doc::{Block, BlockAttrs, BlockKind, Container};
 use crate::id::new_id;
 use crate::mark::{Mark, MarkKind, MarkSet, MarkValue};
@@ -25,6 +26,9 @@ pub(super) struct Imp<'a> {
     pub lists: Vec<ListState>,
     pub pending_tight: bool,
     pub item_start: Vec<usize>,
+    pub quote_start: Vec<usize>,
+    pub cell_end: usize,
+    pub pending_sep: Option<Block>,
 }
 
 impl<'a> Imp<'a> {
@@ -40,6 +44,9 @@ impl<'a> Imp<'a> {
             lists: Vec::new(),
             pending_tight: true,
             item_start: Vec::new(),
+            quote_start: Vec::new(),
+            cell_end: 0,
+            pending_sep: None,
         }
     }
     pub fn inst(&mut self) -> u32 {
@@ -86,6 +93,7 @@ impl<'a> Imp<'a> {
             leaf.text.pop();
             leaf.len -= 1;
         }
+        widen_table(&mut leaf);
         let mut attrs = BlockAttrs::new(leaf.kind.clone());
         attrs.containers.clone_from(&self.containers);
         match (&leaf.kind, leaf.heading_attrs.take()) {
@@ -121,7 +129,7 @@ impl<'a> Imp<'a> {
         if was_fresh && block.attrs.kind == BlockKind::Paragraph {
             self.try_callout(&mut block);
         }
-        self.blocks.push(block);
+        self.push_block(block);
     }
 }
 

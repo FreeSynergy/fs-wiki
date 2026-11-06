@@ -84,7 +84,7 @@ pub(super) fn render_table(
     opts: ExportOptions,
 ) -> Vec<String> {
     let rows = split_rows(chars, marks, opts);
-    let ncols = align.len().max(rows.first().map_or(0, Vec::len));
+    let ncols = rows.iter().map(Vec::len).fold(align.len(), usize::max);
     let mut out = Vec::new();
     if let Some(h) = rows.first() {
         out.push(fmt_row(h, ncols));

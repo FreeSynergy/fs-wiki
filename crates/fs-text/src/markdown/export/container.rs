@@ -20,7 +20,29 @@ pub(super) fn tight_join(a: &[Container], b: &[Container], k: usize) -> bool {
     match a.get(k) {
         Some(Container::Item { list: al, .. }) => al == list,
         Some(_) => false,
-        None => k > 0 && matches!(b[k - 1], Container::Item { .. }),
+        None => k > 0 && matches!(b[k - 1], Container::Item { tight: true, .. }),
+    }
+}
+
+/// Would two neighbouring list items of different lists read as one list? (Same bullet or same
+/// number delimiter.)
+pub(super) fn lists_would_merge(a: &Container, b: &Container) -> bool {
+    match (a, b) {
+        (
+            Container::Item {
+                list: la,
+                number: na,
+                marker: ma,
+                ..
+            },
+            Container::Item {
+                list: lb,
+                number: nb,
+                marker: mb,
+                ..
+            },
+        ) => la != lb && na.is_some() == nb.is_some() && ma == mb,
+        _ => false,
     }
 }
 

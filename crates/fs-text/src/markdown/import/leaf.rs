@@ -20,6 +20,8 @@ pub(super) struct Leaf {
     pub start: Option<usize>,
     pub glue: bool,
     pub dashes: Option<String>,
+    /// Tables: the widest row (cells).
+    pub max_cells: usize,
 }
 
 impl Leaf {
@@ -36,6 +38,7 @@ impl Leaf {
             start: None,
             glue: false,
             dashes: None,
+            max_cells: 0,
         }
     }
     pub fn push(&mut self, s: &str) {
