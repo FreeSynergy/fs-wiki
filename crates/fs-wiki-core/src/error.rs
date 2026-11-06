@@ -28,6 +28,19 @@ pub enum Error {
         /// What is wrong with it.
         reason: &'static str,
     },
+    /// A folder move that cannot be done at all, whatever the store holds.
+    #[error("cannot move {from:?} to {to:?}: {reason}")]
+    InvalidMove {
+        /// The folder as given.
+        from: String,
+        /// The target as given.
+        to: String,
+        /// What is wrong with it.
+        reason: &'static str,
+    },
+    /// No text at the path and none below it.
+    #[error("nothing at {0:?} or below it")]
+    NoSuchFolder(String),
     /// No import / export format is known for this media type.
     #[error("unknown media type {0:?} (known: text/markdown)")]
     MediaType(String),

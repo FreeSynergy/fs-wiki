@@ -91,6 +91,13 @@ pub trait Texts: Send + Sync {
     async fn move_to(&self, _id: ObjectId, _path: &str) -> Result<TextEntry> {
         not_possible("text.move")
     }
+    /// `text.move` for a folder: the text at `prefix` (if there is one) and every text below
+    /// `prefix/` move to `path` and `path/...`; links in all texts follow. Returns the moved texts
+    /// in their new places, shallow ones first. A clash with an existing text refuses the whole
+    /// move before anything is written; repeating an interrupted call finishes it.
+    async fn move_folder(&self, _prefix: &str, _path: &str) -> Result<Vec<TextEntry>> {
+        not_possible("text.move")
+    }
     /// `text.delete`: delete a text with its layers (undoable through the store).
     async fn delete(&self, _id: ObjectId) -> Result<()> {
         not_possible("text.delete")

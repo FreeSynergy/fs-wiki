@@ -1,10 +1,11 @@
 //! The store-backed wiki: module map.
 //!
 //! Pattern: Facade (declarations) — `WikiRepo` is the one entry point; the files behind it are
-//! one concept each (record, name, read, write, move, links, transfer).
+//! one concept each (record, name, read, write, move, folder move, links, transfer).
 
 mod backend;
 mod book;
+mod folder;
 mod handle;
 mod links;
 mod moving;

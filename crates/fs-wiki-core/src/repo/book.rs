@@ -43,6 +43,12 @@ impl Texts for WikiRepo {
         let _write = self.write_lock.lock().await;
         self.move_locked(id, &path).await
     }
+    async fn move_folder(&self, prefix: &str, path: &str) -> Result<Vec<TextEntry>> {
+        let prefix = TextPath::parse(prefix)?;
+        let path = TextPath::parse(path)?;
+        let _write = self.write_lock.lock().await;
+        self.move_folder_locked(&prefix, &path).await
+    }
     async fn delete(&self, id: ObjectId) -> Result<()> {
         let _write = self.write_lock.lock().await;
         self.delete_locked(id).await

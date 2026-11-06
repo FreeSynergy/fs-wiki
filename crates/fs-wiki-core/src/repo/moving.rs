@@ -67,7 +67,7 @@ impl WikiRepo {
         self.entry(id).await
     }
 
-    async fn store_document(
+    pub(super) async fn store_document(
         &self,
         envelope: &fs_store::Envelope,
         path: &str,

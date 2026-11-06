@@ -48,6 +48,7 @@ async fn a_missing_method_says_not_possible() {
     assert_eq!(capability(p.create("a", "x").await), "text.create");
     assert_eq!(capability(p.edit(id, Document::new()).await), "text.edit");
     assert_eq!(capability(p.move_to(id, "b").await), "text.move");
+    assert_eq!(capability(p.move_folder("a", "b").await), "text.move");
     assert_eq!(capability(p.delete(id).await), "text.delete");
     assert_eq!(
         capability(p.find("x", Paging::default()).await),
