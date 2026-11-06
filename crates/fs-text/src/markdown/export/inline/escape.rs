@@ -43,14 +43,11 @@ pub(super) fn escape_into(out: &mut String, chars: &[char], p: usize, cx: Ctx, b
         '&' => {
             let rest: String = chars[p + 1..].iter().take(12).collect();
             rest.starts_with('#')
-                || rest
-                    .split(';')
-                    .next()
-                    .is_some_and(|w| {
-                        rest.contains(';')
-                            && !w.is_empty()
-                            && w.chars().all(|c| c.is_ascii_alphanumeric())
-                    })
+                || rest.split(';').next().is_some_and(|w| {
+                    rest.contains(';')
+                        && !w.is_empty()
+                        && w.chars().all(|c| c.is_ascii_alphanumeric())
+                })
         }
         '~' => prev == Some('~') || next == Some('~'),
         '|' => cx.table,

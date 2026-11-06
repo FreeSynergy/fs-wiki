@@ -45,15 +45,33 @@ impl DateTime {
                 continue;
             }
             match it.next() {
-                Some('Y') => { let _ = write!(out, "{:04}", self.year); }
-                Some('y') => { let _ = write!(out, "{:02}", self.year.rem_euclid(100)); }
-                Some('m') => { let _ = write!(out, "{:02}", self.month); }
-                Some('d') => { let _ = write!(out, "{:02}", self.day); }
-                Some('e') => { let _ = write!(out, "{:2}", self.day); }
-                Some('H') => { let _ = write!(out, "{:02}", self.hour); }
-                Some('M') => { let _ = write!(out, "{:02}", self.minute); }
-                Some('S') => { let _ = write!(out, "{:02}", self.second); }
-                Some('j') => { let _ = write!(out, "{:03}", self.yday); }
+                Some('Y') => {
+                    let _ = write!(out, "{:04}", self.year);
+                }
+                Some('y') => {
+                    let _ = write!(out, "{:02}", self.year.rem_euclid(100));
+                }
+                Some('m') => {
+                    let _ = write!(out, "{:02}", self.month);
+                }
+                Some('d') => {
+                    let _ = write!(out, "{:02}", self.day);
+                }
+                Some('e') => {
+                    let _ = write!(out, "{:2}", self.day);
+                }
+                Some('H') => {
+                    let _ = write!(out, "{:02}", self.hour);
+                }
+                Some('M') => {
+                    let _ = write!(out, "{:02}", self.minute);
+                }
+                Some('S') => {
+                    let _ = write!(out, "{:02}", self.second);
+                }
+                Some('j') => {
+                    let _ = write!(out, "{:03}", self.yday);
+                }
                 Some('B') => out.push_str(MONTHS[(self.month - 1) as usize]),
                 Some('b') => out.push_str(&MONTHS[(self.month - 1) as usize][..3]),
                 Some('A') => out.push_str(DAYS[self.weekday as usize]),
