@@ -9,3 +9,7 @@ cc 1491e9f12205bee503bdac7af2e5de5a278ef50a31c054e1499858b89f8a46a1 # shrinks to
 cc 4da202b87b4168d7e1f4ce630460d62677f0caed3afb7ca20a9b709a0527fcc1 # shrinks to parts = ["_* >_"]
 cc 5b00157d840def5f69ded2c2bdd1861ba6dbb505a998f79ff841a025dff829da # shrinks to parts = ["*a*_>_"]
 cc cc237aae54f15d0aae4ecef9fefb862b65da5fe5d65abf3add75da9b06a8befc # shrinks to parts = ["****a*"]
+cc 69feb93175518b8f5962e80615abbc2284ba7a0eb626aa3119e9523dd5c830c2 # shrinks to parts = ["_#_*a*"]
+cc 3f45f92c448cde081c405dd19bd8b84ce21c459697056c45fc68cea285e051ec # shrinks to parts = ["*[ *#***"]
+cc 212ec201a33533a06c890d7b17706b3294fbbd5bf73272a14f2b480e193afa59 # shrinks to parts = ["1. x\n2. y", ">", "1. x\n2. y"]
+cc 980ed1929f94388f8e952ea1cf1f42ef55454ad6199f40e5c91863b8baea6e5e # shrinks to parts = ["a#___[_]_"]

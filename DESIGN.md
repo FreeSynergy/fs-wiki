@@ -98,3 +98,12 @@ Not done / limits:
 * `find` is substring only (no tokens, no ranking) and also searches code blocks.
 * `subscribe` (`text.subscribe`) is not built; the capnp-rpc server is not written.
 * Offset paging (`Paging`) costs O(offset) in the store; the wire `Cursor` will wrap the offset.
+
+## Known issue: Markdown round trip
+
+A nested emphasis that ends right before a literal star (`*a *b***`) comes back with other nesting, because of CommonMark's
+rule of three. No text is lost and only runs of three delimiters (`***`, `___`) are affected. `known_issue_rule_of_three` holds the case, and the
+property test leaves out `***` and `___` until the export is reworked.
+
+Two lists with nothing written between them become one on re-import, and an empty quote (`>`) has no block at all. No text is
+lost. `known_issue_adjacent_lists` holds the case, and the property test leaves out parts that are only an empty quote.

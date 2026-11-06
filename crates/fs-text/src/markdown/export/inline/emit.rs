@@ -9,15 +9,27 @@ use super::ctx::Ctx;
 use super::delim::delim;
 use super::escape::escape_into;
 use super::plan::{plan, Em};
-use crate::mark::{Mark, MarkKind};
+use crate::mark::{Mark, MarkKind, MarkValue};
 use crate::markdown::{md_syntax, MarkWriter};
 
-fn delimiter(m: &Mark, chars: &[char], e: &Em) -> &'static str {
+fn delimiter(m: &Mark, chars: &[char], e: &Em, star_follows: bool) -> &'static str {
     match m.kind {
-        MarkKind::Emphasis => delim(m, chars, e.s, e.e, "*", "_"),
-        MarkKind::Strong => delim(m, chars, e.s, e.e, "**", "__"),
+        MarkKind::Emphasis => delim(m, chars, e.s, e.e, "*", "_", star_follows),
+        MarkKind::Strong => delim(m, chars, e.s, e.e, "**", "__", star_follows),
         _ => "",
     }
+}
+
+/// Does a span that writes `*` open right where `e` ends? A span that keeps `_` does not count:
+/// two `_` runs would fuse.
+fn star_follows(ems: &[Em], marks: &[&Mark], e: &Em) -> bool {
+    ems.iter().any(|o| {
+        let m = marks[o.m];
+        o.s == e.e
+            && o.e > o.s
+            && matches!(m.kind, MarkKind::Emphasis | MarkKind::Strong)
+            && m.value != MarkValue::Name("_".into())
+    })
 }
 
 fn open_str(m: &Mark, d: &str) -> String {
@@ -52,7 +64,7 @@ pub(in crate::markdown::export) fn inline(
     let n = chars.len();
     let mut ds: Vec<&str> = ems
         .iter()
-        .map(|e| delimiter(marks[e.m], chars, e))
+        .map(|e| delimiter(marks[e.m], chars, e, star_follows(&ems, marks, e)))
         .collect();
     let mut out = String::new();
     let mut stack: Vec<usize> = Vec::new(); // indices into ems
