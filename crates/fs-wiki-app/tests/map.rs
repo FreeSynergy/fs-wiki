@@ -124,3 +124,27 @@ fn a_comment_written_as_a_link_definition_is_not_shown() {
     assert!(!shown.contains("private"), "{shown}");
     assert!(shown.contains("Visible") && shown.contains("More"));
 }
+
+#[test]
+fn a_callout_title_is_shown_as_text_with_its_formatting_not_as_markup() {
+    let b = blocks("> [!note] A **bold** and [link](a.md) title\n> body\n");
+    let Block::Quote(inner) = &b[0] else {
+        panic!("{b:?}")
+    };
+    let Block::Paragraph(head) = &inner[0] else {
+        panic!("{inner:?}")
+    };
+    assert_eq!(head.text, "A bold and link title");
+    assert!(
+        head.marks
+            .iter()
+            .any(|m| matches!(m.kind, MarkKind::Link { .. }))
+    );
+    assert!(
+        head.marks
+            .iter()
+            .filter(|m| m.kind == MarkKind::Strong)
+            .count()
+            >= 2
+    );
+}

@@ -11,9 +11,11 @@ use super::handle::WikiRepo;
 use super::read::all_texts;
 use super::record::entry_of;
 use super::target::written;
+use super::titles::{title_links, titles_of};
 use crate::error::{Error, Result};
 use crate::path::page_of;
 use crate::texts::{LinkEntry, Paging, TextEntry};
+use fs_text::LinkValue;
 
 /// The rows of `text`, each with the path it means (`None` for external links and anchors).
 fn rows_of(text: &TextEntry) -> Vec<(LinkEntry, Vec<String>)> {
@@ -37,6 +39,7 @@ fn rows_of(text: &TextEntry) -> Vec<(LinkEntry, Vec<String>)> {
             };
             (entry, meant)
         })
+        .chain(title_rows(text))
         .collect()
 }
 
@@ -61,4 +64,28 @@ impl WikiRepo {
         }
         Ok(rows)
     }
+}
+
+/// The links in callout titles (not marks, so not in `extract_links`), one row each.
+fn title_rows(text: &TextEntry) -> Vec<(LinkEntry, Vec<String>)> {
+    let mut rows = vec![];
+    for block in &text.document.blocks {
+        for title in titles_of(block) {
+            for l in title_links(title) {
+                let link = LinkValue::new(&title[l.start..l.end], l.style);
+                let Some(w) = written(&link, &text.path) else {
+                    continue;
+                };
+                let entry = LinkEntry {
+                    source: text.id,
+                    target: link.path.clone(),
+                    at: format!("{}:title", block.id),
+                    title: title.to_string(),
+                    internal: true,
+                };
+                rows.push((entry, w.candidates()));
+            }
+        }
+    }
+    rows
 }

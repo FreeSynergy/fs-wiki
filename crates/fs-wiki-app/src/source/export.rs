@@ -40,6 +40,7 @@ impl From<FsError> for ExportError {
             FsError::Linked(m) => Self::Failed(format!(
                 "a symbolic link or special file is in the way: {m}"
             )),
+            FsError::Missing => Self::Failed("a folder on the way is missing".into()),
             FsError::Other(m) => Self::Failed(m),
         }
     }
@@ -130,6 +131,27 @@ fn export_with(
     }
     write_atomic(&dir, name, markdown, existing.as_ref())?;
     Ok(format!("Exported to {}.", file.display()))
+}
+
+/// What `target/path` holds now, without making anything: `None` if there is no such file.
+///
+/// # Errors
+/// [`ExportError::Failed`] for a path that leaves the target or a link in the way.
+pub fn read_current(path: &str, target: &str) -> Result<Option<String>, ExportError> {
+    let checked = TextPath::parse(path).map_err(|e| ExportError::Failed(e.to_string()))?;
+    let mut parts: Vec<&str> = checked.as_str().split('/').collect();
+    let name = parts.pop().unwrap_or_default();
+    if !Path::new(target).exists() {
+        return Ok(None);
+    }
+    let mut dir = open_root(Path::new(target))?;
+    for part in parts {
+        dir = match open_folder(&dir, part, false) {
+            Err(FsError::Missing) => return Ok(None),
+            other => other?,
+        };
+    }
+    Ok(read_existing(&dir, name)?.map(|e| e.text))
 }
 
 /// The same for the reader: a conflict becomes a `Conflict` error with a short account of the

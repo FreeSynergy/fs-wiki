@@ -14,6 +14,7 @@ use super::definitions::definition_links;
 use super::handle::{WikiRepo, CONTENT_TYPE, CONTEXT, TEXT_TYPE};
 use super::name::derive_name;
 use super::target::written;
+use super::titles::links_in_titles;
 use crate::error::{Error, Result};
 use crate::hidden::is_hidden_block;
 use crate::texts::TextEntry;
@@ -83,7 +84,10 @@ fn index_fields(path: &str, doc: &Document) -> IndexFields {
     let mut links: Vec<String> = vec![];
     for block in &doc.blocks {
         let marked = block.marks.iter().filter_map(|m| m.link().cloned());
-        for link in marked.chain(definition_links(block)) {
+        let others = definition_links(block)
+            .into_iter()
+            .chain(links_in_titles(block));
+        for link in marked.chain(others) {
             let Some(w) = written(&link, path) else {
                 continue;
             };

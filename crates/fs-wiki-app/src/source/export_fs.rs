@@ -21,6 +21,8 @@ use rustix::io::Errno;
 pub enum FsError {
     /// A symbolic link (or something that is not a folder or file) is in the way.
     Linked(String),
+    /// A folder on the way does not exist (and was not to be made).
+    Missing,
     /// Anything else.
     Other(String),
 }
@@ -45,7 +47,8 @@ pub fn open_folder(dir: &OwnedFd, name: &str, create: bool) -> Result<OwnedFd, F
     let flags = OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC;
     let open = || openat(dir, name, flags, Mode::empty());
     match open() {
-        Err(Errno::NOENT) if create => {
+        Err(Errno::NOENT) if !create => Err(FsError::Missing),
+        Err(Errno::NOENT) => {
             mkdirat(dir, name, Mode::from_raw_mode(0o755)).map_err(other)?;
             open().map_err(other)
         }

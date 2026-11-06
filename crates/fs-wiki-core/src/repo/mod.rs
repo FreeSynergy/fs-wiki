@@ -20,6 +20,7 @@ mod record;
 mod relink;
 mod shift;
 mod target;
+mod titles;
 mod transfer;
 mod write;
 

@@ -68,10 +68,6 @@ impl WikiSource {
         self.entry(path)
     }
 
-    pub(super) fn texts(&self) -> &dyn Texts {
-        self.texts.as_ref()
-    }
-
     pub(super) fn runtime(&self) -> &Handle {
         &self.runtime
     }

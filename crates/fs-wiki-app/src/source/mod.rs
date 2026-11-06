@@ -8,12 +8,14 @@ mod build;
 pub mod export;
 mod export_fs;
 mod export_page;
+mod export_report;
 mod problems;
 mod resolve;
 mod wiki;
 
 pub use export::{
     Differs, ExportError, export_markdown_checked, export_markdown_if_seen, export_markdown_to,
+    read_current,
 };
 pub use problems::{Failure, Notes, PROBLEMS_PATH};
 pub use resolve::{resolve, resolve_with_folders};

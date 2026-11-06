@@ -9,9 +9,12 @@ use std::fmt::Write;
 use std::path::Path;
 
 use fs_components_workbenches::SourceError;
-use fs_wiki_core::{FileOrigin, MARKDOWN};
+use fs_wiki_core::{FileOrigin, TextFormat};
 
-use super::export::{ExportError, export_markdown_checked, export_markdown_if_seen};
+use super::export::{
+    Differs, ExportError, export_markdown_checked, export_markdown_if_seen, read_current,
+};
+use super::export_report::{inexact_message, rewritten_note};
 use super::wiki::{Asked, WikiSource};
 use crate::hash::digest;
 
@@ -30,26 +33,46 @@ impl WikiSource {
         overwrite: bool,
     ) -> Result<String, SourceError> {
         let entry = self.text_entry(path)?;
-        let markdown = self
-            .runtime()
-            .block_on(fs_wiki_core::Texts::export_text(
-                self.texts(),
-                entry.id,
-                MARKDOWN,
-            ))
-            .map_err(|e| SourceError::failed(e.to_string()))?;
+        let (markdown, report) = TextFormat::Markdown.export_report(&entry.document);
         // An answer "replace" counts only for the question asked before: the same page, folder
         // and content, and the file must still hold what the person saw. Otherwise ask anew.
         let asked = self.difference.lock().ok().and_then(|mut slot| slot.take());
         let seen = asked
             .filter(|a| a.path == path && a.target == target && a.differs.wanted == markdown)
             .map(|a| digest(a.differs.on_disk.as_bytes()));
+        if let Some(why) = inexact_message(&entry.document, &report) {
+            // The file would not say what the page says: ask before anything is written.
+            let disk = read_current(path, target).map_err(|e| match e {
+                ExportError::Failed(m) | ExportError::Differs(Differs { on_disk: m, .. }) => {
+                    SourceError::failed(m)
+                }
+            })?;
+            let on_disk = disk.clone().unwrap_or_default();
+            let confirmed =
+                overwrite && seen.as_deref() == Some(digest(on_disk.as_bytes()).as_str());
+            if !confirmed && disk.as_deref() != Some(markdown.as_str()) {
+                if let Ok(mut slot) = self.difference.lock() {
+                    *slot = Some(Asked {
+                        path: path.to_string(),
+                        target: target.to_string(),
+                        differs: Differs {
+                            file: Path::new(target).join(path),
+                            on_disk,
+                            wanted: markdown,
+                        },
+                    });
+                }
+                return Err(SourceError::conflict(format!(
+                    "{why} Press Export again to write it anyway."
+                )));
+            }
+        }
         let result = match seen.filter(|_| overwrite) {
             Some(seen) => export_markdown_if_seen(path, target, &markdown, &seen),
             None => export_markdown_checked(path, target, &markdown, false),
         };
         let mut message = match result {
-            Ok(m) => m,
+            Ok(m) => m + &rewritten_note(&report).unwrap_or_default(),
             Err(ExportError::Failed(m)) => return Err(SourceError::failed(m)),
             Err(ExportError::Differs(d)) => {
                 let message = super::export::export_markdown_to(path, target, &markdown, false)

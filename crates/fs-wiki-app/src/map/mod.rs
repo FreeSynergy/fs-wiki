@@ -7,5 +7,6 @@ mod blocks;
 mod inline;
 mod nest;
 mod table;
+mod title;
 
 pub use blocks::to_document;

@@ -4,7 +4,9 @@
 //! guess. Parameters (`; charset=utf-8`) and case are ignored, as in HTTP. Markdown is the one
 //! file format today; others plug in behind `fs_text::Importer` / `Exporter`.
 
-use fs_text::{export_markdown, import_markdown, Document, ExportOptions};
+use fs_text::{
+    export_markdown, export_markdown_report, import_markdown, Document, ExportOptions, ExportReport,
+};
 
 use crate::error::{Error, Result};
 
@@ -49,6 +51,15 @@ impl TextFormat {
     pub fn export(self, doc: &Document) -> String {
         match self {
             Self::Markdown => export_markdown(doc, ExportOptions::default()),
+        }
+    }
+
+    /// As [`TextFormat::export`], and what the file could not say exactly (blocks written in their
+    /// nearest form, untouched blocks that had to be written anew).
+    #[must_use]
+    pub fn export_report(self, doc: &Document) -> (String, ExportReport) {
+        match self {
+            Self::Markdown => export_markdown_report(doc, ExportOptions::default()),
         }
     }
 

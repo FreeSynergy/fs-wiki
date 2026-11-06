@@ -4,10 +4,11 @@
 //! sits in (outermost first). Runs of blocks that share the container at one depth become one
 //! quote, callout, footnote or list; items of a list are told apart by their instance.
 
-use fs_components_widgets::{Block as Out, Inline, ListItem, Mark, MarkKind};
+use fs_components_widgets::{Block as Out, ListItem};
 use fs_text::{Block, Container};
 
 use super::blocks::{leaf, paragraph};
+use super::title::heading;
 
 /// How many containers deep blocks are nested before the rest is shown flat.
 const MAX_DEPTH: usize = 24;
@@ -59,11 +60,7 @@ fn group(first: &Container, blocks: &[&Block], depth: usize) -> Out {
     match first {
         Container::Quote { .. } => Out::Quote(nest(blocks, depth + 1)),
         Container::Callout { ty, title, .. } => {
-            let heading = if title.is_empty() { ty } else { title };
-            let mut inner = vec![Out::Paragraph(Inline::new(
-                heading.clone(),
-                vec![Mark::new(MarkKind::Strong, 0, heading.chars().count())],
-            ))];
+            let mut inner = vec![Out::Paragraph(heading(ty, title))];
             inner.extend(nest(blocks, depth + 1));
             Out::Quote(inner)
         }

@@ -8,11 +8,12 @@
 
 use std::cmp::Reverse;
 
-use fs_text::{Block, Document, LinkValue, MarkKind, MarkValue, Op};
+use fs_text::{Block, Container, Document, LinkValue, MarkKind, MarkValue, Op};
 
 use super::definitions::relink_definitions;
 use super::shift::Shift;
 use super::target::written;
+use super::titles::title_links;
 use crate::path::page_of;
 
 /// The new path text of `link` (a link on the page that moves from `before` to `after`), or
@@ -64,6 +65,7 @@ pub(super) fn relinked(
             changed = true;
         }
         changed |= relink_definitions(&mut out, block, before, after, shift);
+        changed |= relink_titles(&mut out, block, before, after, shift);
     }
     changed.then_some(out)
 }
@@ -101,4 +103,41 @@ fn rewrite_op(block: &Block, mark: fs_text::id::Uuid, new: String) -> Op {
             marks,
         }
     }
+}
+
+/// The links in the callout titles of `block` get their new targets, as a change of the block's
+/// attributes (every block of a callout carries the title).
+fn relink_titles(
+    out: &mut Document,
+    block: &Block,
+    before: &str,
+    after: &str,
+    shift: &Shift,
+) -> bool {
+    let mut attrs = block.attrs.clone();
+    let mut changed = false;
+    for container in &mut attrs.containers {
+        let Container::Callout { title, .. } = container else {
+            continue;
+        };
+        let mut edits = vec![];
+        for l in title_links(title) {
+            let link = LinkValue::new(&title[l.start..l.end], l.style);
+            if let Some(new) = new_written(&link, before, after, shift) {
+                edits.push((l.start, l.end, new));
+            }
+        }
+        for (start, end, new) in edits.into_iter().rev() {
+            title.replace_range(start..end, &new);
+            changed = true;
+        }
+    }
+    if changed {
+        out.apply(&Op::SetAttrs {
+            block: block.id,
+            attrs,
+        })
+        .expect("valid op");
+    }
+    changed
 }
