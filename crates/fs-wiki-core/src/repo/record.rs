@@ -10,6 +10,7 @@ use fs_store::{Envelope, IndexFields, ObjectId, StoredObject};
 use fs_text::Document;
 use serde::{Deserialize, Serialize};
 
+use super::definitions::definition_links;
 use super::handle::{WikiRepo, CONTENT_TYPE, CONTEXT, TEXT_TYPE};
 use super::name::derive_name;
 use super::target::written;
@@ -81,8 +82,9 @@ fn index_fields(path: &str, doc: &Document) -> IndexFields {
     index.insert("path".into(), vec![path.to_string()]);
     let mut links: Vec<String> = vec![];
     for block in &doc.blocks {
-        for mark in &block.marks {
-            let Some(w) = mark.link().and_then(|l| written(l, path)) else {
+        let marked = block.marks.iter().filter_map(|m| m.link().cloned());
+        for link in marked.chain(definition_links(block)) {
+            let Some(w) = written(&link, path) else {
                 continue;
             };
             for candidate in w.candidates() {

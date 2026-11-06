@@ -121,3 +121,47 @@ async fn links_without_the_extension_or_to_a_folder_follow_a_page_move() {
     );
     assert_eq!(w.backlinks("other/page.md").await.unwrap().len(), 1);
 }
+
+#[tokio::test]
+async fn a_link_means_the_first_existing_candidate_and_only_that_one_moves() {
+    // `a` and `a.md` both exist: `[x](a)` means the page `a`.
+    let w = wiki().await;
+    let a_md = w.create("a.md", "m").await.unwrap();
+    w.create("a", "plain").await.unwrap();
+    let p = w.create("p", "[x](a) [y](a/)\n").await.unwrap();
+    w.move_to(a_md.id, "b.md").await.unwrap();
+    assert_eq!(md(&w, p.id).await, "[x](a) [y](a/)\n");
+
+    // `a.md` comes before `a/index.md`.
+    let w = wiki().await;
+    w.create("a.md", "m").await.unwrap();
+    let idx = w.create("a/index.md", "i").await.unwrap();
+    let p = w.create("p", "[x](a)\n").await.unwrap();
+    w.move_to(idx.id, "z/index.md").await.unwrap();
+    assert_eq!(md(&w, p.id).await, "[x](a)\n");
+
+    // `index.md` comes before `README.md`; moving the README changes nothing, moving the index
+    // makes the link point to the new folder.
+    let w = wiki().await;
+    let index = w.create("d/index.md", "i").await.unwrap();
+    let readme = w.create("d/README.md", "r").await.unwrap();
+    let p = w.create("p", "[x](d/)\n").await.unwrap();
+    w.move_to(readme.id, "elsewhere/README.md").await.unwrap();
+    assert_eq!(md(&w, p.id).await, "[x](d/)\n");
+    w.move_to(index.id, "e/index.md").await.unwrap();
+    assert_eq!(md(&w, p.id).await, "[x](e/)\n");
+}
+
+#[tokio::test]
+async fn a_new_form_that_would_hit_another_page_is_written_in_full() {
+    let w = wiki().await;
+    let a = w.create("a.md", "m").await.unwrap();
+    w.create("b", "another page called b").await.unwrap();
+    let p = w.create("p", "[x](a)\n").await.unwrap();
+    w.move_to(a.id, "b.md").await.unwrap();
+    assert_eq!(
+        md(&w, p.id).await,
+        "[x](b.md)\n",
+        "`b` would lead to the page `b`"
+    );
+}

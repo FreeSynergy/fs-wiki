@@ -18,6 +18,7 @@
     clippy::module_name_repetitions
 )]
 
+mod definitions;
 mod error;
 mod hidden;
 mod media;

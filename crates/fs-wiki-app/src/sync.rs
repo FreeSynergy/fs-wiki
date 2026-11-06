@@ -106,7 +106,7 @@ async fn changed_file<W: Texts + Origins + ?Sized>(
         ));
     };
     if text_hash(&text) == origin.text_hash {
-        if content.trim().is_empty() && !text_is_empty(&text) {
+        if content.trim_start_matches('\u{feff}').trim().is_empty() && !text_is_empty(&text) {
             // A file cut to nothing outside is more likely a mishap than an edit.
             let reason = "the file is empty now but its text is not; the text is kept";
             return Ok(Outcome::Conflict(Some(text.path), reason.into()));

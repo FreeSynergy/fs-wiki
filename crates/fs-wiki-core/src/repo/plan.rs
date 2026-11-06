@@ -31,6 +31,18 @@ pub(super) fn depth(path: &str) -> usize {
 }
 
 impl WikiRepo {
+    /// The paths of all texts (the meaning of a link depends on which of its candidates exist).
+    pub(super) async fn all_paths(&self) -> Result<std::collections::HashSet<String>> {
+        let mut paths = std::collections::HashSet::new();
+        loop {
+            let page = self.list_texts("", Paging::new(BATCH, paths.len())).await?;
+            if page.is_empty() {
+                return Ok(paths);
+            }
+            paths.extend(page.into_iter().map(|t| t.path));
+        }
+    }
+
     /// Which texts move where; shallow ones first, so a place vacated by one is free for a
     /// deeper one. Reads only ids and paths into memory, a batch of texts at a time.
     pub(super) async fn plan(&self, old: &str, new: &str) -> Result<Vec<Step>> {

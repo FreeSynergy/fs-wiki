@@ -18,6 +18,7 @@ mod plan;
 mod read;
 mod record;
 mod relink;
+mod shift;
 mod target;
 mod transfer;
 mod write;

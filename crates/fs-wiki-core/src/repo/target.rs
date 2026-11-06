@@ -74,20 +74,9 @@ pub(super) fn written(link: &LinkValue, source: &str) -> Option<Written> {
 }
 
 impl Written {
-    /// The paths this link can lead to, in the order a reader tries them: the path, the path with
-    /// `.md`, and the `index.md` / `README.md` of a folder of that name.
+    /// The paths this link can lead to, in the order a reader tries them.
     pub(super) fn candidates(&self) -> Vec<String> {
-        let t = &self.target;
-        let mut all = vec![t.clone()];
-        if std::path::Path::new(t)
-            .extension()
-            .is_none_or(|e| e != "md")
-        {
-            all.push(format!("{t}.md"));
-        }
-        all.push(format!("{t}/index.md"));
-        all.push(format!("{t}/README.md"));
-        all
+        candidates_of(&self.target)
     }
 
     /// Whether the written form had a trailing `/`.
@@ -125,4 +114,19 @@ fn relative(from: &[&str], target: &str, dot: bool) -> String {
     } else {
         text
     }
+}
+
+/// The paths the target `t` can lead to: the path, the path with `.md`, and the `index.md` /
+/// `README.md` of a folder of that name.
+pub(super) fn candidates_of(t: &str) -> Vec<String> {
+    let mut all = vec![t.to_string()];
+    if std::path::Path::new(t)
+        .extension()
+        .is_none_or(|e| e != "md")
+    {
+        all.push(format!("{t}.md"));
+    }
+    all.push(format!("{t}/index.md"));
+    all.push(format!("{t}/README.md"));
+    all
 }

@@ -11,45 +11,9 @@ use std::cmp::Reverse;
 use fs_text::{Block, Document, LinkValue, MarkKind, MarkValue, Op};
 
 use super::definitions::relink_definitions;
+use super::shift::Shift;
 use super::target::written;
 use crate::path::page_of;
-
-/// A page (`folder == false`) or a folder (`true`) that moves from `old` to `new`.
-pub(super) struct Shift<'a> {
-    pub old: &'a str,
-    pub new: &'a str,
-    pub folder: bool,
-}
-
-impl Shift<'_> {
-    /// Where the path `target` goes, and whether the new place is still a folder form (so a
-    /// trailing `/` may stay); `None` if it stays.
-    fn map(&self, target: &str) -> Option<(String, bool)> {
-        if target == self.old {
-            return Some((self.new.to_string(), true));
-        }
-        if self.folder {
-            let rest = target.strip_prefix(self.old)?.strip_prefix('/')?;
-            return Some((format!("{}/{rest}", self.new), true));
-        }
-        // A page: a link may leave out `.md` or name the folder of an `index.md` / `README.md`.
-        if self.old.strip_suffix(".md") == Some(target) {
-            let stripped = self.new.strip_suffix(".md").unwrap_or(self.new);
-            return Some((stripped.to_string(), false));
-        }
-        for name in ["/index.md", "/README.md"] {
-            if self.old.strip_suffix(name).is_some_and(|b| b == target) {
-                return Some(
-                    match self.new.strip_suffix(name).filter(|p| !p.is_empty()) {
-                        Some(parent) => (parent.to_string(), true),
-                        None => (self.new.to_string(), false),
-                    },
-                );
-            }
-        }
-        None
-    }
-}
 
 /// The new path text of `link` (a link on the page that moves from `before` to `after`), or
 /// `None` if it stays as written.
@@ -60,7 +24,7 @@ pub(super) fn new_written(
     shift: &Shift,
 ) -> Option<String> {
     let w = written(link, before)?;
-    let moved = shift.map(&w.target);
+    let moved = shift.new_target(&w);
     if moved.is_none() && before == after {
         return None;
     }

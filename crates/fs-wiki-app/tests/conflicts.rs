@@ -156,3 +156,22 @@ fn a_file_emptied_outside_is_a_conflict_not_an_edit_that_empties_the_text() {
         "important text"
     );
 }
+
+#[test]
+fn a_file_with_only_a_byte_order_mark_counts_as_empty() {
+    let dir = temp_dir("cf-bom");
+    let (store, docs) = (dir.join("store.db"), dir.join("docs"));
+    write_files(&docs, &[("p.md", "important text\n")]);
+    {
+        let (rt, w) = wiki_in_file(&store);
+        rt.block_on(import_folder(w.as_ref(), &docs));
+    }
+    write_files(&docs, &[("p.md", "\u{feff}\n")]);
+    let (rt, w) = wiki_in_file(&store);
+    let report = rt.block_on(import_folder(w.as_ref(), &docs));
+    assert_eq!((report.updated, report.conflicts.len()), (0, 1));
+    assert_eq!(
+        markdown_at(&rt, &w, "p.md").unwrap().trim(),
+        "important text"
+    );
+}

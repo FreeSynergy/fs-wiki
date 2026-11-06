@@ -12,7 +12,8 @@ use fs_text::Document;
 use super::handle::WikiRepo;
 use super::read::all_texts;
 use super::record::entry_of;
-use super::relink::{relinked, Shift};
+use super::relink::relinked;
+use super::shift::Shift;
 use crate::error::{Error, Result};
 use crate::path::TextPath;
 use crate::texts::{Paging, TextEntry};
@@ -24,10 +25,12 @@ impl WikiRepo {
             return Ok(text);
         }
         self.ensure_free(new, Some(id)).await?;
+        let paths = self.all_paths().await?;
         let shift = Shift {
             old: &text.path,
             new: new.as_str(),
             folder: false,
+            paths: &paths,
         };
 
         let linking: Query = all_texts(Paging::default()).with_index("link", &text.path);

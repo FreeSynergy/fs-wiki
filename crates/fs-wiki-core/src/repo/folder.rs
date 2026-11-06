@@ -27,7 +27,8 @@ use super::move_log::MoveRecord;
 use super::plan::{within, Step};
 use super::read::all_texts;
 use super::record::entry_of;
-use super::relink::{relinked, Shift};
+use super::relink::relinked;
+use super::shift::Shift;
 use crate::error::{Error, Result};
 use crate::path::TextPath;
 use crate::texts::{Paging, TextEntry};
@@ -107,10 +108,12 @@ impl WikiRepo {
             ids,
         };
         self.record_move(&record).await?;
+        let paths = self.all_paths().await?;
         let shift = Shift {
             old,
             new,
             folder: true,
+            paths: &paths,
         };
         self.rewrite_outside_links(&shift, &steps).await?;
         for step in &steps {
