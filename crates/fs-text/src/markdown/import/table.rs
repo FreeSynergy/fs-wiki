@@ -96,7 +96,7 @@ impl Imp<'_> {
             for cell in excess_cells(&self.src[from..range.end]) {
                 let leaf = self.leaf_mut();
                 leaf.push("\t");
-                leaf.push(&cell);
+                leaf.push_inline(&cell);
                 n += 1;
             }
         }

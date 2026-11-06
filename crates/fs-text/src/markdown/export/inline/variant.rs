@@ -7,7 +7,7 @@ use super::plan::Em;
 
 /// Writing rules for runs of delimiter characters. The default is the plain, escaped form.
 #[derive(Clone, Copy, Default, Debug)]
-pub(super) struct Variant {
+pub(in crate::markdown::export) struct Variant {
     /// A literal `*`/`_` right before an opener is not escaped: it joins the opening run
     /// (`___a_` is a literal `_` and two emphases), which keeps the run longer.
     pub lit_before_open: bool,
@@ -16,6 +16,9 @@ pub(super) struct Variant {
     pub lit_after_close: bool,
     /// An emphasis opened right behind a `*` keeps its `*` (no `_` swap).
     pub keep_star: bool,
+    /// Every ASCII punctuation char of the literal text is escaped: the form that cannot be
+    /// misread, used when no other form reads back right.
+    pub escape_all: bool,
 }
 
 impl Variant {
@@ -25,26 +28,35 @@ impl Variant {
             lit_before_open: n & 1 != 0,
             lit_after_close: n & 2 != 0,
             keep_star: n & 4 != 0,
+            escape_all: false,
         })
+    }
+
+    /// The form that escapes everything.
+    pub fn everything() -> Variant {
+        Variant {
+            escape_all: true,
+            ..Variant::default()
+        }
     }
 
     /// Is the literal `c` at `p` written without escape? `closed` is the last char of a closer
     /// written right before `c`, if nothing else came in between.
-    pub fn raw_delimiter_char(
+    pub(super) fn raw_delimiter_char(
         self,
         c: char,
-        p: usize,
         ems: &[Em],
+        next_starts: std::ops::Range<usize>,
         ds: &[&str],
         closed: Option<(char, usize)>,
     ) -> bool {
         if !matches!(c, '*' | '_') {
             return false;
         }
-        let before_open = ems
-            .iter()
-            .zip(ds)
-            .any(|(e, d)| e.s == p + 1 && !e.atomic && e.e > e.s && d.starts_with(c));
+        let before_open = next_starts.into_iter().any(|k| {
+            let e = &ems[k];
+            !e.atomic && e.e > e.s && ds[k].starts_with(c)
+        });
         (self.lit_before_open && before_open)
             || (self.lit_after_close && closed.is_some_and(|(k, _)| k == c))
     }

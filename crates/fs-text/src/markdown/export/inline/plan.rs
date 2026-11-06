@@ -59,28 +59,74 @@ pub(super) fn plan(marks: &[&Mark], lo: usize, hi: usize, opts: ExportOptions) -
         .collect();
     // atomic ranges win; drop overlapping atomics, snap other boundaries
     ems.sort_by_key(|e| (e.s, std::cmp::Reverse(e.e)));
+    // accepted atoms are disjoint and come in start order, so only the last one can overlap
     let mut atoms: Vec<(usize, usize)> = Vec::new();
     ems.retain(|e| {
         if !e.atomic {
             return true;
         }
-        if atoms.iter().any(|a| e.s < a.1 && a.0 < e.e) {
+        if atoms.last().is_some_and(|a| e.s < a.1) {
             return false;
         }
         atoms.push((e.s, e.e));
         true
     });
+    // at most one atom contains a boundary strictly inside it
+    let inside = |x: usize| {
+        let i = atoms.partition_point(|a| a.0 < x);
+        i.checked_sub(1).map(|i| atoms[i]).filter(|a| x < a.1)
+    };
+    let mut snapped = false;
     for e in ems.iter_mut().filter(|e| !e.atomic) {
-        for a in &atoms {
-            if a.0 < e.s && e.s < a.1 {
-                e.s = a.0;
-            }
-            if a.0 < e.e && e.e < a.1 {
-                e.e = a.1;
-            }
+        if let Some(a) = inside(e.s) {
+            e.s = a.0;
+            snapped = true;
         }
+        if let Some(a) = inside(e.e) {
+            e.e = a.1;
+            snapped = true;
+        }
+    }
+    if snapped {
+        // stable: equal ranges keep their order
+        ems.sort_by_key(|e| (e.s, std::cmp::Reverse(e.e)));
     }
     // non-point ranges that became empty are dropped
     ems.retain(|e| e.atomic || e.e > e.s || marks[e.m].is_point());
     ems
+}
+
+/// Lookup of the spans that start or end at a position (`ems` is sorted by start).
+pub(super) struct Index {
+    /// Indices into `ems`, ordered by end.
+    by_end: Vec<usize>,
+}
+
+impl Index {
+    pub fn new(ems: &[Em]) -> Self {
+        let mut by_end: Vec<usize> = (0..ems.len()).collect();
+        by_end.sort_by_key(|&i| ems[i].e);
+        Self { by_end }
+    }
+
+    /// Indices of the spans that start at `x`.
+    pub fn starting_at(ems: &[Em], x: usize) -> std::ops::Range<usize> {
+        let lo = ems.partition_point(|e| e.s < x);
+        lo..lo + ems[lo..].iter().take_while(|e| e.s == x).count()
+    }
+
+    /// Indices of the spans that start or end at `x`.
+    pub fn touching<'a>(
+        &'a self,
+        ems: &'a [Em],
+        x: usize,
+    ) -> impl Iterator<Item = usize> + 'a {
+        let lo = self.by_end.partition_point(|&i| ems[i].e < x);
+        let ends = self.by_end[lo..]
+            .iter()
+            .copied()
+            .take_while(move |&i| ems[i].e == x);
+        let starts = Self::starting_at(ems, x);
+        ends.chain(starts)
+    }
 }

@@ -4,7 +4,7 @@
 //! (`code`, `table`, `inline` for text).
 
 use super::code::render_code;
-use super::inline::{inline, Ctx};
+use super::inline::{choose, inline, Ctx, Variant};
 use super::options::ExportOptions;
 use super::table::render_table;
 use crate::doc::{Block, BlockKind};
@@ -17,32 +17,32 @@ fn lines(s: &str) -> Vec<String> {
 pub(super) fn render_block(b: &Block, opts: ExportOptions) -> Vec<String> {
     let chars: Vec<char> = b.text.chars().collect();
     let marks: Vec<&Mark> = b.marks.iter().collect();
-    let text = |heading: bool| {
+    let text = |heading: bool, v: Variant| {
         inline(
             &chars,
             &marks,
-            0,
-            chars.len(),
+            (0, chars.len()),
             Ctx {
                 table: false,
                 heading,
                 opts,
             },
+            v,
         )
     };
     match &b.attrs.kind {
         BlockKind::Raw | BlockKind::Html => lines(&b.text.to_string()),
-        BlockKind::Paragraph => {
-            let mut s = text(false);
+        BlockKind::Paragraph => choose(b, opts, &|v| {
+            let mut s = text(false, v);
             if let Some(r) = &b.attrs.block_ref {
                 s.push_str(" ^");
                 s.push_str(r);
             }
             lines(&s)
-        }
-        BlockKind::Heading { level } => {
+        }),
+        BlockKind::Heading { level } => choose(b, opts, &|v| {
             let mut s = format!("{} ", "#".repeat(*level as usize));
-            s.push_str(&text(true));
+            s.push_str(&text(true, v));
             if let Some(a) = &b.attrs.heading_attrs {
                 s.push(' ');
                 s.push_str(a);
@@ -52,7 +52,7 @@ pub(super) fn render_block(b: &Block, opts: ExportOptions) -> Vec<String> {
                 s.push_str(r);
             }
             vec![s.trim_end().to_string()]
-        }
+        }),
         BlockKind::Code { info } => render_code(&b.text.to_string(), info),
         BlockKind::ThematicBreak => vec!["---".into()],
         BlockKind::FrontMatter => {
@@ -64,6 +64,8 @@ pub(super) fn render_block(b: &Block, opts: ExportOptions) -> Vec<String> {
             v.push(f.to_string());
             v
         }
-        BlockKind::Table { align } => render_table(b, &chars, &marks, align, opts),
+        BlockKind::Table { align } => {
+            choose(b, opts, &|v| render_table(b, &chars, &marks, align, opts, v))
+        }
     }
 }

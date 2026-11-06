@@ -22,6 +22,7 @@ fn canon(d: &Document) -> Canon {
         .iter()
         .map(|b| {
             let mut a = b.attrs.clone();
+            a.source = None;
             for c in &mut a.containers {
                 let i = relabel(false, c.inst());
                 c.set_inst(i);

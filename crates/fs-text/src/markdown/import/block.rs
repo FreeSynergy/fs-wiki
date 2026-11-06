@@ -79,6 +79,12 @@ impl Imp<'_> {
         self.flush();
         let mut l = Leaf::new(BlockKind::ThematicBreak);
         l.glue = glue_before(self.src, range.start);
+        l.start = Some(range.start);
+        l.end = range.end;
+        let style = self.src[range.clone()].trim();
+        if style != "---" {
+            l.rule = Some(style.to_string());
+        }
         self.leaf = Some(l);
         self.flush();
     }

@@ -9,16 +9,30 @@ use super::leaf::render_block;
 use super::options::ExportOptions;
 use crate::doc::{Block, BlockKind, Container};
 
-/// A thematic break that is not read as part of the prefix: `- ---` is one rule and no item,
-/// so a rule behind `-` marks (`> - `, `1. - `) is written with `*`.
-fn rule_apart_from(prefix: &str) -> String {
-    let tail = prefix.trim_end_matches(|c: char| c == '-' || c.is_whitespace());
-    if prefix[tail.len()..].contains('-') {
-        "***"
-    } else {
-        "---"
+/// Where a block stands, for the few forms that depend on the neighbourhood.
+#[derive(Clone, Copy)]
+pub(super) struct Place {
+    /// First block of the document (`---` there could open front matter).
+    pub first: bool,
+    /// Directly under a paragraph line (`---` there would make a heading).
+    pub under_paragraph: bool,
+}
+
+/// A thematic break that is not read as part of the prefix or as something else: `- ---` is one
+/// rule and no item, `---` under a paragraph is a heading, `---` at the start may be front
+/// matter. The style of the source is kept when it is safe, otherwise a character that is
+/// not in the prefix is used.
+fn rule_line(hint: Option<&str>, prefix: &str, place: Place) -> String {
+    let safe = |c: char| !prefix.contains(c) && !(c == '-' && (place.first || place.under_paragraph));
+    if let Some(h) = hint {
+        if h.chars().next().is_some_and(safe) {
+            return h.to_string();
+        }
     }
-    .into()
+    ['-', '*', '_']
+        .into_iter()
+        .find(|c| safe(*c))
+        .map_or("***".into(), |c| c.to_string().repeat(3))
 }
 
 pub(super) fn render_in_containers(
@@ -26,6 +40,7 @@ pub(super) fn render_in_containers(
     prev: &[Container],
     out: &mut Vec<String>,
     opts: ExportOptions,
+    place: Place,
 ) {
     let cs = &b.attrs.containers;
     let k = common(prev, cs);
@@ -60,7 +75,7 @@ pub(super) fn render_in_containers(
     for line in render_block(b, opts) {
         let mut l = prefix(&fresh, cs.len());
         let line = if b.attrs.kind == BlockKind::ThematicBreak {
-            rule_apart_from(&l)
+            rule_line(b.attrs.extra.get("rule").map(String::as_str), &l, place)
         } else {
             line
         };

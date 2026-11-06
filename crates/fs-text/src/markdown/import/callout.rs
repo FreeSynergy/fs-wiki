@@ -8,7 +8,7 @@ use crate::doc::{Block, Container};
 
 impl Imp<'_> {
     /// `> [!type]± title` as first line of the first paragraph of a quote.
-    pub(super) fn try_callout(&mut self, block: &mut Block) {
+    pub(super) fn try_callout(&mut self, block: &mut Block, line: Option<usize>) {
         let text = block.text.to_string();
         let first = text.split('\n').next().unwrap_or("");
         let Some(rest) = first.strip_prefix("[!") else {
@@ -46,6 +46,9 @@ impl Imp<'_> {
         // replace the Quote container (last) by the callout
         let n = block.attrs.containers.len();
         block.attrs.containers[n - 1] = callout.clone();
+        if line.is_some_and(|l| self.admon_lines.contains(&l)) {
+            self.admon_insts.insert(inst);
+        }
         self.containers[n - 1] = callout;
         if carrier {
             block

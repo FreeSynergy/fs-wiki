@@ -10,5 +10,6 @@ mod syntax;
 
 pub use adapter::{MarkdownExporter, MarkdownImporter};
 pub use export::{export_blocks, export_markdown, ExportOptions};
+pub(crate) use import::import_plain;
 pub use import::{convert_admonitions, import_markdown, HARD_BREAK};
 pub use syntax::{md_syntax, MarkWriter, MdSyntax};

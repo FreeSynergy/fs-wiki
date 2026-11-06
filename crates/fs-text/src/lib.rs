@@ -28,7 +28,7 @@ pub mod template;
 pub mod text;
 
 pub use anchor::{Anchor, Bias};
-pub use doc::{Align, Block, BlockAttrs, BlockKind, Container, Document};
+pub use doc::{Align, Block, BlockAttrs, BlockKind, Container, Document, Source};
 pub use external::{
     diff_edits, import_external, plan_external_import, plan_external_import_with, TextEdit,
 };

@@ -1,9 +1,11 @@
 //! Round-trip fixes: runs of delimiters, adjacent lists, empty quotes, wide tables, plain text.
 
+mod common;
 use fs_text::*;
 
+/// The canonical writer (no kept source text): these tests are about the writer itself.
 fn export(d: &Document) -> String {
-    export_markdown(d, ExportOptions::default())
+    common::canonical(d)
 }
 
 fn stable(src: &str) -> String {
@@ -54,6 +56,7 @@ fn an_empty_quote_is_a_block() {
         [Container::Quote { .. }]
     ));
     assert_eq!(export(&d), ">\n");
+    assert_eq!(export_markdown(&d, ExportOptions::default()), ">", "unchanged: as read");
     let nested = import_markdown("> >");
     assert_eq!(nested.blocks.len(), 1);
     assert_eq!(nested.blocks[0].attrs.containers.len(), 2);
@@ -65,13 +68,21 @@ fn an_empty_quote_is_a_block() {
 fn adjacent_lists_stay_two_lists() {
     let src = "1. x\n2. y\n\n>\n\n1. x\n2. y";
     stable(src);
-    // two lists with nothing between them (the link definition is not a block)
+    // two lists with a link definition between them: the definition is a block (kept)
     let d = import_markdown("- a\n\n[x]: /u\n\n- b");
+    assert_eq!(d.blocks.len(), 3);
+    assert_ne!(
+        d.blocks[0].attrs.containers[0].inst(),
+        d.blocks[2].attrs.containers[0].inst()
+    );
+    assert_eq!(common::canonical(&d), "- a\n\n[x]: /u\n\n- b\n");
+    // two lists with nothing between them: the separator comment is not a block
+    let d = import_markdown("- a\n\n<!-- -->\n\n- b");
     assert_ne!(
         d.blocks[0].attrs.containers[0].inst(),
         d.blocks[1].attrs.containers[0].inst()
     );
-    let out = export(&d);
+    let out = common::canonical(&d);
     assert_eq!(out, "- a\n\n<!-- -->\n\n- b\n");
     let back = import_markdown(&out);
     assert_eq!(back.blocks.len(), 2, "the separator is not a block");

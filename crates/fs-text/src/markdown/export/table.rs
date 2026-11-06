@@ -3,12 +3,17 @@
 //! Pattern: Template method — split the block text into cells, render cells inline, then lay
 //! out header, delimiter and body rows.
 
-use super::inline::{inline, Ctx};
+use super::inline::{inline, Ctx, Variant};
 use super::options::ExportOptions;
 use crate::doc::{Align, Block};
 use crate::mark::Mark;
 
-fn split_rows(chars: &[char], marks: &[&Mark], opts: ExportOptions) -> Vec<Vec<String>> {
+fn split_rows(
+    chars: &[char],
+    marks: &[&Mark],
+    opts: ExportOptions,
+    how: Variant,
+) -> Vec<Vec<String>> {
     let cx = Ctx {
         table: true,
         heading: false,
@@ -24,7 +29,7 @@ fn split_rows(chars: &[char], marks: &[&Mark], opts: ExportOptions) -> Vec<Vec<S
             Some(chars[i]).filter(|c| *c == '\n' || *c == '\t')
         };
         if let Some(c) = sep {
-            row.push(inline(chars, marks, cell_start, i, cx));
+            row.push(inline(chars, marks, (cell_start, i), cx, how));
             cell_start = i + 1;
             if c == '\n' {
                 rows.push(std::mem::take(&mut row));
@@ -82,8 +87,9 @@ pub(super) fn render_table(
     marks: &[&Mark],
     align: &[Align],
     opts: ExportOptions,
+    how: Variant,
 ) -> Vec<String> {
-    let rows = split_rows(chars, marks, opts);
+    let rows = split_rows(chars, marks, opts, how);
     let ncols = rows.iter().map(Vec::len).fold(align.len(), usize::max);
     let mut out = Vec::new();
     if let Some(h) = rows.first() {

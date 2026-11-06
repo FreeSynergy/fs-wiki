@@ -1,13 +1,12 @@
 //! Real documents survive the Markdown round trip: no word is lost and a second round is stable.
 //!
-//! Reads the documentation tree read-only; run with `cargo test --test real_docs -- --ignored
-//! --nocapture`. Set `FS_DOCS_DIR` to point somewhere else.
+//! Works on a COPY of the documentation tree only: `cp -r .../fs-documentation/docs/en /tmp/x/`,
+//! then `FS_DOCS_DIR=/tmp/x/en cargo test --test real_docs -- --ignored --nocapture`.
+//! Without `FS_DOCS_DIR` the test does nothing (never reads the shared tree).
 
 use fs_text::*;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-
-const DEFAULT_DIR: &str = "/srv/FreeSynergy/fs-documentation/docs/en";
 
 fn markdown_files(dir: &Path, out: &mut Vec<PathBuf>) {
     let Ok(rd) = std::fs::read_dir(dir) else {
@@ -49,7 +48,10 @@ fn missing(a: &str, b: &str) -> Vec<String> {
 #[test]
 #[ignore = "reads the real documentation tree; run with --ignored --nocapture"]
 fn real_docs_round_trip_is_faithful_and_stable() {
-    let dir = std::env::var("FS_DOCS_DIR").unwrap_or_else(|_| DEFAULT_DIR.into());
+    let Ok(dir) = std::env::var("FS_DOCS_DIR") else {
+        println!("FS_DOCS_DIR not set (use a copy of the docs); skipped");
+        return;
+    };
     let mut files = Vec::new();
     markdown_files(Path::new(&dir), &mut files);
     files.sort();

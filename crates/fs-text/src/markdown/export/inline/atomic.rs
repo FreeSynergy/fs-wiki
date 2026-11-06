@@ -4,9 +4,17 @@
 //! Pattern: Strategy by kind — one small writer per atomic kind.
 
 use crate::mark::{LinkStyle, Mark, MarkKind, MarkValue};
+use crate::markdown::{md_syntax, MarkWriter};
 
 pub(super) fn point_str(m: &Mark) -> String {
     match &m.value {
+        // a link or image without text: `[](u)`, `![](u)`
+        MarkValue::Link(l) if l.style == LinkStyle::Inline => {
+            let s = md_syntax(m.kind);
+            format!("{}{}", s.open(""), s.close(m, ""))
+        }
+        MarkValue::Link(l) if l.style == LinkStyle::Wiki => format!("[[{}]]", l.path),
+        MarkValue::Link(l) if l.style == LinkStyle::Embed => format!("![[{}]]", l.path),
         MarkValue::Name(l) if m.kind == MarkKind::FootnoteRef => format!("[^{l}]"),
         MarkValue::Variable { name, .. } => format!("{{{{{name}}}}}"),
         _ => String::new(),

@@ -9,9 +9,11 @@ mod block_kind;
 mod container;
 mod document;
 mod same;
+mod source;
 
 pub use attrs::BlockAttrs;
 pub use block::Block;
 pub use block_kind::{Align, BlockKind};
 pub use container::Container;
 pub use document::Document;
+pub use source::{usable_source, Source};

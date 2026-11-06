@@ -5,7 +5,7 @@
 //! lists", which the model records by itself, so it is not kept as a block. Anywhere else it is
 //! an ordinary HTML block.
 
-use super::state::Imp;
+use super::state::{Imp, Span};
 use crate::doc::{Block, BlockKind, Container};
 
 /// The text of the separator comment.
@@ -25,8 +25,8 @@ fn is_separator(b: &Block) -> bool {
 
 impl Imp<'_> {
     /// Put a finished block into the document. A separator comment waits for the next block.
-    pub(super) fn push_block(&mut self, block: Block) {
-        if let Some(sep) = self.pending_sep.take() {
+    pub(super) fn push_block(&mut self, block: Block, span: Option<Span>) {
+        if let Some((sep, sep_span)) = self.pending_sep.take() {
             let at = sep.attrs.containers.len();
             let after_list = self
                 .blocks
@@ -39,20 +39,24 @@ impl Imp<'_> {
             ) if a != b);
             if !two_lists {
                 self.blocks.push(sep);
+                self.spans.push(sep_span);
             }
         }
         if is_separator(&block) {
-            self.pending_sep = Some(block);
+            self.pending_sep = Some((block, span));
         } else {
             self.blocks.push(block);
+            self.spans.push(span);
         }
     }
 
     /// Write out a separator that turned out not to stand between two lists.
     pub(super) fn finish(&mut self) {
         self.flush();
-        if let Some(sep) = self.pending_sep.take() {
+        self.trailing_definitions();
+        if let Some((sep, span)) = self.pending_sep.take() {
             self.blocks.push(sep);
+            self.spans.push(span);
         }
     }
 }

@@ -11,6 +11,7 @@ use std::ops::Range;
 
 impl Imp<'_> {
     pub(super) fn event(&mut self, idx: usize, ev: &Event, range: &Range<usize>) {
+        self.extend_leaf(ev, range);
         match ev {
             Event::Start(tag) => self.start(idx, tag, range),
             Event::End(end) => self.end(*end, range),
@@ -26,12 +27,38 @@ impl Imp<'_> {
         self.stamp_leaf(range);
     }
 
+    /// Events that belong to the open leaf stretch its source range (container and new-leaf
+    /// events do not: they end or replace it).
+    fn extend_leaf(&mut self, ev: &Event, range: &Range<usize>) {
+        let own = !matches!(
+            ev,
+            Event::Start(
+                Tag::Paragraph
+                    | Tag::Heading { .. }
+                    | Tag::CodeBlock(_)
+                    | Tag::HtmlBlock
+                    | Tag::Table(_)
+                    | Tag::MetadataBlock(_)
+                    | Tag::BlockQuote(_)
+                    | Tag::List(_)
+                    | Tag::Item
+                    | Tag::FootnoteDefinition(_)
+            ) | Event::End(
+                TagEnd::BlockQuote(_) | TagEnd::List(_) | TagEnd::Item | TagEnd::FootnoteDefinition
+            )
+        );
+        if let Some(l) = self.leaf.as_mut().filter(|_| own) {
+            l.end = l.end.max(range.end);
+        }
+    }
+
     /// The first event inside a leaf fixes its source start, glue and table dash hints.
     fn stamp_leaf(&mut self, range: &Range<usize>) {
         let src = self.src;
         if let Some(l) = self.leaf.as_mut() {
             if l.start.is_none() {
                 l.start = Some(range.start);
+                l.end = l.end.max(range.end);
                 l.glue = glue_before(src, range.start);
                 if let BlockKind::Table { .. } = l.kind {
                     l.dashes = table_dashes(&src[range.clone()]);

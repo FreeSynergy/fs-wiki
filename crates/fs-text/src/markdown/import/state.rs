@@ -11,6 +11,10 @@ use crate::id::new_id;
 use crate::mark::{Mark, MarkKind, MarkSet, MarkValue};
 use crate::text::Text;
 use std::collections::HashSet;
+use std::ops::Range;
+
+/// First and last source line (0-based) of a block.
+pub(super) type Span = (usize, usize);
 
 /// One open list: instance, start number, next index, tight?
 pub(super) type ListState = (u32, Option<u64>, u64, bool);
@@ -25,14 +29,33 @@ pub(super) struct Imp<'a> {
     pub next_inst: u32,
     pub lists: Vec<ListState>,
     pub pending_tight: bool,
-    pub item_start: Vec<usize>,
-    pub quote_start: Vec<usize>,
+    pub item_start: Vec<(usize, Range<usize>)>,
+    pub quote_start: Vec<(usize, Range<usize>)>,
+    pub foot_start: Vec<(usize, Range<usize>)>,
     pub cell_end: usize,
-    pub pending_sep: Option<Block>,
+    pub pending_sep: Option<(Block, Option<Span>)>,
+    /// Start offsets of the source lines.
+    pub lines: Vec<usize>,
+    /// Source lines of the finished blocks (parallel to `blocks`).
+    pub spans: Vec<Option<Span>>,
+    /// Link reference definitions still to be placed, by source position.
+    pub defs: Vec<Range<usize>>,
+    pub next_def: usize,
+    /// Lines that were mkdocs admonition headers before conversion.
+    pub admon_lines: HashSet<usize>,
+    /// Callout instances that came from admonition syntax.
+    pub admon_insts: HashSet<u32>,
 }
 
 impl<'a> Imp<'a> {
-    pub fn new(src: &'a str, loose: HashSet<usize>) -> Self {
+    pub fn new(
+        src: &'a str,
+        loose: HashSet<usize>,
+        defs: Vec<Range<usize>>,
+        headers: &[usize],
+    ) -> Self {
+        let mut lines = vec![0];
+        lines.extend(src.match_indices('\n').map(|(i, _)| i + 1));
         Self {
             src,
             loose,
@@ -45,9 +68,27 @@ impl<'a> Imp<'a> {
             pending_tight: true,
             item_start: Vec::new(),
             quote_start: Vec::new(),
+            foot_start: Vec::new(),
             cell_end: 0,
             pending_sep: None,
+            lines,
+            spans: Vec::new(),
+            defs,
+            next_def: 0,
+            admon_lines: headers.iter().copied().collect(),
+            admon_insts: HashSet::new(),
         }
+    }
+    /// 0-based source line of a byte offset.
+    pub fn line_of(&self, off: usize) -> usize {
+        self.lines.partition_point(|&s| s <= off).saturating_sub(1)
+    }
+    /// Source lines a leaf covers (`None` when it has no source position).
+    pub fn span_of(&self, leaf: &Leaf) -> Option<Span> {
+        let start = leaf.start?;
+        let first = self.line_of(start);
+        let last = self.line_of(leaf.end.max(start + 1) - 1).max(first);
+        Some((first, last))
     }
     pub fn inst(&mut self) -> u32 {
         let i = self.next_inst;
@@ -94,6 +135,11 @@ impl<'a> Imp<'a> {
             leaf.len -= 1;
         }
         widen_table(&mut leaf);
+        let span = self.span_of(&leaf);
+        let bracket = leaf
+            .start
+            .is_some_and(|st| self.src[st..].trim_start().starts_with("[!"));
+        let line = leaf.start.map(|st| self.line_of(st));
         let mut attrs = BlockAttrs::new(leaf.kind.clone());
         attrs.containers.clone_from(&self.containers);
         match (&leaf.kind, leaf.heading_attrs.take()) {
@@ -105,6 +151,12 @@ impl<'a> Imp<'a> {
         }
         if leaf.glue {
             attrs.extra.insert("glue".into(), "1".into());
+        }
+        if leaf.unparsed {
+            attrs.extra.insert("unparsed".into(), "1".into());
+        }
+        if let Some(r) = leaf.rule.take() {
+            attrs.extra.insert("rule".into(), r);
         }
         if let Some(d) = leaf.dashes.take() {
             attrs.extra.insert("dashes".into(), d);
@@ -126,10 +178,15 @@ impl<'a> Imp<'a> {
         ) {
             extract_block_ref(&mut block);
         }
-        if was_fresh && block.attrs.kind == BlockKind::Paragraph {
-            self.try_callout(&mut block);
+        if was_fresh && bracket && block.attrs.kind == BlockKind::Paragraph {
+            self.try_callout(&mut block, line);
         }
-        self.push_block(block);
+        if block.attrs.containers.iter().any(
+            |c| matches!(c, Container::Callout { inst, .. } if self.admon_insts.contains(inst)),
+        ) {
+            block.attrs.extra.insert("admonition".into(), "1".into());
+        }
+        self.push_block(block, span);
     }
 }
 

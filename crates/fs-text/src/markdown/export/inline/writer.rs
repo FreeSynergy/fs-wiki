@@ -35,10 +35,7 @@ impl MarkWriter for MdSyntax {
                 Some(l) => format!(
                     "]({}{})",
                     dest(&l.path),
-                    l.title
-                        .as_ref()
-                        .map(|t| format!(" \"{}\"", t.replace('"', "\\\"")))
-                        .unwrap_or_default()
+                    l.title.as_deref().map(title).unwrap_or_default()
                 ),
                 None => "]()".into(),
             },
@@ -51,12 +48,50 @@ impl MarkWriter for MdSyntax {
     }
 }
 
+/// `&` that starts something like a character reference (`&copy;`, `&#9;`).
+fn starts_reference(rest: &str) -> bool {
+    let body: String = rest
+        .chars()
+        .skip(1)
+        .take_while(|c| c.is_ascii_alphanumeric() || *c == '#')
+        .collect();
+    !body.is_empty() && rest[1 + body.len()..].starts_with(';')
+}
+
+/// Escapes that keep `s` literal inside a link destination or title: a backslash before
+/// punctuation (or at the end) is doubled, an `&` that would start a character reference is
+/// written `&amp;`, and `extra` chars get a backslash.
+fn literal(s: &str, extra: &[char]) -> String {
+    let mut out = String::with_capacity(s.len());
+    for (i, c) in s.char_indices() {
+        let next = s[i + 1..].chars().next();
+        match c {
+            '\\' if next.is_none_or(|n| n.is_ascii_punctuation()) => out.push_str("\\\\"),
+            '&' if starts_reference(&s[i..]) => out.push_str("&amp;"),
+            c if extra.contains(&c) => {
+                out.push('\\');
+                out.push(c);
+            }
+            c => out.push(c),
+        }
+    }
+    out
+}
+
 fn dest(d: &str) -> String {
     let opens = d.matches('(').count();
     let closes = d.matches(')').count();
-    if d.is_empty() || d.contains(char::is_whitespace) || opens != closes {
-        format!("<{d}>")
+    let plain = !d.is_empty()
+        && opens == closes
+        && !d.starts_with('<')
+        && !d.contains(|c: char| c.is_whitespace() || c.is_control());
+    if plain {
+        literal(d, &[])
     } else {
-        d.to_string()
+        format!("<{}>", literal(d, &['<', '>']))
     }
+}
+
+fn title(t: &str) -> String {
+    format!(" \"{}\"", literal(t, &['"']))
 }

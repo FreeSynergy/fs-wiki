@@ -5,6 +5,7 @@
 
 use super::block_kind::BlockKind;
 use super::container::Container;
+use super::source::Source;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -21,6 +22,10 @@ pub struct BlockAttrs {
     pub heading_attrs: Option<String>,
     /// Free-form hints.
     pub extra: BTreeMap<String, String>,
+    /// The text this block was read from, for verbatim export of an unchanged block (see
+    /// [`Source`]; provisional, part of the stored form, ignored by `same_content`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<Source>,
 }
 
 impl BlockAttrs {
@@ -33,6 +38,7 @@ impl BlockAttrs {
             block_ref: None,
             heading_attrs: None,
             extra: BTreeMap::new(),
+            source: None,
         }
     }
 }
