@@ -1405,8 +1405,8 @@ dependencies = [
 
 [[package]]
 name = "fs-interfaces"
-version = "0.6.0"
-source = "git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.6.0#53fdc9a555c9038e23c3a1377ed20c804a2ace88"
+version = "0.23.0"
+source = "git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.23.0#f8092468846b692893e3a3886e4abbaa24f3fc29"
 dependencies = [
  "capnp",
 ]
@@ -1430,7 +1430,7 @@ dependencies = [
 
 [[package]]
 name = "fs-text"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "proptest",
  "pulldown-cmark 0.13.6",
@@ -1445,7 +1445,7 @@ dependencies = [
 
 [[package]]
 name = "fs-wiki-app"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "fs-components-widgets",
  "fs-components-workbenches",
@@ -1457,7 +1457,7 @@ dependencies = [
 
 [[package]]
 name = "fs-wiki-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-trait",
  "fs-interfaces",

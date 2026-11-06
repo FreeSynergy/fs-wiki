@@ -43,7 +43,7 @@ impl WikiRepo {
     pub(super) async fn edit_locked(&self, id: ObjectId, mut doc: Document) -> Result<TextEntry> {
         let old = self.text(id).await?.ok_or(Error::NotFound(id))?;
         doc.id = id.as_uuid();
-        let obj = self.build_object(id, Some(&old.envelope), &old.path, &doc)?;
+        let obj = self.build_object(id, Some(&old), &old.path, &doc)?;
         self.objects.put(obj, &self.actor).await?;
         self.entry(id).await
     }

@@ -6,12 +6,14 @@
 //!
 //! Order of writes, chosen so that repeating an interrupted call finishes it (`fs-store` 0.2 has
 //! no transaction over several objects):
+//! 0. the move is recorded (`move_log.rs`; "unfinished");
 //! 1. every text outside the folder that links into it is rewritten (found by the `link` index,
 //!    not by reading all texts);
 //! 2. the texts of the folder move one by one, shallow ones first; each is written once, with its
 //!    new path and its links already rewritten.
 //!
-//! A repeated call plans again from what is stored: rewritten texts no longer match phase 1 and
+//! Last, the record is marked done. A move never merges into texts that are already at the
+//! target, and no other move starts while one is unfinished. A repeated call plans again from what is stored: rewritten texts no longer match phase 1 and
 //! moved texts no longer lie below the old folder, so only the rest is done. This needs the new
 //! places to lie outside the old folder; a target that would put a moved text inside the old
 //! folder (moving up into an ancestor where a name repeats) is refused for that reason.
@@ -19,35 +21,16 @@
 use std::collections::HashSet;
 
 use fs_store::ObjectId;
-use fs_text::{rewrite_links_with, Document, MovePrefix};
 
 use super::handle::WikiRepo;
+use super::move_log::MoveRecord;
+use super::plan::{within, Step};
 use super::read::all_texts;
+use super::record::entry_of;
+use super::relink::{relinked, Shift};
 use crate::error::{Error, Result};
 use crate::path::TextPath;
 use crate::texts::{Paging, TextEntry};
-
-/// Texts are listed this many at a time while planning.
-const BATCH: usize = 500;
-
-/// One text to move.
-struct Step {
-    id: ObjectId,
-    old: String,
-    new: String,
-}
-
-/// `path` is `folder` itself or lies below it.
-fn within(path: &str, folder: &str) -> bool {
-    path == folder
-        || path
-            .strip_prefix(folder)
-            .is_some_and(|r| r.starts_with('/'))
-}
-
-fn depth(path: &str) -> usize {
-    path.split('/').count()
-}
 
 impl WikiRepo {
     pub(super) async fn move_folder_locked(
@@ -68,7 +51,20 @@ impl WikiRepo {
             return Err(invalid("the target lies inside the folder itself"));
         }
         let steps = self.plan(old, new).await?;
+        let last = self.last_move().await?;
+        let same = last.as_ref().filter(|r| r.is(old, new));
         if steps.is_empty() {
+            // Nothing left to move: a repeat of a move that is complete, if the record says it
+            // was this one and the texts are at the target.
+            let moved = self.entries_below(new).await?;
+            if let Some(r) = same.filter(|_| !moved.is_empty()) {
+                self.record_move(&MoveRecord {
+                    done: true,
+                    ..r.clone()
+                })
+                .await?;
+                return Ok(moved);
+            }
             return Err(Error::NoSuchFolder(old.into()));
         }
         if steps.iter().any(|s| within(&s.new, old)) {
@@ -76,21 +72,58 @@ impl WikiRepo {
                 "a moved text would land inside the old folder, which an interrupted move could not tell apart",
             ));
         }
+        if let Some(r) = last.as_ref().filter(|r| !r.done && same.is_none()) {
+            return Err(Error::MoveUnfinished {
+                from: r.from.clone(),
+                to: r.to.clone(),
+            });
+        }
+        // The target may hold texts of this very move (finishing it) and nothing else.
+        let mut ids: Vec<ObjectId> = same.map(|r| r.ids.clone()).unwrap_or_default();
+        let ours = |t: &TextEntry| within(&t.path, old) || ids.contains(&t.id);
+        if self.occupied(new, &ours).await? {
+            return Err(Error::TargetNotEmpty {
+                from: old.into(),
+                to: new.into(),
+            });
+        }
+        ids.extend(
+            steps
+                .iter()
+                .map(|s| s.id)
+                .filter(|id| !ids.contains(id))
+                .collect::<Vec<_>>(),
+        );
         for step in &steps {
             if self.text_at(&step.new).await?.is_some() {
                 return Err(Error::PathTaken(step.new.clone()));
             }
         }
 
-        let rewriter = MovePrefix::new(old, new);
-        self.rewrite_outside_links(old, &rewriter, &steps).await?;
+        let record = MoveRecord {
+            from: old.into(),
+            to: new.into(),
+            done: false,
+            ids,
+        };
+        self.record_move(&record).await?;
+        let shift = Shift {
+            old,
+            new,
+            folder: true,
+        };
+        self.rewrite_outside_links(&shift, &steps).await?;
         for step in &steps {
             let text = self.text(step.id).await?.ok_or(Error::NotFound(step.id))?;
-            let mut docs: [Document; 1] = [text.document];
-            rewrite_links_with(&mut docs, &rewriter);
-            let [doc] = docs;
-            self.store_document(&text.envelope, &step.new, &doc).await?;
+            let doc = relinked(&text.document, &step.old, &step.new, &shift)
+                .unwrap_or_else(|| text.document.clone());
+            self.store_document(&text, &step.new, &doc).await?;
         }
+        self.record_move(&MoveRecord {
+            done: true,
+            ..record
+        })
+        .await?;
         let mut moved = Vec::with_capacity(steps.len());
         for step in &steps {
             moved.push(self.entry(step.id).await?);
@@ -98,36 +131,9 @@ impl WikiRepo {
         Ok(moved)
     }
 
-    /// Which texts move where; shallow ones first, so a place vacated by one is free for a
-    /// deeper one. Reads only ids and paths into memory, a batch of texts at a time.
-    async fn plan(&self, old: &str, new: &str) -> Result<Vec<Step>> {
-        let mut steps = vec![];
-        let mut found = self.text_at(old).await?.into_iter().collect::<Vec<_>>();
-        let mut offset = 0;
-        loop {
-            steps.extend(found.drain(..).map(|t| Step {
-                id: t.id,
-                new: format!("{new}{}", &t.path[old.len()..]),
-                old: t.path,
-            }));
-            let page = Paging::new(BATCH, offset);
-            found = self.list_texts(&format!("{old}/"), page).await?;
-            if found.is_empty() {
-                break;
-            }
-            offset += found.len();
-        }
-        steps.sort_by(|a, b| (depth(&a.old), &a.old).cmp(&(depth(&b.old), &b.old)));
-        Ok(steps)
-    }
-
     /// Phase 1: texts that are not part of the move but link into the folder.
-    async fn rewrite_outside_links(
-        &self,
-        old: &str,
-        rewriter: &MovePrefix,
-        steps: &[Step],
-    ) -> Result<()> {
+    async fn rewrite_outside_links(&self, shift: &Shift<'_>, steps: &[Step]) -> Result<()> {
+        let old = shift.old;
         let moving: HashSet<ObjectId> = steps.iter().map(|s| s.id).collect();
         let exact = all_texts(Paging::default()).with_index("link", old);
         let below = all_texts(Paging::default()).index_between(
@@ -142,26 +148,12 @@ impl WikiRepo {
                 if moving.contains(&id) || !done.insert(id) {
                     continue;
                 }
-                let entry = super::record::entry_of(other)?;
-                let mut docs = [entry.document];
-                if !rewrite_links_with(&mut docs, rewriter).is_empty() {
-                    let [doc] = docs;
-                    self.store_document(&entry.envelope, &entry.path, &doc)
-                        .await?;
+                let entry = entry_of(other)?;
+                if let Some(doc) = relinked(&entry.document, &entry.path, &entry.path, shift) {
+                    self.store_document(&entry, &entry.path, &doc).await?;
                 }
             }
         }
         Ok(())
-    }
-
-    /// The text at `folder` and the texts below it, as they are.
-    async fn entries_below(&self, folder: &str) -> Result<Vec<TextEntry>> {
-        let mut all: Vec<TextEntry> = self.text_at(folder).await?.into_iter().collect();
-        all.extend(
-            self.list_texts(&format!("{folder}/"), Paging::default())
-                .await?,
-        );
-        all.sort_by(|a, b| (depth(&a.path), &a.path).cmp(&(depth(&b.path), &b.path)));
-        Ok(all)
     }
 }

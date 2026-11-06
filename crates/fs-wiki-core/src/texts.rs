@@ -26,6 +26,8 @@ pub struct TextEntry {
     pub envelope: Envelope,
     /// Readable path, unique.
     pub path: String,
+    /// Counts every write of this text (1 = created); never goes back, whatever the clock does.
+    pub revision: u64,
     /// The document: text + layers.
     pub document: Document,
 }
@@ -85,6 +87,16 @@ pub trait Texts: Send + Sync {
     }
     /// `text.edit`: replace the document of `id` (the id of the document is forced to `id`).
     async fn edit(&self, _id: ObjectId, _document: Document) -> Result<TextEntry> {
+        not_possible("text.edit")
+    }
+    /// `text.edit` only if the text still has `revision` (compare-and-set, `TextEntry::revision`);
+    /// otherwise `Error::Conflict` and nothing is written. Atomic inside one process only.
+    async fn edit_if(
+        &self,
+        _id: ObjectId,
+        _revision: u64,
+        _document: Document,
+    ) -> Result<TextEntry> {
         not_possible("text.edit")
     }
     /// `text.move`: give `id` a new path; links to the old path in other texts follow.

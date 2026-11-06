@@ -28,5 +28,5 @@ pub use error::{Error, Result};
 pub use fs_interfaces::{Capabilities, Unsupported};
 pub use media::{TextFormat, MARKDOWN};
 pub use path::TextPath;
-pub use repo::{WikiRepo, CONTENT_TYPE, CONTEXT, TEXT_TYPE};
+pub use repo::{FileOrigin, Origins, WikiRepo, CONTENT_TYPE, CONTEXT, TEXT_TYPE};
 pub use texts::{LinkEntry, Paging, TextEntry, Texts};

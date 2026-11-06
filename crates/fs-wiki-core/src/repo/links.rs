@@ -10,19 +10,31 @@ use fs_text::extract_links;
 use super::handle::WikiRepo;
 use super::read::all_texts;
 use super::record::entry_of;
+use super::target::written;
 use crate::error::{Error, Result};
 use crate::path::page_of;
 use crate::texts::{LinkEntry, Paging, TextEntry};
 
-fn rows_of(text: &TextEntry) -> Vec<LinkEntry> {
+/// The rows of `text`, each with the path it means (`None` for external links and anchors).
+fn rows_of(text: &TextEntry) -> Vec<(LinkEntry, Option<String>)> {
     extract_links(&text.document)
         .into_iter()
-        .map(|r| LinkEntry {
-            source: text.id,
-            target: r.path,
-            at: format!("{}:{}-{}", r.source_block, r.start, r.end),
-            title: r.title,
-            internal: r.internal,
+        .map(|r| {
+            let meant = text
+                .document
+                .block(r.source_block)
+                .and_then(|b| b.marks.get(r.mark))
+                .and_then(|m| m.link())
+                .and_then(|l| written(l, &text.path))
+                .map(|w| w.target);
+            let entry = LinkEntry {
+                source: text.id,
+                target: r.path,
+                at: format!("{}:{}-{}", r.source_block, r.start, r.end),
+                title: r.title,
+                internal: r.internal,
+            };
+            (entry, meant)
         })
         .collect()
 }
@@ -30,7 +42,7 @@ fn rows_of(text: &TextEntry) -> Vec<LinkEntry> {
 impl WikiRepo {
     pub(super) async fn links_of(&self, id: ObjectId) -> Result<Vec<LinkEntry>> {
         let text = self.text(id).await?.ok_or(Error::NotFound(id))?;
-        Ok(rows_of(&text))
+        Ok(rows_of(&text).into_iter().map(|(e, _)| e).collect())
     }
 
     pub(super) async fn backlinks_to(&self, path: &str) -> Result<Vec<LinkEntry>> {
@@ -42,7 +54,8 @@ impl WikiRepo {
             rows.extend(
                 rows_of(&text)
                     .into_iter()
-                    .filter(|r| r.internal && page_of(&r.target) == page),
+                    .filter(|(r, meant)| r.internal && meant.as_deref() == Some(page))
+                    .map(|(r, _)| r),
             );
         }
         Ok(rows)

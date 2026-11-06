@@ -3,68 +3,11 @@
 
 mod common;
 
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use async_trait::async_trait;
-use common::{everything, fill, md, paths, setup, ME};
-use fs_store::traits::{ObjectQuery, ObjectRepository};
-use fs_store::{
-    Activity, Error as StoreError, LogEntry, ObjectId, Result as StoreResult, StoredObject,
-    TursoStore,
-};
+use common::{everything, failing, fill, md, paths, setup, ME};
+use fs_store::{ObjectId, TursoStore};
 use fs_wiki_core::{Error, Paging, TextEntry, Texts, WikiRepo};
-
-/// A store that stops accepting writes after `left` of them (reads always work).
-struct Failing {
-    inner: Arc<TursoStore>,
-    left: AtomicUsize,
-}
-
-impl Failing {
-    fn gate(&self) -> StoreResult<()> {
-        let left = self.left.load(Ordering::SeqCst);
-        if left == 0 {
-            return Err(StoreError::Backend("injected failure".into()));
-        }
-        self.left.store(left - 1, Ordering::SeqCst);
-        Ok(())
-    }
-}
-
-#[async_trait]
-impl ObjectRepository for Failing {
-    async fn put(&self, object: StoredObject, actor: &str) -> StoreResult<Activity> {
-        self.gate()?;
-        ObjectRepository::put(&*self.inner, object, actor).await
-    }
-    async fn put_and_log(
-        &self,
-        object: StoredObject,
-        actor: &str,
-        extra: Vec<LogEntry>,
-    ) -> StoreResult<Vec<Activity>> {
-        self.gate()?;
-        ObjectRepository::put_and_log(&*self.inner, object, actor, extra).await
-    }
-    async fn get(&self, id: ObjectId) -> StoreResult<Option<StoredObject>> {
-        ObjectRepository::get(&*self.inner, id).await
-    }
-    async fn delete(&self, id: ObjectId, actor: &str) -> StoreResult<Activity> {
-        self.gate()?;
-        ObjectRepository::delete(&*self.inner, id, actor).await
-    }
-}
-
-/// A wiki over `store` whose writes stop after `left`.
-fn failing(store: &Arc<TursoStore>, left: usize) -> WikiRepo {
-    let objects = Arc::new(Failing {
-        inner: store.clone(),
-        left: AtomicUsize::new(left),
-    });
-    let reads: Arc<dyn ObjectQuery> = store.clone();
-    WikiRepo::with_backend(objects, reads, ME)
-}
 
 fn sorted_ids(texts: &[TextEntry]) -> Vec<ObjectId> {
     let mut ids: Vec<_> = texts.iter().map(|t| t.id).collect();
@@ -74,8 +17,9 @@ fn sorted_ids(texts: &[TextEntry]) -> Vec<ObjectId> {
 
 #[tokio::test]
 async fn an_interrupted_folder_move_is_finished_by_repeating_it() {
-    // Writes of the standard move: `other` and `manual-old` (outside, phase 1), then 3 texts.
-    const WRITES: usize = 5;
+    // Writes of the standard move: the record, `other` and `manual-old` (outside, phase 1), then
+    // 3 texts, then the record marked done.
+    const WRITES: usize = 7;
     // The expected end state, from an undisturbed run.
     let reference = common::wiki().await;
     fill(&reference).await;
@@ -107,8 +51,10 @@ async fn an_interrupted_folder_move_is_finished_by_repeating_it() {
 
         // Repeating the same call finishes the job.
         let moved = healthy.move_folder("manual", "guide").await.unwrap();
-        let rest = fail_at.saturating_sub(2); // texts of the folder already moved
-        assert_eq!(moved.len(), 3 - rest, "at {fail_at}: only what was left");
+        // Texts of the folder already moved; once all are, repeating just reports the move.
+        let rest = fail_at.saturating_sub(3).min(3);
+        let left = if rest == 3 { 3 } else { 3 - rest };
+        assert_eq!(moved.len(), left, "at {fail_at}: only what was left");
         let after = everything(&healthy).await;
         assert_eq!(sorted_ids(&after), ids_before, "at {fail_at}");
         let mut got = vec![];

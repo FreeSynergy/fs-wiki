@@ -3,17 +3,17 @@
 //! Pattern: Adapter — maps a path and a [`Document`] onto the AS2 `Article` envelope and index
 //! fields that `fs-store` understands (ADR 0020). The content is the record `{ path, document }`
 //! as JSON, so the stored object is complete without its index. Index fields (all derived, never
-//! the truth): `path`; `link` = the page part of every internal link, which answers backlinks
+//! the truth): `path`; `link` = the path every internal link means (a relative link is resolved against its page), which answers backlinks
 //! in one query; `block` = the plain text of each block, which answers `find` in the store.
 
 use fs_store::{Envelope, IndexFields, ObjectId, StoredObject};
-use fs_text::{extract_links, Document};
+use fs_text::Document;
 use serde::{Deserialize, Serialize};
 
 use super::handle::{WikiRepo, CONTENT_TYPE, CONTEXT, TEXT_TYPE};
 use super::name::derive_name;
+use super::target::written;
 use crate::error::{Error, Result};
-use crate::path::page_of;
 use crate::texts::TextEntry;
 
 /// What is stored as the content of a text.
@@ -21,22 +21,27 @@ use crate::texts::TextEntry;
 struct Record {
     path: String,
     document: Document,
+    /// Counts the writes; records written before it existed read as 0.
+    #[serde(default)]
+    revision: u64,
 }
 
 impl WikiRepo {
-    /// The object to store for `doc` at `path`; `existing` keeps id, publication time and IRI.
+    /// The object to store for `doc` at `path`; `prior` keeps id, publication time and IRI and
+    /// gives the next revision.
     pub(super) fn build_object(
         &self,
         id: ObjectId,
-        existing: Option<&Envelope>,
+        prior: Option<&TextEntry>,
         path: &str,
         doc: &Document,
     ) -> Result<StoredObject> {
-        let mut env = existing.cloned().unwrap_or_else(|| self.fresh_envelope(id));
+        let mut env = prior.map_or_else(|| self.fresh_envelope(id), |p| p.envelope.clone());
         env.name = derive_name(doc, path);
         let record = Record {
             path: path.to_string(),
             document: doc.clone(),
+            revision: prior.map_or(1, |p| p.revision + 1),
         };
         let mut obj = StoredObject::new(env, CONTENT_TYPE, serde_json::to_value(record)?);
         obj.index = index_fields(path, doc);
@@ -65,6 +70,7 @@ pub(super) fn entry_of(o: StoredObject) -> Result<TextEntry> {
         id,
         envelope: o.envelope,
         path: record.path,
+        revision: record.revision,
         document: record.document,
     })
 }
@@ -73,10 +79,14 @@ fn index_fields(path: &str, doc: &Document) -> IndexFields {
     let mut index = IndexFields::new();
     index.insert("path".into(), vec![path.to_string()]);
     let mut links: Vec<String> = vec![];
-    for row in extract_links(doc).into_iter().filter(|r| r.internal) {
-        let page = page_of(&row.path);
-        if !page.is_empty() && !links.iter().any(|l| l == page) {
-            links.push(page.to_string());
+    for block in &doc.blocks {
+        for mark in &block.marks {
+            let Some(w) = mark.link().and_then(|l| written(l, path)) else {
+                continue;
+            };
+            if !links.contains(&w.target) {
+                links.push(w.target);
+            }
         }
     }
     if !links.is_empty() {

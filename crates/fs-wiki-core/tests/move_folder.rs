@@ -30,7 +30,7 @@ async fn a_folder_moves_with_everything_below_and_links_follow() {
     );
     assert_eq!(
         md(&w, ids[1]).await,
-        "Back to [[guide]], up [x](guide/deep/b), self [[guide/a#s]].\n"
+        "Back to [[guide]], up [x](deep/b), self [[guide/a#s]].\n"
     );
     assert_eq!(
         md(&w, ids[2]).await,
@@ -74,10 +74,7 @@ async fn a_clash_anywhere_below_refuses_everything_before_writing() {
     let log_before = store.undo_state(ME).await.unwrap();
 
     let err = w.move_folder("manual", "guide").await.unwrap_err();
-    assert!(
-        matches!(&err, Error::PathTaken(p) if p == "guide/deep/b"),
-        "{err:?}"
-    );
+    assert!(matches!(&err, Error::TargetNotEmpty { .. }), "{err:?}");
     assert_eq!(everything(&w).await, before, "no text was touched");
     assert_eq!(
         store.undo_state(ME).await.unwrap(),
@@ -91,7 +88,7 @@ async fn a_clash_anywhere_below_refuses_everything_before_writing() {
     w2.create("guide", "taken").await.unwrap();
     assert!(matches!(
         w2.move_folder("manual", "guide").await,
-        Err(Error::PathTaken(p)) if p == "guide"
+        Err(Error::TargetNotEmpty { .. })
     ));
 }
 

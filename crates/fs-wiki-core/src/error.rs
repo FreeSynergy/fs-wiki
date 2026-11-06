@@ -41,6 +41,32 @@ pub enum Error {
     /// No text at the path and none below it.
     #[error("nothing at {0:?} or below it")]
     NoSuchFolder(String),
+    /// `edit_if`: the text was written by someone else since `expected` was read. Nothing was written.
+    #[error("conflict: text {id} has revision {found}, not {expected}")]
+    Conflict {
+        /// The text.
+        id: ObjectId,
+        /// The revision the caller had read.
+        expected: u64,
+        /// The revision the text has now.
+        found: u64,
+    },
+    /// A folder move was started and not finished; only repeating it is allowed.
+    #[error("the move of {from:?} to {to:?} is not finished; repeat it before any other move")]
+    MoveUnfinished {
+        /// Folder of the unfinished move.
+        from: String,
+        /// Its target.
+        to: String,
+    },
+    /// The target of a folder move already holds texts (a move never merges).
+    #[error("cannot move {from:?} to {to:?}: there are already texts at the target")]
+    TargetNotEmpty {
+        /// The folder as given.
+        from: String,
+        /// The target as given.
+        to: String,
+    },
     /// No import / export format is known for this media type.
     #[error("unknown media type {0:?} (known: text/markdown)")]
     MediaType(String),

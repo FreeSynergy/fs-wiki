@@ -9,7 +9,7 @@ use fs_store::ObjectId;
 use fs_text::Document;
 
 use super::handle::WikiRepo;
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::media::TextFormat;
 use crate::path::TextPath;
 use crate::texts::{LinkEntry, Paging, TextEntry, Texts};
@@ -36,6 +36,18 @@ impl Texts for WikiRepo {
     }
     async fn edit(&self, id: ObjectId, document: Document) -> Result<TextEntry> {
         let _write = self.write_lock.lock().await;
+        self.edit_locked(id, document).await
+    }
+    async fn edit_if(&self, id: ObjectId, revision: u64, document: Document) -> Result<TextEntry> {
+        let _write = self.write_lock.lock().await;
+        let found = self.text(id).await?.ok_or(Error::NotFound(id))?.revision;
+        if found != revision {
+            return Err(Error::Conflict {
+                id,
+                expected: revision,
+                found,
+            });
+        }
         self.edit_locked(id, document).await
     }
     async fn move_to(&self, id: ObjectId, path: &str) -> Result<TextEntry> {

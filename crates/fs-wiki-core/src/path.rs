@@ -32,6 +32,10 @@ impl TextPath {
         if path.contains('\\') || path.chars().any(char::is_control) {
             return bad("backslash or control character");
         }
+        if path.contains('\u{10FFFF}') {
+            // It ends the text-order range that lists a folder, so such a text could not be listed.
+            return bad("U+10FFFF is reserved as the end of the order");
+        }
         for segment in path.split('/') {
             match segment {
                 "" => return bad("empty segment (leading, trailing or double '/')"),
