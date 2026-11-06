@@ -153,6 +153,9 @@ impl<'a> Imp<'a> {
             }
             _ => {}
         }
+        if let Some(f) = leaf.fence.take() {
+            attrs.extra.insert("fence-char".into(), f);
+        }
         if leaf.unparsed {
             attrs.extra.insert("unparsed".into(), "1".into());
         }

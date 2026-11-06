@@ -28,6 +28,9 @@ pub(super) struct Leaf {
     pub rule: Option<String>,
     /// Text the parser did not turn into a block (a link reference definition).
     pub unparsed: bool,
+    /// Fenced code: the fence char, and a space if the info string was set off by one, when
+    /// that differs from ```` ```info ````.
+    pub fence: Option<String>,
     /// Tables: the widest row (cells).
     pub max_cells: usize,
 }
@@ -48,6 +51,7 @@ impl Leaf {
             dashes: None,
             rule: None,
             unparsed: false,
+            fence: None,
             max_cells: 0,
         }
     }

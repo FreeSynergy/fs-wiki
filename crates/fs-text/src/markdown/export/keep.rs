@@ -51,11 +51,6 @@ pub(super) fn open_html(b: &Block) -> bool {
         .any(|(open, close)| t.starts_with(open) && t.ends_with(close))
 }
 
-/// A line of spaces and tabs only (a no-break space is text).
-fn blank(l: &str) -> bool {
-    l.chars().all(|c| matches!(c, ' ' | '\t' | '\r'))
-}
-
 /// What stood in front of a changed block in the file (blank lines, a second definition of a
 /// label, …), if the block still follows the block it followed there. The comment that keeps two
 /// lists apart is written by the exporter itself and is not repeated.
@@ -72,23 +67,39 @@ pub(super) fn kept_lead(b: &Block, prev: Option<&Block>) -> Option<Vec<String>> 
     (!lead.is_empty()).then_some(lead)
 }
 
-/// The blank lines that ended the file after a changed last block.
+/// What stood after a changed last block in the file, up to its end.
 pub(super) fn kept_tail(b: &Block) -> Vec<String> {
+    let Some(s) = b.attrs.source.as_ref().filter(|s| s.tail && s.end > 0) else {
+        return Vec::new();
+    };
+    s.text
+        .get(s.end..)
+        .unwrap_or("")
+        .lines()
+        .map(String::from)
+        .collect()
+}
+
+/// Text that stands in a block's kept source next to the block (in front of it, behind the last
+/// one) and in no block of the model: a stray line the parser skipped.
+pub(super) fn source_only_text(b: &Block) -> Vec<String> {
     let Some(s) = b.attrs.source.as_ref() else {
         return Vec::new();
     };
-    let mut v: Vec<String> = s
-        .text
-        .lines()
-        .rev()
-        .take_while(|l| blank(l))
-        .map(String::from)
-        .collect();
-    v.reverse();
-    if v.len() == s.text.lines().count() {
-        v.clear();
-    }
-    v
+    let lead = s.text.get(..s.own).unwrap_or("");
+    let tail = if s.tail && s.end > 0 {
+        s.text.get(s.end..).unwrap_or("")
+    } else {
+        ""
+    };
+    lead.lines()
+        .chain(tail.lines())
+        .filter(|l| {
+            let t = l.trim_matches(|c: char| c.is_whitespace() || c == '>');
+            !t.is_empty() && t != "<!-- -->"
+        })
+        .map(|l| l.trim().to_string())
+        .collect()
 }
 
 /// Write the canonical lines gathered so far to `res`.

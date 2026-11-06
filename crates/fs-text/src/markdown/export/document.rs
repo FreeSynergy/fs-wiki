@@ -5,7 +5,9 @@
 //! one (tight lists, glued blocks) and delegates the rendering.
 
 use super::container::{common, cont_prefix, lists_would_merge, tight_join};
-use super::keep::{flush, kept_lead, kept_tail, line_ending, open_html, opts_for};
+use super::keep::{
+    flush, kept_lead, kept_tail, line_ending, open_html, opts_for, source_only_text,
+};
 use super::layout::{render_in_containers, Place};
 use super::options::ExportOptions;
 use super::report::{analyse, report_of, ExportReport};
@@ -73,8 +75,7 @@ pub fn export_blocks_report(blocks: &[Block], opts: ExportOptions) -> (String, E
         let back = import_plain(&pass.out).blocks;
         let an = analyse(blocks, &back, &pass.verbatim);
         if !an.neighbours_changed {
-            let mut report = report_of(blocks, &an);
-            report.rewritten = rewritten(blocks, &pass.verbatim);
+            let report = full_report(blocks, &an, &pass);
             return (pass.out, report);
         }
         if radius == 0 {
@@ -82,7 +83,8 @@ pub fn export_blocks_report(blocks: &[Block], opts: ExportOptions) -> (String, E
             if !pass.to_end {
                 core.push(n - 1);
             }
-            first = Some((pass.out, report_of(blocks, &an)));
+            let report = full_report(blocks, &an, &pass);
+            first = Some((pass.out, report));
         }
         radius = if radius == 0 { 1 } else { radius * 3 };
         if radius >= n {
@@ -101,11 +103,33 @@ pub fn export_blocks_report(blocks: &[Block], opts: ExportOptions) -> (String, E
     match first {
         Some(f) if !an.inexact.is_empty() => f,
         _ => {
-            let mut report = report_of(blocks, &an);
-            report.rewritten = rewritten(blocks, &all.verbatim);
+            let report = full_report(blocks, &an, &all);
             (all.out, report)
         }
     }
+}
+
+/// The report of a pass: what did not read back, what was rewritten, and text that stood only in
+/// a dropped kept source and is not in the output.
+fn full_report(blocks: &[Block], an: &super::report::Analysis, pass: &Pass) -> ExportReport {
+    let mut report = report_of(blocks, an);
+    report.rewritten = rewritten(blocks, &pass.verbatim);
+    for (i, b) in blocks
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| !pass.verbatim[*i])
+    {
+        for line in source_only_text(b)
+            .into_iter()
+            .filter(|l| !pass.out.contains(l.as_str()))
+        {
+            report.inexact.push(super::report::Inexact {
+                block: blocks[i].id,
+                why: format!("text that stood next to it in the file is not in the output: {line}"),
+            });
+        }
+    }
+    report
 }
 
 /// Blocks whose kept source could have been used but were written anew in this pass.

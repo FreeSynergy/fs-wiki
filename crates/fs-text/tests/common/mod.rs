@@ -62,7 +62,15 @@ pub fn without_style(d: &fs_text::Document) -> fs_text::Document {
     for b in &mut d.blocks {
         b.attrs.source = None;
         b.attrs.extra.retain(|k, _| {
-            !["glue", "dashes", "rule", "admonition", "callout-type"].contains(&k.as_str())
+            ![
+                "glue",
+                "dashes",
+                "rule",
+                "admonition",
+                "callout-type",
+                "fence-char",
+            ]
+            .contains(&k.as_str())
         });
         let ms: Vec<_> = b.marks.iter().cloned().collect();
         let mut v = Vec::new();

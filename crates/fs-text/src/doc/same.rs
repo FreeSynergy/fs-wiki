@@ -15,7 +15,14 @@ use std::collections::HashMap;
 type Canon = Vec<(String, BlockAttrs, Vec<Mark>)>;
 
 /// `extra` keys that only record layout, not content.
-const STYLE_HINTS: [&str; 5] = ["glue", "dashes", "rule", "admonition", "callout-type"];
+const STYLE_HINTS: [&str; 6] = [
+    "glue",
+    "dashes",
+    "rule",
+    "admonition",
+    "callout-type",
+    "fence-char",
+];
 
 fn canon(blocks: &[Block], style: bool) -> Canon {
     let mut map: HashMap<(bool, u32), u32> = HashMap::default();

@@ -59,6 +59,15 @@ impl Imp<'_> {
             if l.start.is_none() {
                 l.start = Some(range.start);
                 l.end = l.end.max(range.end);
+                if let BlockKind::Code { info } = &l.kind {
+                    let t = src[range.start..].trim_start();
+                    let fence = t.chars().next().filter(|c| matches!(c, '`' | '~'));
+                    let after = fence.map_or("", |c| t.trim_start_matches(c));
+                    let spaced = after.starts_with(' ') && !info.is_empty();
+                    l.fence = fence
+                        .filter(|c| *c == '~' || spaced)
+                        .map(|c| format!("{c}{}", if spaced { " " } else { "" }));
+                }
                 if let BlockKind::Table { .. } = l.kind {
                     l.dashes = table_dashes(&src[range.clone()]);
                 }

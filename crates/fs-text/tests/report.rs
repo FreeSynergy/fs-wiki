@@ -129,3 +129,64 @@ fn a_tampered_source_of_the_same_length_is_not_used() {
     let (out, _) = export(&d);
     assert!(!out.contains("FAKE") && out.contains("real"), "{out:?}");
 }
+
+#[test]
+fn a_second_definition_behind_a_quote_or_on_two_lines_survives() {
+    for src in [
+        "> [x][r]\n>\n> [r]: t/p.md\n> [r]: /keep\n",
+        "[x][r]\n\n[r]: t/p.md\n[r]:\n  /keep\n",
+        "[x][r]\n\n[r]: t/p.md\n\n  [r]: /keep\n",
+    ] {
+        let mut docs = vec![import_markdown(src)];
+        let _ = rewrite_links(&mut docs, "t", "u");
+        let (out, _) = export(&docs[0]);
+        assert!(out.contains("/keep"), "{src:?} -> {out:?}");
+        // and when the neighbours are written anew
+        // the definition in front of it is written anew: the tail of its source is dropped
+        let mut d = import_markdown(src);
+        let at = d
+            .blocks
+            .iter()
+            .position(|b| b.text.to_string().starts_with("[r]"))
+            .unwrap();
+        d.blocks[at].splice(5, 8, "t2/p.md");
+        let (out, report) = export(&d);
+        assert!(
+            out.contains("/keep") || !report.inexact.is_empty(),
+            "{src:?} edited -> {out:?}"
+        );
+        assert!(out.contains("/keep"), "{src:?} edited -> {out:?}");
+    }
+}
+
+#[test]
+fn text_that_lives_only_in_a_dropped_source_is_reported() {
+    // a stray line in front of a block, invisible to the model, is gone when the block is
+    // written anew at another place: the report must say so
+    let mut d = import_markdown("a\n\nb\n");
+    let s = d.blocks[1].attrs.source.as_mut().unwrap();
+    s.text = "\nONLY IN THE SOURCE\n\nb\n".into();
+    s.own = s.text.find("\nb").unwrap() + 1;
+    let fp = d.blocks[1].fingerprint();
+    let s = d.blocks[1].attrs.source.as_mut().unwrap();
+    s.hash = Source::seal(&fp, &s.rest, &s.text, (s.own, s.end));
+    d.blocks.swap(0, 1);
+    let (out, report) = export(&d);
+    assert!(!out.contains("ONLY IN THE SOURCE"), "{out:?}");
+    assert!(
+        report
+            .inexact
+            .iter()
+            .any(|i| i.why.contains("ONLY IN THE SOURCE")),
+        "{report:?}"
+    );
+}
+
+#[test]
+fn a_tilde_fence_stays_a_tilde_fence_when_neighbours_are_rewritten() {
+    let src = "[x][r]\n\n~~~ rust\nfn a() {}\n~~~\n\n[r]: /u\n";
+    let mut d = import_markdown(src);
+    d.blocks.pop(); // the definition goes: the link block before it is rewritten
+    let (out, _) = export(&d);
+    assert!(out.contains("~~~ rust\nfn a() {}\n~~~"), "{out:?}");
+}

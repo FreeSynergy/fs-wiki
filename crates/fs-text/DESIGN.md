@@ -137,9 +137,11 @@ read-back.
 A file that has no block (empty, blank lines only) is one empty paragraph that owns the text.
 Link reference definitions (`[x]: /u "t"`, `[//]: # (comment)`) are kept as HTML-kind blocks
 with the hint `unparsed`, also a second definition of the same label (`import::stray`; the parser
-skips it). No text lives only in a kept source: the gaps hold blank lines and the comment that
-keeps two lists apart (checked over the docs and 2286 third-party files) (text a person typed is never dropped; reference links themselves
-are still written inline).
+skips it), behind `> ` (it joins the quote of its neighbour) and with the destination on the next line. No text lives only in a kept source, and the export checks it: when a block is written anew, text
+that stood next to it in its source (in front of it, after the last block) and is not in the output
+is named in `ExportReport.inexact`. Besides that, the gaps hold only blank lines and the comment that keeps two
+lists apart (checked over the docs and 2286 third-party files). Text a person typed is never
+dropped; reference links themselves are still written inline.
 
 Layer marks are **not** written to files (ADR 0042 §2); `ExportOptions::layers` writes
 `{{var}}` and `[text]{#name}` for debugging. `ExportOptions::admonitions` writes the mkdocs dialect.
@@ -209,6 +211,10 @@ Known limits / not done:
   kind, flanking next to a no-break space) make a form second best, not wrong.
 * The title of a callout is kept as written (Markdown, `Callout::title`: `See [x](a.md)`), so its
   links are rewritten by `rewrite_links` like those in text; `extract_links` does not list them.
+* A fenced code block keeps `~~~` and a space before the info string (hint `fence-char`) when
+  it is written anew. Still open: the indent of a multi-line definition grows by the container
+  indent (`matrix-sdk-sqlite`), and a rule hint appears where `---` must become `***`
+  (`turso_ext`): 2 of 2286 third-party files are not `same_content` again.
 * A block reference (`text ^id`) needs a letter in the id and plain text: `E = mc ^2` and
   `` `^1` `` are text.
 * Typed U+2028 becomes a no-break space (U+2028 is the hard break in block text); a tab or line

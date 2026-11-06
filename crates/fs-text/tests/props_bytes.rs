@@ -164,6 +164,24 @@ proptest! {
             && !src.contains("]:") && !src.contains('<') {
             prop_assert!(report.rewritten.is_empty(), "{:?} edit 0 at {} {:?}: rewrote neighbours {:?}", src, at, word, report);
         }
+        // text that stands only in a kept source (next to the block, in no block) is in the output
+        // or named in the report: the report cannot lie about it
+        for b in &d.blocks {
+            let Some(s) = &b.attrs.source else { continue };
+            let lead = s.text.get(..s.own).unwrap_or("");
+            let tail = if s.tail && s.end > 0 { s.text.get(s.end..).unwrap_or("") } else { "" };
+            for line in lead.lines().chain(tail.lines()) {
+                let t = line.trim_matches(|c: char| c.is_whitespace() || c == '>');
+                if t.is_empty() || t == "<!-- -->" {
+                    continue;
+                }
+                prop_assert!(
+                    out.contains(line.trim()) || report.inexact.iter().any(|i| i.why.contains(line.trim())),
+                    "{:?} edit {} at {} {:?}: {:?} is only in a kept source, not in {:?} nor the report {:?}",
+                    src, kind, at, word, line, out, report
+                );
+            }
+        }
         // untouched blocks: their kept text is in the output
         for (n, b) in d.blocks.iter().enumerate() {
             let Some(s) = &b.attrs.source else { continue };

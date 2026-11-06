@@ -67,7 +67,11 @@ pub(super) fn render_block(b: &Block, opts: ExportOptions) -> Vec<String> {
             }
             v
         }),
-        BlockKind::Code { info } => render_code(&b.text.to_string(), info),
+        BlockKind::Code { info } => render_code(
+            &b.text.to_string(),
+            info,
+            b.attrs.extra.get("fence-char").map(String::as_str),
+        ),
         BlockKind::ThematicBreak => vec!["---".into()],
         BlockKind::FrontMatter => {
             let f = b.attrs.extra.get("fence").map_or("---", String::as_str);
