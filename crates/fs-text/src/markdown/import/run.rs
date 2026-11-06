@@ -44,6 +44,7 @@ fn import_with(orig: &str, sources: bool) -> Document {
     }
     s.finish();
     let mut blocks = std::mem::take(&mut s.blocks);
+    s.add_stray_definitions(&mut blocks);
     s.settle_glue(&mut blocks);
     if sources {
         s.attach_sources(&mut blocks, orig);

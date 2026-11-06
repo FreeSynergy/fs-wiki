@@ -103,19 +103,28 @@ marks with kind/range/value but not ids and not layer marks, kind, containers, t
 attributes) and the block in front is the same block. A layer mark (passage, explanation,
 variable) never invalidates a source: layers are not written to files.
 
-**The output proves itself.** When anything was edited (some block is written anew, or the last
-kept source does not reach the end of the file), the output is read back and compared strictly
-with the model (`doc::same_in_file`: text, kind, marks, containers, block ref, heading
-attributes; not layout hints, not `_` vs `*`, not layer marks). If it differs, the changed blocks
-and their neighbours are written canonically, then, if it still differs, the whole document. An
-untouched document skips all this at no cost. Examples that needed it: a removed definition
-(a reference link before it turns literal), a changed definition, a block that loses its
-container, one that becomes a list item in front of an indented block, a heading that becomes a
-paragraph in front of a glued line, HTML that changes in front of a glued line, a block added
-after an unclosed fence. A one-word edit keeps changing one line.
+**The output proves itself, and says what it could not do.** When anything was edited (some
+block is written anew, or the last kept source does not reach the end of the file), the output is
+read back and laid against the model (`export::report::analyse`): blocks written from their kept
+source are anchors and must read back as they are; between anchors the blocks written anew may
+read back as anything.
 
-A changed block (first pass) keeps what stood in front of it in the file (blank lines, a second
-definition of a label) while its predecessor is the same, and the blank lines after a changed
+* If the anchors hold, the pass is final, even when a block written anew does not read back
+  exactly (an edge blank or newline in a paragraph, markup inside a wiki link label, `&#10;` in
+  a link, text that an open HTML block swallows). That block is written in its nearest form and
+  named in the `ExportReport { inexact: [block, why], rewritten }` returned by
+  `export_markdown_report`; `export_markdown` is the same without the report. Untouched
+  neighbours stay byte for byte: a block that cannot be said exactly does not spread.
+* Only if an anchor would read differently (a removed definition turns a reference link
+  literal, a block that lost its container leaves the indented block after it in the list, a
+  heading that became a paragraph merges with the glued line below) are the changed blocks'
+  surroundings written anew, ever wider (radius 1, 3, 9, …), and the whole document last. Those
+  neighbours are listed in `rewritten`. If even the whole document has inexact blocks, the
+  least invasive pass is kept and reports them.
+
+An untouched document skips all this at no cost. A one-word edit keeps changing one line.
+
+A changed block (first pass) keeps what stood in front of it in the file (blank lines) while its predecessor is the same, and the blank lines after a changed
 last block; it uses the file's line ending, the table dash widths, `_` vs `*`, bullet marker,
 rule style, the case of a callout type (`[!NOTE]`) and the mkdocs `!!!` dialect (hint
 `admonition`). The source is part of the stored form: serialised with the block (`attrs.source`,
@@ -127,7 +136,9 @@ read-back.
 
 A file that has no block (empty, blank lines only) is one empty paragraph that owns the text.
 Link reference definitions (`[x]: /u "t"`, `[//]: # (comment)`) are kept as HTML-kind blocks
-with the hint `unparsed` (text a person typed is never dropped; reference links themselves
+with the hint `unparsed`, also a second definition of the same label (`import::stray`; the parser
+skips it). No text lives only in a kept source: the gaps hold blank lines and the comment that
+keeps two lists apart (checked over the docs and 2286 third-party files) (text a person typed is never dropped; reference links themselves
 are still written inline).
 
 Layer marks are **not** written to files (ADR 0042 §2); `ExportOptions::layers` writes
@@ -196,6 +207,8 @@ Known limits / not done:
   kind would change it tries other delimiter forms and finally escapes all ASCII punctuation;
   marks that cannot be written the same way (crossing marks, emphasis inside emphasis of the same
   kind, flanking next to a no-break space) make a form second best, not wrong.
+* The title of a callout is kept as written (Markdown, `Callout::title`: `See [x](a.md)`), so its
+  links are rewritten by `rewrite_links` like those in text; `extract_links` does not list them.
 * A block reference (`text ^id`) needs a letter in the id and plain text: `E = mc ^2` and
   `` `^1` `` are text.
 * Typed U+2028 becomes a no-break space (U+2028 is the hard break in block text); a tab or line

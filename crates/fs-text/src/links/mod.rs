@@ -6,6 +6,7 @@
 mod rewrite;
 mod rewriter;
 mod row;
+mod title;
 
 pub use rewrite::{rewrite_links, rewrite_links_with, DocOps};
 pub use rewriter::{moved_path, LinkRewriter, MovePrefix};

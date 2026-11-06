@@ -61,7 +61,7 @@ fn starts_reference(rest: &str) -> bool {
 /// Escapes that keep `s` literal inside a link destination or title: a backslash before
 /// punctuation (or at the end) is doubled, an `&` that would start a character reference is
 /// written `&amp;`, and `extra` chars get a backslash.
-fn literal(s: &str, extra: &[char]) -> String {
+pub(in crate::markdown::export) fn literal(s: &str, extra: &[char]) -> String {
     let mut out = String::with_capacity(s.len());
     for (i, c) in s.char_indices() {
         let next = s[i + c.len_utf8()..].chars().next();

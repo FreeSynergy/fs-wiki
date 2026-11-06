@@ -15,7 +15,9 @@ mod keep;
 mod layout;
 mod leaf;
 mod options;
+mod report;
 mod table;
 
-pub use document::{export_blocks, export_markdown};
+pub use document::{export_blocks, export_blocks_report, export_markdown, export_markdown_report};
 pub use options::ExportOptions;
+pub use report::{ExportReport, Inexact};

@@ -22,6 +22,7 @@ mod refdef;
 mod run;
 mod separator;
 mod state;
+mod stray;
 mod table;
 mod wikilink;
 

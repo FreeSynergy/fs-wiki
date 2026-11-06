@@ -8,7 +8,7 @@ fn markdown_semantics() {
     let d = import_markdown("> [!note]+ Hello *there*\n> Body\n\n!!! warning \"Careful\"\n    Mind the gap.\n\nText[^a] and ![[img.png]] ^blk\n\n[^a]: Note.\n");
     use Container::*;
     assert!(
-        matches!(&d.blocks[0].attrs.containers[0], Callout { ty, title, fold: Some('+'), .. } if ty == "note" && title == "Hello there")
+        matches!(&d.blocks[0].attrs.containers[0], Callout { ty, title, fold: Some('+'), .. } if ty == "note" && title == "Hello *there*")
     );
     assert_eq!(d.blocks[0].text.to_string(), "Body");
     assert!(

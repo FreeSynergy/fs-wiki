@@ -31,7 +31,7 @@ fn with_final_ids(doc: &Document, new_doc: &Document, segs: &[Seg]) -> Document 
             for r in &mut src.rest {
                 r.0 = map[&r.0];
             }
-            src.hash = Source::seal(&fp, &src.rest, &src.text, src.own);
+            src.hash = Source::seal(&fp, &src.rest, &src.text, (src.own, src.end));
         }
     }
     nd

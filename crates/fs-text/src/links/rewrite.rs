@@ -4,7 +4,8 @@
 //! are changed through [`Op`]s, so the caller gets forward and inverse ops per document.
 
 use super::rewriter::{LinkRewriter, MovePrefix};
-use crate::doc::{Block, Document};
+use super::title::rewrite_title;
+use crate::doc::{Block, Container, Document};
 use crate::id::Uuid;
 use crate::mark::{MarkKind, MarkValue};
 use crate::ops::Op;
@@ -52,6 +53,25 @@ pub fn rewrite_links_with(docs: &mut [Document], rewriter: &dyn LinkRewriter) ->
             todo.sort_by_key(|(_, s)| std::cmp::Reverse(*s));
             for (mid, _) in todo {
                 let op = rewrite_op(doc.block(bid).expect("block exists"), mid, rewriter);
+                let inv = doc.apply(&op).expect("valid op");
+                ops.push(op);
+                inverse.push(inv);
+            }
+        }
+        // links in callout titles are text of the container, not marks
+        for bid in doc.blocks.iter().map(|b| b.id).collect::<Vec<_>>() {
+            let mut attrs = doc.block(bid).expect("block exists").attrs.clone();
+            let mut changed = false;
+            for c in &mut attrs.containers {
+                if let Container::Callout { title, .. } = c {
+                    if let Some(new) = rewrite_title(title, rewriter) {
+                        *title = new;
+                        changed = true;
+                    }
+                }
+            }
+            if changed {
+                let op = Op::SetAttrs { block: bid, attrs };
                 let inv = doc.apply(&op).expect("valid op");
                 ops.push(op);
                 inverse.push(inv);

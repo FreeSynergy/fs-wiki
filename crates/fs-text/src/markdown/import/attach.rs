@@ -32,9 +32,10 @@ impl Imp<'_> {
             // only blank lines: one empty paragraph keeps them
             let mut b = Block::paragraph("");
             b.attrs.source = Some(Source {
-                hash: Source::seal(&b.fingerprint(), &[], orig, 0),
+                hash: Source::seal(&b.fingerprint(), &[], orig, (0, orig.len())),
                 text: orig.to_string(),
                 own: 0,
+                end: orig.len(),
                 tail: true,
                 prev: None,
                 rest: Vec::new(),
@@ -53,9 +54,11 @@ impl Imp<'_> {
         let mut i = 0;
         while i < blocks.len() {
             let mut end = spans[i].1;
+            let mut own_last = end;
             let mut j = i + 1;
             while j < blocks.len() && spans[j].0 <= end {
                 end = end.max(spans[j].1);
+                own_last = end;
                 j += 1;
             }
             if j == blocks.len() {
@@ -67,15 +70,21 @@ impl Imp<'_> {
             // the lines in front of the group's first line are gap (blank lines, stray text)
             let own_line = spans[i].0.clamp(from, end + 1);
             let own: usize = lines[from..own_line].iter().map(|l| l.len()).sum();
+            let own_end = own_last.min(end).max(own_line.saturating_sub(1));
+            let end_at: usize = lines[from..=own_end.max(from).min(end)]
+                .iter()
+                .map(|l| l.len())
+                .sum();
             cursor = end + 1;
             let prev = i.checked_sub(1).map(|p| blocks[p].id);
             let rest: Vec<(crate::id::Uuid, String)> = (i + 1..j)
                 .map(|k| (blocks[k].id, hashes[k].clone()))
                 .collect();
             blocks[i].attrs.source = Some(Source {
-                hash: Source::seal(&hashes[i], &rest, &text, own),
+                hash: Source::seal(&hashes[i], &rest, &text, (own, end_at)),
                 text,
                 own,
+                end: end_at,
                 tail: j == blocks.len(),
                 prev,
                 rest,

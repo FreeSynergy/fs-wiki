@@ -9,10 +9,13 @@ use crate::mark::MarkValue;
 pub(super) fn table_dashes(table_src: &str) -> Option<String> {
     let line = table_src.lines().nth(1)?;
     let t = line.trim().trim_start_matches('>').trim();
-    let t = t.strip_prefix('|')?.strip_suffix('|')?;
-    let spaced = if t.starts_with(' ') { "s" } else { "" };
+    // the outer pipes are optional in GFM; the canonical writer always writes them
+    let spaced = t.starts_with('|') && t[1..].starts_with(' ');
+    let t = t.strip_prefix('|').unwrap_or(t);
+    let t = t.strip_suffix('|').unwrap_or(t);
     Some(format!(
-        "{spaced}{}",
+        "{}{}",
+        if spaced { "s" } else { "" },
         t.split('|')
             .map(|c| c.trim().chars().count().to_string())
             .collect::<Vec<_>>()

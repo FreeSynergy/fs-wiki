@@ -8,7 +8,7 @@ use crate::doc::{Block, Container};
 
 impl Imp<'_> {
     /// `> [!type]± title` as first line of the first paragraph of a quote.
-    pub(super) fn try_callout(&mut self, block: &mut Block, line: Option<usize>) {
+    pub(super) fn try_callout(&mut self, block: &mut Block, line: Option<usize>, raw: &str) {
         let text = block.text.to_string();
         let first = text.split('\n').next().unwrap_or("");
         let Some(rest) = first.strip_prefix("[!") else {
@@ -32,7 +32,14 @@ impl Imp<'_> {
         if !after.is_empty() && !after.starts_with(' ') {
             return;
         }
-        let title = after.trim().to_string();
+        // the title as written (`[x](a.md)`, escapes), not as it reads
+        let title = raw
+            .trim_start()
+            .strip_prefix("[!")
+            .and_then(|r| r.split_once(']'))
+            .map(|(_, t)| t.strip_prefix(['+', '-']).unwrap_or(t).trim().to_string())
+            .filter(|t| !t.is_empty() || after.trim().is_empty())
+            .unwrap_or_else(|| after.trim().to_string());
         let first_len = first.chars().count();
         let carrier = first_len == block.text.len();
         block.delete(0, if carrier { first_len } else { first_len + 1 });

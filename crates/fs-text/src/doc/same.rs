@@ -62,6 +62,29 @@ pub(crate) fn same_in_file(a: &[Block], b: &[Block]) -> bool {
     canon(a, false) == canon(b, false)
 }
 
+/// Why block `i` of `a` does not read as block `i` of `b` (equal length): `None` if it does.
+pub(crate) fn why_differs(a: &[Block], b: &[Block]) -> Vec<Option<&'static str>> {
+    let (ca, cb) = (canon(a, false), canon(b, false));
+    ca.iter()
+        .zip(&cb)
+        .map(|(x, y)| {
+            if x == y {
+                None
+            } else if x.0 != y.0 {
+                Some("its text reads back differently")
+            } else if x.1.kind != y.1.kind {
+                Some("it reads back as another kind of block")
+            } else if x.1.containers != y.1.containers {
+                Some("its nesting (list, quote) reads back differently")
+            } else if x.2 != y.2 {
+                Some("its marks (emphasis, links, code) read back differently")
+            } else {
+                Some("its attributes read back differently")
+            }
+        })
+        .collect()
+}
+
 impl Document {
     /// Equality ignoring all ids (documents, blocks, marks) and the kept source texts; container
     /// instance numbers are compared by structure (relabelled in order of first appearance).

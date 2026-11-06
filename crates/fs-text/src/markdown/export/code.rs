@@ -2,6 +2,8 @@
 //!
 //! Pattern: Template — the fence is one backtick longer than the longest run inside.
 
+use super::inline::literal;
+
 /// Lines of a fenced code block with the given info string.
 ///
 /// Pattern: Template — the fence is one char longer than the longest run inside.
@@ -14,7 +16,8 @@ pub(super) fn render_code(content: &str, info: &str) -> Vec<String> {
         longest = longest.max(n);
     }
     let fence = ch.to_string().repeat((longest + 1).max(3));
-    let mut v = vec![format!("{fence}{info}")];
+    // the info string is read with backslash escapes and character references
+    let mut v = vec![format!("{fence}{}", literal(info, &[]))];
     v.extend(content.split('\n').map(String::from));
     v.push(fence);
     v

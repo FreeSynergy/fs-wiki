@@ -20,3 +20,4 @@ pub(super) use ctx::Ctx;
 pub(super) use emit::sweep as inline;
 pub(super) use variant::Variant;
 pub(super) use verify::choose;
+pub(super) use writer::literal;

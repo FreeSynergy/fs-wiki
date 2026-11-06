@@ -8,7 +8,8 @@ use super::container::{common, cont_prefix, lists_would_merge, tight_join};
 use super::keep::{flush, kept_lead, kept_tail, line_ending, open_html, opts_for};
 use super::layout::{render_in_containers, Place};
 use super::options::ExportOptions;
-use crate::doc::{same_in_file, usable_source, Block, BlockKind, Container, Document};
+use super::report::{analyse, report_of, ExportReport};
+use crate::doc::{usable_source, Block, BlockKind, Container, Document};
 use crate::markdown::import_plain;
 
 /// Export a document. A one-block [`BlockKind::Raw`] document exports its text verbatim.
@@ -26,47 +27,62 @@ struct Pass {
     to_end: bool,
 }
 
+/// Export a block sequence; see [`export_blocks_report`].
+#[must_use]
+pub fn export_blocks(blocks: &[Block], opts: ExportOptions) -> String {
+    export_blocks_report(blocks, opts).0
+}
+
+/// Export a document and say what could not be written exactly.
+#[must_use]
+pub fn export_markdown_report(doc: &Document, opts: ExportOptions) -> (String, ExportReport) {
+    export_blocks_report(&doc.blocks, opts)
+}
+
 /// Export a block sequence. A block that still equals what it was read from (content, marks,
 /// attributes, same predecessor) is written back from its kept source text; every other block
 /// is written canonically. When anything was edited the result proves itself: it is read back
-/// and must say what the model says. If not, the changed blocks and their neighbours are
-/// written canonically, and if that still does not read back, the whole document is.
+/// and laid against the model (`report::analyse`). Untouched neighbours stay as they were even
+/// if a changed block cannot be written so that it reads back exactly: that block is written in
+/// its nearest form and named in the [`ExportReport`]. Only when a kept source would read
+/// *differently* (a removed definition, a block that lost its container) are the changed blocks'
+/// surroundings written anew, ever wider, and the whole document last.
 #[must_use]
-pub fn export_blocks(blocks: &[Block], opts: ExportOptions) -> String {
+pub fn export_blocks_report(blocks: &[Block], opts: ExportOptions) -> (String, ExportReport) {
     if blocks.is_empty() {
-        return String::new();
+        return (String::new(), ExportReport::default());
     }
     if let [b] = blocks {
         if b.attrs.kind == BlockKind::Raw {
-            return b.text.to_string();
+            return (b.text.to_string(), ExportReport::default());
         }
     }
     let n = blocks.len();
     let mut force = vec![opts.layers; n];
     let mut core: Vec<usize> = Vec::new();
+    let mut first: Option<(String, ExportReport)> = None;
     // radius 0 is the plain pass; then the changed blocks and their surroundings, ever wider
     let mut radius = 0usize;
-    let mut fallback: Option<String> = None;
     loop {
         let pass = write(blocks, opts, &force, radius == 0);
         let kept = pass.verbatim.iter().any(|v| *v);
-        let edited = !kept || pass.verbatim.iter().any(|v| !v) || !pass.to_end;
-        if !kept || !edited {
-            return pass.out;
+        let untouched = kept && pass.to_end && pass.verbatim.iter().all(|v| *v);
+        if untouched || opts.layers {
+            return (pass.out, ExportReport::default());
         }
         let back = import_plain(&pass.out).blocks;
-        if same_in_file(blocks, &back) {
-            return pass.out;
-        }
-        // not proven: remember a pass whose only differences are inside the new blocks
-        if radius > 0 && fallback.is_none() && confined(blocks, &back, &pass.verbatim) {
-            fallback = Some(pass.out);
+        let an = analyse(blocks, &back, &pass.verbatim);
+        if !an.neighbours_changed {
+            let mut report = report_of(blocks, &an);
+            report.rewritten = rewritten(blocks, &pass.verbatim);
+            return (pass.out, report);
         }
         if radius == 0 {
             core = (0..n).filter(|i| !pass.verbatim[*i]).collect();
             if !pass.to_end {
                 core.push(n - 1);
             }
+            first = Some((pass.out, report_of(blocks, &an)));
         }
         radius = if radius == 0 { 1 } else { radius * 3 };
         if radius >= n {
@@ -77,28 +93,27 @@ pub fn export_blocks(blocks: &[Block], opts: ExportOptions) -> String {
             force[i.saturating_sub(radius)..=(i + radius).min(n - 1)].fill(true);
         }
     }
-    // the whole document written anew; if even that does not read back, the model has a block
-    // the canonical writer cannot say, and the least invasive proven-around pass is kept
-    let all = write(blocks, opts, &vec![true; n], false).out;
-    match fallback {
-        Some(f) if !same_in_file(blocks, &import_plain(&all).blocks) => f,
-        _ => all,
+    // the whole document written anew; if even that has blocks that do not read back, the first
+    // pass (the least invasive one) is kept and says what it could not do
+    let all = write(blocks, opts, &vec![true; n], false);
+    let back = import_plain(&all.out).blocks;
+    let an = analyse(blocks, &back, &all.verbatim);
+    match first {
+        Some(f) if !an.inexact.is_empty() => f,
+        _ => {
+            let mut report = report_of(blocks, &an);
+            report.rewritten = rewritten(blocks, &all.verbatim);
+            (all.out, report)
+        }
     }
 }
 
-/// Does the file differ from the model only inside blocks that were written anew? Then the
-/// kept sources are proven, and what is left is what the canonical writer cannot say better.
-fn confined(model: &[Block], back: &[Block], verbatim: &[bool]) -> bool {
-    if model.len() != back.len() {
-        return false;
-    }
-    let mut patched = model.to_vec();
-    for (i, kept) in verbatim.iter().enumerate() {
-        if !kept {
-            patched[i] = back[i].clone();
-        }
-    }
-    same_in_file(&patched, back)
+/// Blocks whose kept source could have been used but were written anew in this pass.
+fn rewritten(blocks: &[Block], verbatim: &[bool]) -> Vec<crate::id::Uuid> {
+    (0..blocks.len())
+        .filter(|&i| !verbatim[i] && usable_source(blocks, i).is_some())
+        .map(|i| blocks[i].id)
+        .collect()
 }
 
 fn write(blocks: &[Block], opts: ExportOptions, force: &[bool], keep_layout: bool) -> Pass {

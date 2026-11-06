@@ -43,8 +43,8 @@ pub use mark::{
     Overlap, Registry, REGISTRY,
 };
 pub use markdown::{
-    export_markdown, import_markdown, ExportOptions, MarkWriter, MarkdownExporter,
-    MarkdownImporter, MdSyntax,
+    export_markdown, export_markdown_report, import_markdown, ExportOptions, ExportReport, Inexact,
+    MarkWriter, MarkdownExporter, MarkdownImporter, MdSyntax,
 };
 pub use ops::{ApplyError, Command, Op};
 pub use template::{instantiate, instantiate_str, DateTime, TemplateError, Values};

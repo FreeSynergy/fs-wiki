@@ -1,97 +1,82 @@
-//! Property tests over a wide alphabet (tab, `~`, `|`, `\`, `!`, `:`, brackets, braces, entities).
+//! Property tests over a wide alphabet (tab, `~`, `|`, `\`, `!`, `:`, brackets, braces, entities,
+//! CR, `é`): untouched text comes back byte for byte, whatever it is; and whatever is done to the
+//! model, the export either reads back as the model or says (`ExportReport`) what it could not
+//! write exactly, while untouched blocks stay byte for byte.
+//!
+//! No source is skipped. What the canonical writer cannot say is listed in `explained` and the
+//! tests check it: outside that list an export must be exact.
 
 mod common;
 use fs_text::*;
 use proptest::prelude::*;
+use std::collections::HashMap;
 
 /// Markdown-ish soup: every char that starts some syntax, plus blanks and line breaks.
 const SOUP: &str = "[a-z0-9 \t\n\r*_~|\\\\!:#>`.()\\[\\]{}<&;^+=\"/$é-]{0,160}";
 
-/// Which chars each emphasis kind covers (nested or touching spans of one kind count once),
-/// then the document without those marks: everything else must be `same_content` up to layout style.
-fn coverage_and_rest(d: &Document) -> (Vec<Vec<(MarkKind, usize)>>, Document) {
-    let mut rest = d.clone();
-    let mut cover = Vec::new();
-    for b in &mut rest.blocks {
-        let mut c = Vec::new();
-        let ids: Vec<_> = b
-            .marks
-            .iter()
-            .filter(|m| {
-                matches!(
-                    m.kind,
-                    MarkKind::Strong | MarkKind::Emphasis | MarkKind::Strike
-                )
-            })
-            .map(|m| (m.id, m.kind, m.start, m.end))
-            .collect();
-        for (id, k, s, e) in ids {
-            c.extend((s..e).map(|i| (k, i)));
-            b.marks.remove(id);
-        }
-        c.sort_unstable();
-        c.dedup();
-        cover.push(c);
-    }
-    (cover, rest)
+fn export(d: &Document) -> (String, ExportReport) {
+    export_markdown_report(d, ExportOptions::default())
 }
 
-/// Known limits (see DESIGN.md) that are not part of the canonical property: emphasis inside
-/// emphasis of the same kind cannot always be written back with the same cut, and inline HTML
-/// over several lines inside a container takes the container's prefix as part of its text; three
-/// nested empty bullets are written `* * *`.
-fn known_limit(d: &Document) -> bool {
-    let html_lines = d.blocks.iter().any(|b| {
-        !b.attrs.containers.is_empty()
-            && b.marks.iter().any(|m| {
-                m.kind == MarkKind::Html
-                    && b.text
-                        .to_string()
-                        .chars()
-                        .skip(m.start)
-                        .take(m.end - m.start)
-                        .any(|c| c == '\n')
-            })
-    });
-    // `* * *` (three nested empty bullets) is a thematic break whatever is done
-    let empty_nest = d
-        .blocks
-        .iter()
-        .any(|b| b.text.is_empty() && b.attrs.containers.len() >= 3)
-        // a loose list of empty items has no paragraph to show that it is loose
-        || (d.blocks.len() > 1
-            && d.blocks.iter().any(|b| b.text.is_empty() && !b.attrs.containers.is_empty()));
-    // an inline HTML tag at the start of a line may read as an HTML block
-    let html_at_line_start = d.blocks.iter().any(|b| {
-        let t: Vec<char> = b.text.chars().collect();
-        b.marks
-            .iter()
-            .any(|m| m.kind == MarkKind::Html && m.start > 0 && t[m.start - 1] == '\n')
-    });
-    html_lines
-        || html_at_line_start
-        || empty_nest
-        || d.blocks.iter().any(|b| {
-            let v: Vec<&Mark> = b
-                .marks
+/// The model without any kept source: only the canonical writer is under test.
+fn plain(d: &Document) -> Document {
+    let mut p = d.clone();
+    for b in &mut p.blocks {
+        b.attrs.source = None;
+    }
+    p
+}
+
+fn text_of(b: &Block) -> Vec<char> {
+    b.text.chars().collect()
+}
+
+/// What the canonical writer cannot say exactly (see DESIGN.md, "Known limits"); an export may
+/// report these blocks as inexact, anything else must be exact.
+fn explained(d: &Document) -> bool {
+    d.blocks.iter().any(|b| {
+        let t = text_of(b);
+        let emph = |m: &&Mark| {
+            matches!(
+                m.kind,
+                MarkKind::Strong | MarkKind::Emphasis | MarkKind::Strike
+            )
+        };
+        let marks: Vec<&Mark> = b.marks.iter().filter(emph).collect();
+        // emphasis inside emphasis of the same kind: the cut may differ
+        let nested = marks.iter().enumerate().any(|(i, a)| {
+            marks[i + 1..]
                 .iter()
-                .filter(|m| {
-                    matches!(
-                        m.kind,
-                        MarkKind::Strong | MarkKind::Emphasis | MarkKind::Strike
-                    )
-                })
-                .collect();
-            v.iter().enumerate().any(|(i, a)| {
-                v[i + 1..]
-                    .iter()
-                    .any(|o| a.kind == o.kind && a.start < o.end && o.start < a.end)
-            })
-        })
+                .any(|o| a.kind == o.kind && a.start < o.end && o.start < a.end)
+        });
+        // an inline HTML tag at the start of a line reads as an HTML block; one over several
+        // lines inside a container takes the container's prefix
+        let html = b.marks.iter().any(|m| {
+            m.kind == MarkKind::Html
+                && ((m.start > 0 && t[m.start - 1] == '\n')
+                    || (!b.attrs.containers.is_empty()
+                        && t[m.start..m.end.min(t.len())].contains(&'\n')))
+        });
+        // an HTML block or tag that never closes swallows what follows
+        let open_html = (b.attrs.kind == BlockKind::Html
+            || b.marks.iter().any(|m| m.kind == MarkKind::Html))
+            && b.text.to_string().contains("<!")
+            && !b.text.to_string().contains('>');
+        // `* * *` is a rule; a loose list of empty items has no paragraph to show it
+        let empties = (b.text.is_empty() && b.attrs.containers.len() >= 3)
+            || (d.blocks.len() > 1 && b.text.is_empty() && !b.attrs.containers.is_empty());
+        // a blank file is one empty paragraph that owns the blanks
+        let blank = b.text.is_empty() && b.attrs.containers.is_empty();
+        // flanking: `*(*x` cannot close when punctuation meets a letter
+        let flanking = marks.iter().any(|m| {
+            t.get(m.start).is_some_and(char::is_ascii_punctuation)
+                || m.end > 0 && t.get(m.end - 1).is_some_and(char::is_ascii_punctuation)
+        });
+        nested || html || open_html || empties || blank || flanking
+    })
 }
 
 proptest! {
-
     /// An untouched import-export gives the text back byte for byte, whatever it is.
     #[test]
     fn untouched_round_trip_is_byte_identical(src in SOUP) {
@@ -107,22 +92,6 @@ proptest! {
         prop_assert_eq!(export_markdown(&d, ExportOptions::default()), src);
     }
 
-    /// The canonical writer alone reads back as the same content (emphasis spans may be re-cut,
-    /// what they cover stays).
-    #[test]
-    fn canonical_form_reads_back(src in SOUP) {
-        let d1 = import_markdown(&src);
-        if src.contains("<!") || src.contains("]:") || known_limit(&d1) {
-            return Ok(());
-        }
-        let out = common::canonical(&d1);
-        let d2 = import_markdown(&out);
-        let ((c1, r1), (c2, r2)) = (coverage_and_rest(&d1), coverage_and_rest(&d2));
-        prop_assert!(
-            common::without_style(&r1).same_content(&common::without_style(&r2)) && c1 == c2,
-            "{:?} -> {:?}", src, out);
-    }
-
     /// The model survives JSON with its kept source.
     #[test]
     fn json_keeps_the_source(src in SOUP) {
@@ -131,14 +100,38 @@ proptest! {
         prop_assert_eq!(export_markdown(&back, ExportOptions::default()), src);
     }
 
-    /// Whatever is done to the model, the file written with kept sources reads back as the model
-    /// whenever the canonical writer alone can do so (the exporter proves its output).
+    /// The canonical writer alone: the text reads back as the model, or the report says which
+    /// blocks it could not write exactly; outside the known limits there are none.
     #[test]
-    fn edited_export_reads_back(src in SOUP, kind in 0u8..7, at in 0usize..8, word in "[a-z*#>\\- \\n]{0,6}") {
+    fn canonical_form_reads_back_or_says_so(src in SOUP) {
+        let d = plain(&import_markdown(&src));
+        let (out, report) = export(&d);
+        let exact = common::reads_back_as(&d, &out);
+        if report.inexact.is_empty() {
+            prop_assert!(exact, "{:?} -> {:?}: the report is empty but the text reads differently", src, out);
+        }
+        if !explained(&d) {
+            prop_assert!(report.inexact.is_empty() && exact, "{:?} -> {:?}: {:?}", src, out, report);
+        }
+    }
+
+    /// Whatever is done to the model: the export reads back as the model or the report says
+    /// where not, and an untouched block (same content, same predecessor) stays byte for byte
+    /// unless the report names it as rewritten because its kept text would read differently.
+    #[test]
+    fn edits_keep_untouched_blocks_and_say_what_is_inexact(
+        src in SOUP, kind in 0u8..7, at in 0usize..8, word in "[a-z*#>\\- \\n]{0,6}"
+    ) {
         let mut d = import_markdown(&src);
         if d.blocks.is_empty() {
             return Ok(());
         }
+        let before: HashMap<_, _> = d
+            .blocks
+            .iter()
+            .enumerate()
+            .map(|(i, b)| (b.id, (b.fingerprint(), i.checked_sub(1).map(|p| d.blocks[p].id))))
+            .collect();
         let i = at % d.blocks.len();
         match kind {
             0 => { let n = d.blocks[i].text.len(); d.blocks[i].splice(0, n.min(1), &word); }
@@ -149,14 +142,43 @@ proptest! {
             5 => { let j = (at / 2) % d.blocks.len(); d.blocks.swap(i, j); }
             _ => { let b = d.blocks[i].clone(); d.blocks.push(b); }
         }
-        if src.contains("<!") || src.contains("]:") || d.blocks.is_empty() || known_limit(&d) {
+        if d.blocks.is_empty() {
             return Ok(());
         }
-        let canon = common::canonical(&d);
-        if !common::reads_back_as(&d, &canon) {
-            return Ok(());
+        let (out, report) = export(&d);
+        if report.inexact.is_empty() {
+            prop_assert!(common::reads_back_as(&d, &out), "{:?} edit {} at {} {:?} -> {:?}", src, kind, at, word, out);
         }
-        let out = export_markdown(&d, ExportOptions::default());
-        prop_assert!(common::reads_back_as(&d, &out), "{:?} edit {} at {} {:?} -> {:?}", src, kind, at, word, out);
+        // a word changed inside a paragraph or heading (no definition, no HTML) cannot change
+        // what its neighbours mean: nothing may be rewritten
+        let plain_text = |b: &Block| {
+            matches!(b.attrs.kind, BlockKind::Paragraph | BlockKind::Heading { .. })
+                && !b.text.to_string().contains("]:")
+                && !b.text.to_string().contains('<')
+                && !b.text.to_string().contains('\n')
+                && !b.text.is_empty()
+        };
+        if kind == 0
+            && plain_text(&d.blocks[i])
+            && d.blocks.iter().all(|b| b.attrs.containers.is_empty())
+            && !src.contains("]:") && !src.contains('<') {
+            prop_assert!(report.rewritten.is_empty(), "{:?} edit 0 at {} {:?}: rewrote neighbours {:?}", src, at, word, report);
+        }
+        // untouched blocks: their kept text is in the output
+        for (n, b) in d.blocks.iter().enumerate() {
+            let Some(s) = &b.attrs.source else { continue };
+            let prev = n.checked_sub(1).map(|p| d.blocks[p].id);
+            let group_untouched = std::iter::once(b)
+                .chain(d.blocks[n + 1..].iter().take(s.rest.len()))
+                .all(|x| before.get(&x.id).is_some_and(|(fp, _)| *fp == x.fingerprint()));
+            let same_place = before.get(&b.id).is_some_and(|(_, p)| *p == prev);
+            if group_untouched && same_place && s.prev == prev && !report.rewritten.contains(&b.id) {
+                prop_assert!(
+                    out.contains(&s.text),
+                    "{:?} edit {} at {} {:?}: untouched block lost its text {:?} in {:?} ({:?})",
+                    src, kind, at, word, s.text, out, report
+                );
+            }
+        }
     }
 }

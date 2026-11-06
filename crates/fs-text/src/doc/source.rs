@@ -24,6 +24,10 @@ pub struct Source {
     /// text the parser did not turn into a block, such as a second definition of a label).
     #[serde(default)]
     pub own: usize,
+    /// Byte length of `text` up to the end of the block's own lines (what follows, up to the end
+    /// of the file, is the gap after the last block). `0` in older stored forms: no tail.
+    #[serde(default)]
+    pub end: usize,
     /// The group reaches the end of the file (its text includes everything after it). A last
     /// group without this flag means blocks were removed from the end.
     #[serde(default)]
@@ -88,9 +92,20 @@ impl Block {
 impl Source {
     /// The seal of a source: the block's fingerprint, the group's fingerprints and the text.
     #[must_use]
-    pub fn seal(block_hash: &str, rest: &[(Uuid, String)], text: &str, own: usize) -> String {
+    pub fn seal(
+        block_hash: &str,
+        rest: &[(Uuid, String)],
+        text: &str,
+        span: (usize, usize),
+    ) -> String {
         let mut h = Fnv(0x6c62_272e_07bb_0142_62b8_2175_6295_c58d);
-        let _ = write!(h, "{block_hash}\u{1}{own}\u{1}{}:{text}", text.len());
+        let _ = write!(
+            h,
+            "{block_hash}\u{1}{}\u{1}{}\u{1}{}:{text}",
+            span.0,
+            span.1,
+            text.len()
+        );
         for (id, hash) in rest {
             let _ = write!(h, "\u{1}{id}{hash}");
         }
@@ -105,7 +120,8 @@ pub fn usable_source(blocks: &[Block], at: usize) -> Option<(&Source, usize)> {
     let b = blocks.get(at)?;
     let s = b.attrs.source.as_ref()?;
     let prev = at.checked_sub(1).map(|i| blocks[i].id);
-    if s.prev != prev || s.hash != Source::seal(&b.fingerprint(), &s.rest, &s.text, s.own) {
+    if s.prev != prev || s.hash != Source::seal(&b.fingerprint(), &s.rest, &s.text, (s.own, s.end))
+    {
         return None;
     }
     for (k, (id, hash)) in s.rest.iter().enumerate() {

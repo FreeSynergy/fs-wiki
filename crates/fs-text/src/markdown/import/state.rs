@@ -143,7 +143,7 @@ impl<'a> Imp<'a> {
         let bracket = leaf
             .start
             .is_some_and(|st| self.src[st..].trim_start().starts_with("[!"));
-        let line = leaf.start.map(|st| self.line_of(st));
+        let (leaf_start, line) = (leaf.start, leaf.start.map(|st| self.line_of(st)));
         let mut attrs = BlockAttrs::new(leaf.kind.clone());
         attrs.containers.clone_from(&self.containers);
         match (&leaf.kind, leaf.heading_attrs.take()) {
@@ -180,7 +180,8 @@ impl<'a> Imp<'a> {
             extract_block_ref(&mut block);
         }
         if was_fresh && bracket && block.attrs.kind == BlockKind::Paragraph {
-            self.try_callout(&mut block, line);
+            let raw = leaf_start.map_or("", |st| self.src[st..].lines().next().unwrap_or(""));
+            self.try_callout(&mut block, line, raw);
         }
         if block.attrs.containers.iter().any(
             |c| matches!(c, Container::Callout { inst, .. } if self.admon_insts.contains(inst)),

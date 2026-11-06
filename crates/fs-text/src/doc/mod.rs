@@ -16,5 +16,5 @@ pub use block::Block;
 pub use block_kind::{Align, BlockKind};
 pub use container::Container;
 pub use document::Document;
-pub(crate) use same::same_in_file;
+pub(crate) use same::{same_in_file, why_differs};
 pub use source::{usable_source, Source};
