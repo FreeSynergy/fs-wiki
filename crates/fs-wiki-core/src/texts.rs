@@ -26,7 +26,8 @@ pub struct TextEntry {
     pub envelope: Envelope,
     /// Readable path, unique.
     pub path: String,
-    /// Counts every write of this text (1 = created); never goes back, whatever the clock does.
+    /// Changes with every write and is never used twice (not a counter: a store undo cannot make one
+    /// come round again); 0 only for records from before revisions.
     pub revision: u64,
     /// The document: text + layers.
     pub document: Document,

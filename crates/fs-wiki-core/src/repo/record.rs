@@ -14,6 +14,7 @@ use super::handle::{WikiRepo, CONTENT_TYPE, CONTEXT, TEXT_TYPE};
 use super::name::derive_name;
 use super::target::written;
 use crate::error::{Error, Result};
+use crate::hidden::is_hidden_block;
 use crate::texts::TextEntry;
 
 /// What is stored as the content of a text.
@@ -21,7 +22,7 @@ use crate::texts::TextEntry;
 struct Record {
     path: String,
     document: Document,
-    /// Counts the writes; records written before it existed read as 0.
+    /// Changes with every write and never repeats; records written before it existed read as 0.
     #[serde(default)]
     revision: u64,
 }
@@ -41,7 +42,7 @@ impl WikiRepo {
         let record = Record {
             path: path.to_string(),
             document: doc.clone(),
-            revision: prior.map_or(1, |p| p.revision + 1),
+            revision: fresh_revision(),
         };
         let mut obj = StoredObject::new(env, CONTENT_TYPE, serde_json::to_value(record)?);
         obj.index = index_fields(path, doc);
@@ -84,8 +85,10 @@ fn index_fields(path: &str, doc: &Document) -> IndexFields {
             let Some(w) = mark.link().and_then(|l| written(l, path)) else {
                 continue;
             };
-            if !links.contains(&w.target) {
-                links.push(w.target);
+            for candidate in w.candidates() {
+                if !links.contains(&candidate) {
+                    links.push(candidate);
+                }
             }
         }
     }
@@ -95,6 +98,7 @@ fn index_fields(path: &str, doc: &Document) -> IndexFields {
     let blocks: Vec<String> = doc
         .blocks
         .iter()
+        .filter(|b| !is_hidden_block(b))
         .map(|b| b.text.to_string().trim().to_string())
         .filter(|t| !t.is_empty())
         .collect();
@@ -102,4 +106,11 @@ fn index_fields(path: &str, doc: &Document) -> IndexFields {
         index.insert("block".into(), blocks);
     }
     index
+}
+
+/// A revision no earlier write of any text had and no later one will have: random bits of a
+/// time-ordered id, never 0 (that is for records from before revisions). Not a counter, so a
+/// store undo that brings back an old record cannot make a revision come round again.
+fn fresh_revision() -> u64 {
+    ObjectId::new().as_uuid().as_u64_pair().1 | 1
 }

@@ -74,14 +74,32 @@ pub(super) fn written(link: &LinkValue, source: &str) -> Option<Written> {
 }
 
 impl Written {
-    /// The same link, meaning `target`, written on the page `source`.
-    pub(super) fn render(&self, target: &str, source: &str) -> String {
+    /// The paths this link can lead to, in the order a reader tries them: the path, the path with
+    /// `.md`, and the `index.md` / `README.md` of a folder of that name.
+    pub(super) fn candidates(&self) -> Vec<String> {
+        let t = &self.target;
+        let mut all = vec![t.clone()];
+        if !t.ends_with(".md") {
+            all.push(format!("{t}.md"));
+        }
+        all.push(format!("{t}/index.md"));
+        all.push(format!("{t}/README.md"));
+        all
+    }
+
+    /// Whether the written form had a trailing `/`.
+    pub(super) fn slash(&self) -> bool {
+        self.slash
+    }
+
+    /// The same link, meaning `target`, written on the page `source`; `slash` keeps a trailing `/`.
+    pub(super) fn render(&self, target: &str, source: &str, slash: bool) -> String {
         let mut text = match self.form {
             Form::Literal => target.to_string(),
             Form::Absolute => format!("/{target}"),
             Form::Relative => relative(&folder_of(source), target, self.dot),
         };
-        if self.slash && self.form != Form::Literal && !text.ends_with('/') {
+        if slash && self.form != Form::Literal && !text.ends_with('/') {
             text.push('/');
         }
         text

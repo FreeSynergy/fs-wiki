@@ -86,3 +86,38 @@ async fn a_folder_moved_with_its_neighbours_keeps_their_links_and_fixes_the_ones
         "[n](./q.md) [out](../../../keep.md) [in](sub/r.md)\n"
     );
 }
+
+#[tokio::test]
+async fn a_link_definition_follows_the_move_too() {
+    let w = wiki().await;
+    w.create("t/p.md", "p").await.unwrap();
+    let q = w
+        .create("q.md", "See [r] here.\n\n[r]: t/p.md\n")
+        .await
+        .unwrap();
+    w.move_folder("t", "u").await.unwrap();
+    let text = md(&w, q.id).await;
+    assert!(text.contains("u/p.md"), "{text:?}");
+    assert!(
+        !text.contains("t/p.md"),
+        "the definition kept the old target: {text:?}"
+    );
+}
+
+#[tokio::test]
+async fn links_without_the_extension_or_to_a_folder_follow_a_page_move() {
+    let w = wiki().await;
+    let page = w.create("page.md", "p").await.unwrap();
+    let idx = w.create("a/index.md", "i").await.unwrap();
+    let s = w
+        .create("s/src.md", "[p](../page) [a](../a/) [x](../a/index.md)\n")
+        .await
+        .unwrap();
+    w.move_to(page.id, "other/page.md").await.unwrap();
+    w.move_to(idx.id, "z/index.md").await.unwrap();
+    assert_eq!(
+        md(&w, s.id).await,
+        "[p](../other/page) [a](../z/) [x](../z/index.md)\n"
+    );
+    assert_eq!(w.backlinks("other/page.md").await.unwrap().len(), 1);
+}

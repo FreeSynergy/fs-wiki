@@ -16,7 +16,7 @@ use crate::path::page_of;
 use crate::texts::{LinkEntry, Paging, TextEntry};
 
 /// The rows of `text`, each with the path it means (`None` for external links and anchors).
-fn rows_of(text: &TextEntry) -> Vec<(LinkEntry, Option<String>)> {
+fn rows_of(text: &TextEntry) -> Vec<(LinkEntry, Vec<String>)> {
     extract_links(&text.document)
         .into_iter()
         .map(|r| {
@@ -26,7 +26,8 @@ fn rows_of(text: &TextEntry) -> Vec<(LinkEntry, Option<String>)> {
                 .and_then(|b| b.marks.get(r.mark))
                 .and_then(|m| m.link())
                 .and_then(|l| written(l, &text.path))
-                .map(|w| w.target);
+                .map(|w| w.candidates())
+                .unwrap_or_default();
             let entry = LinkEntry {
                 source: text.id,
                 target: r.path,
@@ -54,7 +55,7 @@ impl WikiRepo {
             rows.extend(
                 rows_of(&text)
                     .into_iter()
-                    .filter(|(r, meant)| r.internal && meant.as_deref() == Some(page))
+                    .filter(|(r, meant)| r.internal && meant.iter().any(|m| m == page))
                     .map(|(r, _)| r),
             );
         }

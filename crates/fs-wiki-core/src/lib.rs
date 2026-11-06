@@ -19,6 +19,7 @@
 )]
 
 mod error;
+mod hidden;
 mod media;
 mod path;
 mod repo;
@@ -26,6 +27,7 @@ mod texts;
 
 pub use error::{Error, Result};
 pub use fs_interfaces::{Capabilities, Unsupported};
+pub use hidden::is_hidden_block;
 pub use media::{TextFormat, MARKDOWN};
 pub use path::TextPath;
 pub use repo::{FileOrigin, Origins, WikiRepo, CONTENT_TYPE, CONTEXT, TEXT_TYPE};
