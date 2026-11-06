@@ -29,9 +29,9 @@ pub fn export_blocks(blocks: &[Block], opts: ExportOptions) -> String {
         let cs = &b.attrs.containers[..];
         if bi > 0 {
             let k = common(prev, cs);
-            let c = cs.get(k).or(if k == cs.len() { cs.last() } else { None });
-            let tight = matches!(c, Some(Container::Item { tight: true, .. }));
-            if !tight || b.attrs.kind == BlockKind::Raw {
+            let tight = tight_join(prev, cs, k);
+            let glued = b.attrs.extra.contains_key("glue") && !(blocks[bi - 1].attrs.kind == BlockKind::Paragraph && b.attrs.kind == BlockKind::Paragraph && common(prev, cs) == cs.len() && prev.len() == cs.len());
+            if !(tight || glued) {
                 let pfx: String = cs[..k].iter().map(cont_prefix).collect();
                 out.push(pfx.trim_end().to_string());
             }
@@ -42,6 +42,19 @@ pub fn export_blocks(blocks: &[Block], opts: ExportOptions) -> String {
     let mut s = out.join("\n");
     s.push('\n');
     s
+}
+
+/// No blank line between two blocks of the same tight list (or inside one tight item).
+fn tight_join(a: &[Container], b: &[Container], k: usize) -> bool {
+    if k == b.len() {
+        return matches!(b.last(), Some(Container::Item { tight: true, .. }));
+    }
+    let Container::Item { tight: true, list, .. } = &b[k] else { return false };
+    match a.get(k) {
+        Some(Container::Item { list: al, .. }) => al == list,
+        Some(_) => false,
+        None => k > 0 && matches!(b[k - 1], Container::Item { .. }),
+    }
 }
 
 fn common(a: &[Container], b: &[Container]) -> usize {
@@ -166,7 +179,7 @@ fn render_block(b: &Block, opts: ExportOptions) -> Vec<String> {
     }
 }
 
-fn render_table(_b: &Block, chars: &[char], marks: &[&Mark], align: &[Align], opts: ExportOptions) -> Vec<String> {
+fn render_table(b: &Block, chars: &[char], marks: &[&Mark], align: &[Align], opts: ExportOptions) -> Vec<String> {
     let mut rows: Vec<Vec<String>> = Vec::new();
     let mut pos = 0;
     // split into rows and cells by '\n' and '\t'
@@ -199,8 +212,8 @@ fn render_table(_b: &Block, chars: &[char], marks: &[&Mark], align: &[Align], op
         out.push(fmt_row(h));
         let mut d = String::from("|");
         for c in 0..ncols {
-            let w = h.get(c).map(|x| x.chars().count()).unwrap_or(0) + 2;
-            let w = w.max(3);
+            let given: Option<usize> = b.attrs.extra.get("dashes").and_then(|d| d.split(',').nth(c)).and_then(|x| x.parse().ok());
+            let w = given.unwrap_or_else(|| h.get(c).map(|x| x.chars().count()).unwrap_or(0) + 2).max(3);
             let a = align.get(c).copied().unwrap_or(Align::None);
             let cell = match a {
                 Align::None => "-".repeat(w),
@@ -305,7 +318,6 @@ fn inline(chars: &[char], marks: &[&Mark], lo: usize, hi: usize, cx: Ctx) -> Str
     }
     // non-point ranges that became empty are dropped
     ems.retain(|e| e.atomic || e.e > e.s || marks[e.m].is_point());
-    let has_pair = chars.contains(&'[') && chars.contains(&']');
 
     let mut out = String::new();
     let mut stack: Vec<usize> = Vec::new(); // indices into ems
@@ -346,7 +358,11 @@ fn inline(chars: &[char], marks: &[&Mark], lo: usize, hi: usize, cx: Ctx) -> Str
             let m = marks[e.m];
             if e.atomic {
                 if atom_end.is_none() {
-                    out.push_str(&atomic_str(m, &raw_slice(chars, e.s, e.e)));
+                    let mut raw = raw_slice(chars, e.s, e.e);
+                    if cx.table {
+                        raw = raw.replace('|', "\\|");
+                    }
+                    out.push_str(&atomic_str(m, &raw));
                     atom_end = Some(e.e);
                 }
             } else {
@@ -362,7 +378,7 @@ fn inline(chars: &[char], marks: &[&Mark], lo: usize, hi: usize, cx: Ctx) -> Str
             break;
         }
         let in_link = stack.iter().any(|&i| matches!(marks[ems[i].m].kind, MarkKind::Link | MarkKind::Image));
-        escape_into(&mut out, chars, p, cx, has_pair || in_link);
+        escape_into(&mut out, chars, p, cx, in_link);
         p += 1;
     }
     // anything left open (shouldn't be): close
@@ -465,7 +481,7 @@ fn escape_into(out: &mut String, chars: &[char], p: usize, cx: Ctx, brackets: bo
     let prev = if p > 0 { Some(chars[p - 1]) } else { None };
     let next = chars.get(p + 1).copied();
     let ws = |o: Option<char>| o.map(|c| c.is_whitespace()).unwrap_or(true);
-    let line_start = !cx.table && (p == 0 || matches!(chars[p - 1], '\n' | HARD_BREAK));
+    let line_start = !cx.table && !cx.heading && (p == 0 || matches!(chars[p - 1], '\n' | HARD_BREAK));
     let next_blank = matches!(next, None | Some(' ') | Some('\n') | Some(HARD_BREAK));
     let esc = match c {
         HARD_BREAK => {
@@ -480,7 +496,8 @@ fn escape_into(out: &mut String, chars: &[char], p: usize, cx: Ctx, brackets: bo
         '`' => true,
         '*' => !(ws(prev) && ws(next)),
         '_' => !((ws(prev) && ws(next)) || (prev.map(char::is_alphanumeric).unwrap_or(false) && next.map(char::is_alphanumeric).unwrap_or(false))),
-        '[' | ']' => brackets,
+        '[' => brackets || next == Some('^') || next == Some('[') || (line_start && matches!(next, Some(' ' | 'x' | 'X' | '!'))),
+        ']' => brackets || next == Some('('),
         '<' => matches!(next, Some(n) if n.is_alphanumeric() || n == '/' || n == '!' || n == '?'),
         '&' => {
             let rest: String = chars[p + 1..].iter().take(12).collect();
@@ -497,7 +514,7 @@ fn escape_into(out: &mut String, chars: &[char], p: usize, cx: Ctx, brackets: bo
             next_blank || chars[p..].iter().take_while(|c| **c != '\n').all(|c| *c == '-' || *c == ' ')
         }
         '=' if line_start => chars[p..].iter().take_while(|c| **c != '\n').all(|c| *c == '='),
-        '.' | ')' if !cx.table => {
+        '.' | ')' if !cx.table && !cx.heading => {
             // ordered list marker at line start: digits then . or ) then blank
             let mut i = p;
             while i > 0 && chars[i - 1].is_ascii_digit() {

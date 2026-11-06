@@ -13,6 +13,24 @@ fn corpus() -> Vec<(String, String)> {
     v
 }
 
+fn all_diffs(a: &str, b: &str) -> String {
+    let d = similar::TextDiff::from_lines(a, b);
+    let mut s = String::new();
+    let mut n = 0;
+    for c in d.iter_all_changes() {
+        match c.tag() {
+            similar::ChangeTag::Equal => {}
+            t => {
+                n += 1;
+                if n <= 8 {
+                    s.push_str(&format!("   {} {}\n", if t == similar::ChangeTag::Delete { "-" } else { "+" }, c.value().trim_end()));
+                }
+            }
+        }
+    }
+    format!("{n} changed lines\n{s}")
+}
+
 fn first_diff(a: &str, b: &str) -> String {
     for (i, (x, y)) in a.lines().zip(b.lines()).enumerate() {
         if x != y {
@@ -38,7 +56,7 @@ fn corpus_roundtrip() {
         if out == src {
             identical += 1;
         } else {
-            normalised.push(format!("{name}: {}", first_diff(&src, &out)));
+            normalised.push(format!("{name}: {}", all_diffs(&src, &out)));
         }
     }
     println!("identical: {identical}, normalised: {}", normalised.len());

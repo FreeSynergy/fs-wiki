@@ -133,11 +133,14 @@ struct Leaf {
     marks: Vec<Mark>,
     open: Vec<(MarkKind, usize, MarkValue)>,
     heading_attrs: Option<String>,
+    start: Option<usize>,
+    glue: bool,
+    dashes: Option<String>,
 }
 
 impl Leaf {
     fn new(kind: BlockKind) -> Self {
-        Self { kind, text: String::new(), len: 0, marks: Vec::new(), open: Vec::new(), heading_attrs: None }
+        Self { kind, text: String::new(), len: 0, marks: Vec::new(), open: Vec::new(), heading_attrs: None, start: None, glue: false, dashes: None }
     }
     fn push(&mut self, s: &str) {
         self.text.push_str(s);
@@ -400,12 +403,23 @@ pub fn import_markdown(src: &str) -> Document {
             }
             Event::Rule => {
                 s.flush();
-                s.leaf = Some(Leaf::new(BlockKind::ThematicBreak));
+                let mut l = Leaf::new(BlockKind::ThematicBreak);
+                l.glue = glue_before(&src, range.start);
+                s.leaf = Some(l);
                 s.flush();
             }
             Event::TaskListMarker(done) => {
                 if let Some(Container::Item { task, .. }) = s.containers.last_mut() {
                     *task = Some(*done);
+                }
+            }
+        }
+        if let Some(l) = s.leaf.as_mut() {
+            if l.start.is_none() {
+                l.start = Some(range.start);
+                l.glue = glue_before(&src, range.start);
+                if let BlockKind::Table { .. } = l.kind {
+                    l.dashes = table_dashes(&src[range.clone()]);
                 }
             }
         }
@@ -466,6 +480,12 @@ impl Imp {
                 attrs.extra.insert("fence".into(), f);
             }
             _ => {}
+        }
+        if leaf.glue {
+            attrs.extra.insert("glue".into(), "1".into());
+        }
+        if let Some(d) = leaf.dashes.take() {
+            attrs.extra.insert("dashes".into(), d);
         }
         let mut block = Block { id: new_id(), text: crate::text::Text::new(&leaf.text), marks: MarkSet::from_vec(leaf.marks), attrs };
         let was_fresh = self.fresh_quote.last().copied().unwrap_or(false);
@@ -529,4 +549,22 @@ fn extract_block_ref(b: &mut Block) {
             b.attrs.block_ref = Some(id.to_string());
         }
     }
+}
+
+/// Was the line before `off` non-blank (block glued to its predecessor)?
+fn glue_before(src: &str, off: usize) -> bool {
+    let ls = src[..off].rfind('\n').map(|i| i + 1).unwrap_or(0);
+    if ls == 0 {
+        return false;
+    }
+    let prev = src[..ls - 1].rsplit('\n').next().unwrap_or("");
+    !prev.trim_start_matches([' ', '>', '\t']).trim().is_empty()
+}
+
+/// Widths of the delimiter row segments (`|---|:--:|`), to write tables back as they were.
+fn table_dashes(table_src: &str) -> Option<String> {
+    let line = table_src.lines().nth(1)?;
+    let t = line.trim().trim_start_matches('>').trim();
+    let t = t.strip_prefix('|')?.strip_suffix('|')?;
+    Some(t.split('|').map(|c| c.trim().chars().count().to_string()).collect::<Vec<_>>().join(","))
 }
