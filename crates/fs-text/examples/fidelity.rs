@@ -11,7 +11,9 @@ use pulldown_cmark::{html::push_html, Parser};
 use std::time::Instant;
 
 fn md_files(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
-    let Ok(rd) = std::fs::read_dir(dir) else { return };
+    let Ok(rd) = std::fs::read_dir(dir) else {
+        return;
+    };
     for e in rd.flatten() {
         let p = e.path();
         if p.is_dir() {
@@ -43,8 +45,13 @@ fn edit_one_word(d: &mut Document) -> bool {
         }
         let t = b.text.to_string();
         let chars: Vec<char> = t.chars().collect();
-        let Some(s) = chars.iter().position(|c| c.is_alphabetic()) else { continue };
-        let e = chars[s..].iter().position(|c| !c.is_alphabetic()).map_or(chars.len(), |n| s + n);
+        let Some(s) = chars.iter().position(|c| c.is_alphabetic()) else {
+            continue;
+        };
+        let e = chars[s..]
+            .iter()
+            .position(|c| !c.is_alphabetic())
+            .map_or(chars.len(), |n| s + n);
         b.splice(s, e, "zzword");
         return true;
     }
@@ -59,9 +66,12 @@ fn main() {
     files.sort();
     let (mut n, mut ident, mut lines, mut render_diff) = (0, 0, 0, 0);
     let (mut edits, mut edit_lines, mut edit_ident_rest) = (0usize, 0usize, 0usize);
+    let (mut canon_ident, mut canon_lines, mut canon_render) = (0, 0, 0);
     let (mut slow, mut slow_name) = (0.0f64, String::new());
     for p in &files {
-        let Ok(src) = std::fs::read_to_string(p) else { continue };
+        let Ok(src) = std::fs::read_to_string(p) else {
+            continue;
+        };
         n += 1;
         let t = Instant::now();
         let d = import_markdown(&src);
@@ -79,6 +89,20 @@ fn main() {
                 render_diff += 1;
             }
         }
+        // the canonical writer alone: what a block gets that was changed
+        let mut plain = d.clone();
+        for b in &mut plain.blocks {
+            b.attrs.source = None;
+        }
+        let canon = export_markdown(&plain, ExportOptions::default());
+        if canon == src {
+            canon_ident += 1;
+        } else {
+            canon_lines += changed_lines(&src, &canon);
+            if render(&src) != render(&canon) {
+                canon_render += 1;
+            }
+        }
         let mut d2 = d.clone();
         if edit_one_word(&mut d2) {
             edits += 1;
@@ -87,11 +111,19 @@ fn main() {
             edit_lines += c;
             if c <= 2 {
                 edit_ident_rest += 1;
+            } else if std::env::var_os("SHOW").is_some() {
+                println!("  {c} entries: {}", p.display());
             }
         }
     }
-    println!("files {n}, byte-identical {ident} ({:.1}%)", 100.0 * f64::from(ident) / f64::from(n.max(1)));
-    println!("changed lines (untouched round trip): {lines}, files rendering differently: {render_diff}");
+    println!(
+        "files {n}, byte-identical {ident} ({:.1}%)",
+        100.0 * f64::from(ident) / f64::from(n.max(1))
+    );
+    println!(
+        "changed lines (untouched round trip): {lines}, files rendering differently: {render_diff}"
+    );
+    println!("canonical writer alone: byte-identical {canon_ident}, changed lines {canon_lines}, files rendering differently {canon_render}");
     println!("one-word edits: {edits}, changed lines in total {edit_lines}, edits that change exactly one line (2 diff entries): {edit_ident_rest}");
     println!("slowest: {slow:.3}s {slow_name}");
 }

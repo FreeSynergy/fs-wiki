@@ -7,53 +7,12 @@
 
 use super::atomic::{atomic_str, point_str};
 use super::ctx::Ctx;
-use super::delim::delim;
 use super::escape::{escape_into, Esc, Facts};
 use super::plan::{plan, Em, Index};
+use super::runs::{apart_from_star, delimiter, punct_runs};
 use super::variant::Variant;
-use crate::mark::{Mark, MarkKind, MarkValue};
+use crate::mark::{Mark, MarkKind};
 use crate::markdown::{md_syntax, MarkWriter};
-
-fn delimiter(m: &Mark, chars: &[char], e: &Em, stars: (bool, bool)) -> &'static str {
-    match m.kind {
-        MarkKind::Emphasis => delim(m, chars, e.s, e.e, "*", "_", stars),
-        MarkKind::Strong => delim(m, chars, e.s, e.e, "**", "__", stars),
-        _ => "",
-    }
-}
-
-/// Does a span that writes a punctuation char sit right behind `e` (it opens where `e` ends),
-/// or right in front of it (it ends where `e` starts)? Such a neighbour makes the delimiter run
-/// of `e` stand next to punctuation, not next to a word. A span that keeps `_` does not count:
-/// two `_` runs would fuse.
-fn punct_runs(ems: &[Em], idx: &Index, marks: &[&Mark], k: usize) -> (bool, bool) {
-    let e = &ems[k];
-    let punct = |o: &Em| {
-        let m = marks[o.m];
-        match m.kind {
-            MarkKind::Emphasis | MarkKind::Strong => {
-                o.e > o.s && m.value != MarkValue::Name("_".into())
-            }
-            MarkKind::Html => false,
-            _ => o.e > o.s || m.is_point(),
-        }
-    };
-    // behind: a span opening where `e` ends, or one enclosing `e` that closes where it does
-    let behind = |j: usize| {
-        let o = &ems[j];
-        (o.s == e.e || (o.e == e.e && (o.s < e.s || (o.s == e.s && j < k)))) && punct(o)
-    };
-    // in front: a span ending where `e` starts, or one enclosing `e` that opens where it does
-    let in_front = |j: usize| {
-        let o = &ems[j];
-        let encloses = o.e > e.e || (o.e == e.e && j < k);
-        (o.e == e.s || (o.s == e.s && (encloses || marks[o.m].is_point()))) && punct(o)
-    };
-    (
-        idx.touching(ems, e.e).any(behind),
-        idx.touching(ems, e.s).any(in_front),
-    )
-}
 
 fn open_str(m: &Mark, d: &str) -> String {
     md_syntax(m.kind).open(d)
@@ -61,17 +20,6 @@ fn open_str(m: &Mark, d: &str) -> String {
 
 fn close_str(m: &Mark, d: &str) -> String {
     md_syntax(m.kind).close(m, d)
-}
-
-/// An emphasis opened right behind a `*` run (`*a*` + `*b*`) would fuse with it; `_` keeps
-/// them apart when it still parses (no word character right after the span).
-fn apart_from_star<'a>(d: &'a str, out: &str, chars: &[char], e: &Em) -> &'a str {
-    let after_alnum = chars.get(e.e).copied().is_some_and(char::is_alphanumeric);
-    if d == "*" && out.ends_with('*') && !out.ends_with("\\*") && !after_alnum {
-        "_"
-    } else {
-        d
-    }
 }
 
 /// Render `chars[lo..hi]` with the marks that fall into the window, written as `how` says.
@@ -86,7 +34,10 @@ pub(in crate::markdown::export) fn sweep(
     let chars = &chars[lo..hi];
     let n = chars.len();
     let idx = Index::new(&ems);
-    let facts = Facts::of(chars);
+    let facts = Facts::of(
+        chars,
+        ems.iter().any(|e| marks[e.m].kind == MarkKind::Strike),
+    );
     let mut ds: Vec<&str> = ems
         .iter()
         .enumerate()
@@ -95,27 +46,10 @@ pub(in crate::markdown::export) fn sweep(
     let mut out = String::new();
     let mut stack: Vec<usize> = Vec::new(); // indices into ems
     let mut opened = vec![false; ems.len()];
-    let mut link_depth = 0usize; // open links / images on the stack
     let mut p = 0usize;
     loop {
-        // last char of a closer written at this position, and `out.len()` right after it
-        let mut after_close: Option<(char, usize)> = None;
-        // closes (marks above a closing one are closed and re-opened)
-        while let Some(j) = stack.iter().position(|&i| ems[i].e <= p) {
-            let above: Vec<usize> = stack.split_off(j);
-            for &i in above.iter().rev() {
-                let c = close_str(marks[ems[i].m], ds[i]);
-                out.push_str(&c);
-                after_close = c.chars().last().map(|c| (c, out.len()));
-            }
-            for &i in above.iter().skip(1) {
-                if ems[i].e > p {
-                    out.push_str(&open_str(marks[ems[i].m], ds[i]));
-                    stack.push(i);
-                }
-            }
-            link_depth = stack.iter().filter(|&&i| is_link(marks[ems[i].m])).count();
-        }
+        let after_close = close_ended(&mut out, &mut stack, (&ems, marks, &ds), p);
+        let mut link_depth = stack.iter().filter(|&&i| is_link(marks[ems[i].m])).count();
         let run = Index::starting_at(&ems, p);
         // points
         for k in run.clone() {
@@ -172,7 +106,8 @@ pub(in crate::markdown::export) fn sweep(
             cx,
             in_link: link_depth > 0,
             raw,
-            all: how.escape_all,
+            form: how.form,
+            edge_next: chars[p] == '\\' && idx.touching(&ems, p + 1).next().is_some(),
             facts: &facts,
         };
         escape_into(&mut out, chars, p, &esc);
@@ -182,11 +117,45 @@ pub(in crate::markdown::export) fn sweep(
     while let Some(i) = stack.pop() {
         out.push_str(&close_str(marks[ems[i].m], ds[i]));
     }
+    // a closing run of `#` would end the heading: escape the last one (unless it already is)
     if cx.heading && out.ends_with('#') {
-        let l = out.len() - 1;
-        out.insert(l, '\\');
+        let slashes = out[..out.len() - 1]
+            .chars()
+            .rev()
+            .take_while(|c| *c == '\\')
+            .count();
+        if slashes % 2 == 0 {
+            let l = out.len() - 1;
+            out.insert(l, '\\');
+        }
     }
     out
+}
+
+/// Close the marks that end at `p` (marks above a closing one are closed and re-opened).
+/// Returns the last char of a closer written and `out.len()` right after it.
+fn close_ended(
+    out: &mut String,
+    stack: &mut Vec<usize>,
+    (ems, marks, ds): (&[Em], &[&Mark], &[&str]),
+    p: usize,
+) -> Option<(char, usize)> {
+    let mut after_close = None;
+    while let Some(j) = stack.iter().position(|&i| ems[i].e <= p) {
+        let above: Vec<usize> = stack.split_off(j);
+        for &i in above.iter().rev() {
+            let c = close_str(marks[ems[i].m], ds[i]);
+            out.push_str(&c);
+            after_close = c.chars().last().map(|c| (c, out.len()));
+        }
+        for &i in above.iter().skip(1) {
+            if ems[i].e > p {
+                out.push_str(&open_str(marks[ems[i].m], ds[i]));
+                stack.push(i);
+            }
+        }
+    }
+    after_close
 }
 
 fn is_link(m: &Mark) -> bool {

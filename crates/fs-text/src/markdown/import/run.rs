@@ -25,7 +25,8 @@ pub(crate) fn import_plain(text: &str) -> Document {
 }
 
 fn import_with(orig: &str, sources: bool) -> Document {
-    let text = orig.replace("\r\n", "\n");
+    // a lone CR ends a line too (same length, so offsets and line numbers stay valid)
+    let text = orig.replace("\r\n", "\n").replace('\r', "\n");
     let text = text.strip_prefix('\u{feff}').unwrap_or(&text);
     let (src, headers) = convert_marked(text);
     let parser = Parser::new_ext(&src, options());
@@ -43,6 +44,7 @@ fn import_with(orig: &str, sources: bool) -> Document {
     }
     s.finish();
     let mut blocks = std::mem::take(&mut s.blocks);
+    s.settle_glue(&mut blocks);
     if sources {
         s.attach_sources(&mut blocks, orig);
     }

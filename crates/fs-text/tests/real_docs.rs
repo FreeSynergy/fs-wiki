@@ -4,6 +4,7 @@
 //! then `FS_DOCS_DIR=/tmp/x/en cargo test --test real_docs -- --ignored --nocapture`.
 //! Without `FS_DOCS_DIR` the test does nothing (never reads the shared tree).
 
+mod common;
 use fs_text::*;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -56,13 +57,17 @@ fn real_docs_round_trip_is_faithful_and_stable() {
     markdown_files(Path::new(&dir), &mut files);
     files.sort();
     assert!(!files.is_empty(), "no Markdown files under {dir}");
-    let (mut lossy, mut unstable) = (Vec::new(), Vec::new());
+    let (mut lossy, mut unstable, mut changed) = (Vec::new(), Vec::new(), Vec::new());
     for f in &files {
         let src = std::fs::read_to_string(f).unwrap();
         let d1 = import_markdown(&src);
-        let out1 = export_markdown(&d1, ExportOptions::default());
+        if export_markdown(&d1, ExportOptions::default()) != src {
+            changed.push(f.display().to_string());
+        }
+        // the canonical writer alone (no kept source text)
+        let out1 = common::canonical(&d1);
         let d2 = import_markdown(&out1);
-        let out2 = export_markdown(&d2, ExportOptions::default());
+        let out2 = common::canonical(&d2);
         let lost = missing(&src, &out1);
         if !lost.is_empty() {
             lossy.push(format!("{}: {:?}", f.display(), &lost[..lost.len().min(8)]));
@@ -72,8 +77,9 @@ fn real_docs_round_trip_is_faithful_and_stable() {
         }
     }
     println!(
-        "files: {}, losing words: {}, unstable: {}",
+        "files: {}, not byte-identical untouched: {}, losing words: {}, unstable: {}",
         files.len(),
+        changed.len(),
         lossy.len(),
         unstable.len()
     );
@@ -83,5 +89,5 @@ fn real_docs_round_trip_is_faithful_and_stable() {
     for u in unstable.iter().take(20) {
         println!("unstable {u}");
     }
-    assert!(lossy.is_empty() && unstable.is_empty());
+    assert!(changed.is_empty() && lossy.is_empty() && unstable.is_empty());
 }

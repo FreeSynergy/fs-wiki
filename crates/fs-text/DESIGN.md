@@ -11,15 +11,16 @@ src/
   id.rs  anchor.rs
   text/      mod, storage (trait), rope (ropey), buffer (Text facade), grapheme
   mark/      mod, behavior (trait), kind, registry, item (Mark), set, merge, value
-  doc/       mod, document, block, attrs, block_kind, container, same
+  doc/       mod, document, block, attrs, block_kind, container, same, source
   ops/       mod, op (enum), command (trait), apply, edit, marks, blocks, user, error
   history/   mod, log, step, retention, compact
   format/    mod, importer (trait), exporter (trait)
   markdown/  mod, adapter, syntax,
              import/{run, events, state, leaf, block, container, table, frontmatter,
-                     wikilink, inline, callout, admonition, blockref, hints, loose, options}
+                     wikilink, inline, callout, admonition, blockref, hints, loose, options,
+                     refdef, attach, separator}
              export/{document, container, layout, callout, leaf, code, table, options,
-                     inline/{emit, plan, writer, delim, atomic, escape, ctx}}
+                     inline/{emit, plan, writer, delim, atomic, escape, ctx, variant, verify}}
   external/  mod, diff, plan, blocks
   links/     mod, row, rewriter (trait), rewrite
   template/  mod, datetime, format, values, placeholder, instantiate, error
@@ -39,6 +40,8 @@ tests/       one file per feature (marks, history, external, links, templates, m
 | `markdown::import::*` | Builder (event driven) | parser events build blocks; one handler file per concern |
 | `markdown::import::admonition` | Adapter (dialect) | mkdocs admonitions rewritten to callouts before parsing |
 | `markdown::export::*` | Template method + Strategy | document -> layout -> leaf -> inline; callout dialect chosen by option |
+| `doc::source` + `import::attach` + `export::document` | Memento | each block keeps the exact text it was read from; an unchanged block is written back from it |
+| `export::inline::verify` | Generate and test | a whole block is read back; the first form that reads right wins, else the form that escapes everything |
 | `ops` | Command | `Op` + `Command::apply` -> inverse; handlers per op kind |
 | `history` | Command history (Caretaker) | steps with inverses, undo/redo cursor, retention (Strategy data) |
 | `external` | Command producer + Adapter over `similar` | diff -> ops, so marks move with text |
@@ -84,8 +87,34 @@ mark (ADR 0042 §6); the op's inverse restores it. Merge kinds are unioned on `M
 `pulldown-cmark` 0.13: CommonMark, tables, task lists, strikethrough, footnotes, heading
 attributes, YAML front matter, wiki links. Own handling: callouts `> [!type]± title`, mkdocs
 `!!! type "title"` / `???` admonitions (pre-converted to callouts), block refs, empty list items.
-Export is canonical-ish and records source style hints (`glue` = no blank line before block,
-table delimiter widths, `_` vs `*`, bullet marker) so most files round-trip byte-identical.
+### Verbatim source (PROVISIONAL, the owner decides the final rule)
+
+On import every block keeps the exact source text it came from (`BlockAttrs::source`, a
+`Source`): its own lines plus the blank lines before it, with the file's line ending, BOM and
+missing final newline; the last block takes everything up to the end of the file. Blocks that
+share a source line (`- > a`) form one group that owns the lines together (`Source::rest`).
+The pieces, written in order, are the file byte for byte (`tests/props_bytes.rs` proves it
+for arbitrary text, with CRLF and BOM, and through JSON).
+
+On export a block is written from its source **only if** its fingerprint (128-bit FNV-1a over
+text, marks with kind/range/value but not ids, kind, containers and the other attributes), the
+fingerprint of the blocks in its group and the id of the block in front of it are unchanged.
+Anything else (text edit, mark added or removed, link rewritten by a move, block moved, split,
+merged, list item added, table cell) is written canonically, and a neighbour that moved away
+never keeps a stale source. A canonical block keeps the blank lines it had in front of it
+(and a last block the blank lines after it) while its predecessor is the same, uses the file's
+line ending, the table dash widths, `_` vs `*`, bullet marker, rule style and the mkdocs
+`!!!` dialect of its callout (hint `admonition`). The source is part of the stored form: it
+is serialised with the block (`attrs.source`, skipped when absent), travels with `Op::SetAttrs`,
+and `Document::same_content` ignores it and the pure layout hints (`glue`, `dashes`, `rule`,
+`admonition`, and `_` vs `*`). Costs: the stored document is about twice the size of the text;
+an untouched export is linear and does no read-back.
+
+A file that has no block (empty, blank lines only) is one empty paragraph that owns the text.
+Link reference definitions (`[x]: /u "t"`, `[//]: # (comment)`) are kept as HTML-kind blocks
+with the hint `unparsed` (text a person typed is never dropped; reference links themselves
+are still written inline).
+
 Layer marks are **not** written to files (ADR 0042 §2); `ExportOptions::layers` writes
 `{{var}}` and `[text]{#name}` for debugging. `ExportOptions::admonitions` writes the mkdocs dialect.
 
@@ -131,21 +160,37 @@ stay in `pending_sync` until `mark_synced`. `reset` = "reset undo history". All 
 
 ## State
 
-Works and is tested (48 tests, the last two (`tests/serde_form.rs`) prove the JSON form of a document that `fs-wiki-core` stores: every mark kind, points, attributes and containers round-trip, also through `serde_json::Value`; before: 46 tests: unit tests next to the code, integration tests per feature,
-property tests, corpus round trip):
+Works and is tested (86 tests in this crate: unit tests next to the code, integration tests per feature,
+property tests (`tests/props_bytes.rs`: tab, `~`, `|`, `\`, `!`, `:`, braces, entities, CRLF, BOM; run with
+`PROPTEST_CASES=200000` for a long soak), byte-level round trips (`tests/verbatim*.rs`), corpus round trip,
+JSON form in `tests/serde_form.rs`):
 * model, text behind `TextStorage`, anchors, mark registry/behaviour/edit rules, point/range, merge, unmark;
 * property tests (`proptest`): marks stay valid under random edits, undo restores text and marks
   exactly, outside edits do not change a mark's text, diff import reproduces the target text,
   Markdown model is stable (md -> model -> md -> model);
 * Markdown import/export (behind `Importer`/`Exporter`) incl. footnotes, front matter, wiki links,
-  block refs, callouts, mkdocs admonitions; the whole `fs-documentation/docs/en` tree (1321 files)
-  re-imports stably after export, 1256 byte-identical (with the mkdocs dialect), the rest normalised;
+  block refs, callouts, mkdocs admonitions; the whole `fs-documentation/docs/en` tree (1398 files)
+  comes back byte-identical untouched and re-imports stably through the canonical writer alone
+  (1328 of 1398 byte-identical even then);
 * external edit import (raw and block), link table + rewrite, templates, history with retention.
 * ADR 0043 refactor done: no file over 200 lines, every module names its pattern,
   `#![deny(missing_docs)]`, `check_rust_rules.py` reports 0 errors / 0 warnings.
 
 Known limits / not done:
-* Normalisations: indented code -> fenced, setext -> ATX, reference links -> inline, trailing
+* The canonical writer reads every inline block back (`export::inline::verify`). If the text or
+  kind would change it tries other delimiter forms and finally escapes all ASCII punctuation;
+  marks that cannot be written the same way (crossing marks, emphasis inside emphasis of the same
+  kind, flanking next to a no-break space) make a form second best, not wrong.
+* Typed U+2028 becomes a no-break space (U+2028 is the hard break in block text); a tab or line
+  break written as `&#9;` / `&#10;` in a table cell becomes a space (they separate cells and rows
+  in the block text). Both need a model change to be exact.
+* Inline HTML over several lines inside a container takes the container's indentation as part of
+  its text; three nested empty bullets are written `* * *` (a rule); a second definition with
+  the same label is not a block (it stays in the kept source only).
+* mkdocs: `!!!` needs the Python-Markdown `admonition` extension; `> [!note]` is GitHub / Obsidian
+  syntax and is not an admonition in mkdocs. The docs' `mkdocs.yml` lists neither `admonition`
+  nor `pymdownx.blocks`, so a callout is kept in the dialect it was written in.
+* Normalisations of a **changed** block only (an untouched block is verbatim): indented code -> fenced, setext -> ATX (a multi-line heading stays setext), reference links -> inline, trailing
   double-space hard breaks -> `\`, `*`/`+` bullets kept per item but mixed styles are not
   re-aligned, table cells beyond the header width are dropped (GFM), `$math$`, definition lists,
   sub/superscript are not enabled.

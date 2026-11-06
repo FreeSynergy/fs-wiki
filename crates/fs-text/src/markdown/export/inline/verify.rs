@@ -27,7 +27,7 @@ fn representable(m: &Mark) -> bool {
     }
 }
 
-/// Marks reduced to what the Markdown says: touching spans of one emphasis kind are one span,
+/// Marks reduced to what the Markdown says: touching spans of one emphasis kind are one span, `*` and `_` are the same,
 /// links compare path, title and style.
 fn normal(marks: &[&Mark]) -> Vec<Norm> {
     let mut spans: Vec<Norm> = Vec::new();
@@ -35,8 +35,6 @@ fn normal(marks: &[&Mark]) -> Vec<Norm> {
         let key = match &m.value {
             MarkValue::Link(l) => format!("{}\u{1}{:?}\u{1}{:?}", l.path, l.title, l.style),
             MarkValue::Name(n) if m.kind == MarkKind::FootnoteRef => n.clone(),
-            // `_` or `*`: the delimiter style is kept when it parses, so it must read back too
-            MarkValue::Name(n) if n == "_" => n.clone(),
             _ => String::new(),
         };
         spans.push((m.kind, m.start, m.end, key));
@@ -46,7 +44,7 @@ fn normal(marks: &[&Mark]) -> Vec<Norm> {
     let mut out: Vec<Norm> = Vec::with_capacity(spans.len());
     for s in spans {
         match out.last_mut() {
-            Some(l) if merge(s.0) && l.0 == s.0 && l.3 == s.3 && s.1 <= l.2 => l.2 = l.2.max(s.2),
+            Some(l) if merge(s.0) && l.0 == s.0 && s.1 <= l.2 => l.2 = l.2.max(s.2),
             _ => out.push(s),
         }
     }

@@ -41,8 +41,18 @@ pub(super) fn render_block(b: &Block, opts: ExportOptions) -> Vec<String> {
             lines(&s)
         }),
         BlockKind::Heading { level } => choose(b, opts, &|v| {
-            let mut s = format!("{} ", "#".repeat(*level as usize));
-            s.push_str(&text(true, v));
+            let body = text(true, v);
+            // a heading of several lines can only be written as a setext heading
+            let setext = body.contains('\n') && *level <= 2;
+            let mut s = if setext {
+                body
+            } else {
+                format!(
+                    "{} {}",
+                    "#".repeat(*level as usize),
+                    body.replace('\n', " ")
+                )
+            };
             if let Some(a) = &b.attrs.heading_attrs {
                 s.push(' ');
                 s.push_str(a);
@@ -51,7 +61,11 @@ pub(super) fn render_block(b: &Block, opts: ExportOptions) -> Vec<String> {
                 s.push_str(" ^");
                 s.push_str(r);
             }
-            vec![s.trim_end().to_string()]
+            let mut v = lines(s.trim_end_matches(' '));
+            if setext {
+                v.push(if *level == 1 { "===" } else { "---" }.into());
+            }
+            v
         }),
         BlockKind::Code { info } => render_code(&b.text.to_string(), info),
         BlockKind::ThematicBreak => vec!["---".into()],
@@ -64,8 +78,8 @@ pub(super) fn render_block(b: &Block, opts: ExportOptions) -> Vec<String> {
             v.push(f.to_string());
             v
         }
-        BlockKind::Table { align } => {
-            choose(b, opts, &|v| render_table(b, &chars, &marks, align, opts, v))
-        }
+        BlockKind::Table { align } => choose(b, opts, &|v| {
+            render_table(b, &chars, &marks, align, opts, v)
+        }),
     }
 }

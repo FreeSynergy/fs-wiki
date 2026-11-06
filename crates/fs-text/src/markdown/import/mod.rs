@@ -5,6 +5,7 @@
 //! handlers; `run` is the event loop.
 
 mod admonition;
+mod attach;
 mod block;
 mod blockref;
 mod callout;
@@ -16,10 +17,10 @@ mod inline;
 mod leaf;
 mod loose;
 mod options;
+mod rawhtml;
 mod refdef;
 mod run;
 mod separator;
-mod attach;
 mod state;
 mod table;
 mod wikilink;

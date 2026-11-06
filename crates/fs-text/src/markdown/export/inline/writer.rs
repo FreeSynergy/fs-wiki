@@ -64,7 +64,7 @@ fn starts_reference(rest: &str) -> bool {
 fn literal(s: &str, extra: &[char]) -> String {
     let mut out = String::with_capacity(s.len());
     for (i, c) in s.char_indices() {
-        let next = s[i + 1..].chars().next();
+        let next = s[i + c.len_utf8()..].chars().next();
         match c {
             '\\' if next.is_none_or(|n| n.is_ascii_punctuation()) => out.push_str("\\\\"),
             '&' if starts_reference(&s[i..]) => out.push_str("&amp;"),

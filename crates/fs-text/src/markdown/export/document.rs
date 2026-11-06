@@ -36,12 +36,52 @@ fn line_ending(blocks: &[Block]) -> &'static str {
     }
 }
 
+/// A line with nothing but blanks and quote marks.
+fn blankish(l: &str) -> bool {
+    l.chars().all(|c| c.is_whitespace() || c == '>')
+}
+
+/// The blank lines in front of a changed block, as they were in the file, if the block still
+/// follows the block it followed there (the layout around a changed block stays as it was).
+fn kept_lead(b: &Block, prev: Option<&Block>) -> Option<Vec<String>> {
+    let s = b.attrs.source.as_ref()?;
+    if s.prev != prev.map(|p| p.id) {
+        return None;
+    }
+    let lead: Vec<String> = s
+        .text
+        .lines()
+        .take_while(|l| blankish(l))
+        .map(String::from)
+        .collect();
+    (!lead.is_empty() && s.text.lines().count() > lead.len()).then_some(lead)
+}
+
+/// The blank lines that ended the file after a changed last block.
+fn kept_tail(b: &Block) -> Vec<String> {
+    let Some(s) = b.attrs.source.as_ref() else {
+        return Vec::new();
+    };
+    let mut v: Vec<String> = s
+        .text
+        .lines()
+        .rev()
+        .take_while(|l| blankish(l))
+        .map(String::from)
+        .collect();
+    v.reverse();
+    if v.len() == s.text.lines().count() {
+        v.clear();
+    }
+    v
+}
+
 /// Write the canonical lines gathered so far to `res`.
 fn flush(res: &mut String, lines: &mut Vec<String>, eol: &str) {
     if lines.is_empty() {
         return;
     }
-    if !res.is_empty() && !res.ends_with('\n') {
+    if !res.is_empty() && !res.ends_with(['\n', '\r']) {
         res.push_str(eol);
     }
     // the kept source before already ends with a blank line: do not add a second one
@@ -76,7 +116,7 @@ pub fn export_blocks(blocks: &[Block], opts: ExportOptions) -> String {
         if !opts.layers {
             if let Some((src, n)) = usable_source(blocks, bi) {
                 flush(&mut res, &mut lines, eol);
-                if !res.is_empty() && !res.ends_with('\n') {
+                if !res.is_empty() && !res.ends_with(['\n', '\r']) {
                     res.push_str(eol);
                 }
                 res.push_str(&src.text);
@@ -105,14 +145,22 @@ pub fn export_blocks(blocks: &[Block], opts: ExportOptions) -> String {
                     lines.push(pfx.trim_end().to_string());
                     lines.push(format!("{pfx}<!-- -->"));
                 }
-                lines.push(pfx.trim_end().to_string());
+                match kept_lead(b, Some(&blocks[bi - 1])).filter(|_| pfx.is_empty()) {
+                    Some(lead) => lines.extend(lead),
+                    None => lines.push(pfx.trim_end().to_string()),
+                }
             }
         }
         let place = Place {
             first: bi == 0,
-            under_paragraph: bi > 0 && !separated && blocks[bi - 1].attrs.kind == BlockKind::Paragraph,
+            under_paragraph: bi > 0
+                && !separated
+                && blocks[bi - 1].attrs.kind == BlockKind::Paragraph,
         };
         render_in_containers(b, prev, &mut lines, o, place);
+        if bi + 1 == blocks.len() {
+            lines.extend(kept_tail(b));
+        }
         prev = cs;
         bi += 1;
     }

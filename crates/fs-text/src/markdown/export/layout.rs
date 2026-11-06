@@ -23,7 +23,8 @@ pub(super) struct Place {
 /// matter. The style of the source is kept when it is safe, otherwise a character that is
 /// not in the prefix is used.
 fn rule_line(hint: Option<&str>, prefix: &str, place: Place) -> String {
-    let safe = |c: char| !prefix.contains(c) && !(c == '-' && (place.first || place.under_paragraph));
+    let safe =
+        |c: char| !prefix.contains(c) && !(c == '-' && (place.first || place.under_paragraph));
     if let Some(h) = hint {
         if h.chars().next().is_some_and(safe) {
             return h.to_string();

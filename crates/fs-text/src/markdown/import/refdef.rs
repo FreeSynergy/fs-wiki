@@ -4,7 +4,6 @@
 //! turned into an HTML-kind block marked `unparsed`, so text a person typed is never dropped.
 //! The block is placed where the definition stands (inside the containers open at that point).
 
-use super::hints::glue_before;
 use super::leaf::Leaf;
 use super::state::Imp;
 use crate::doc::BlockKind;
@@ -40,7 +39,6 @@ impl Imp<'_> {
         let mut l = Leaf::new(BlockKind::Html);
         l.start = Some(d.start);
         l.end = d.start + text.len().max(1);
-        l.glue = glue_before(self.src, d.start);
         l.unparsed = true;
         l.push(&text);
         self.leaf = Some(l);

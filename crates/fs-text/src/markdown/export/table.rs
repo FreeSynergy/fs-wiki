@@ -22,6 +22,9 @@ fn split_rows(
     let mut rows = Vec::new();
     let mut row = Vec::new();
     let mut cell_start = 0;
+    // marks are sorted by start: keep the ones that can touch the current cell, not all of them
+    let mut active: Vec<&Mark> = Vec::new();
+    let mut next = 0;
     for i in 0..=chars.len() {
         let sep = if i == chars.len() {
             Some('\n')
@@ -29,7 +32,12 @@ fn split_rows(
             Some(chars[i]).filter(|c| *c == '\n' || *c == '\t')
         };
         if let Some(c) = sep {
-            row.push(inline(chars, marks, (cell_start, i), cx, how));
+            while next < marks.len() && marks[next].start <= i {
+                active.push(marks[next]);
+                next += 1;
+            }
+            active.retain(|m| m.end >= cell_start);
+            row.push(inline(chars, &active, (cell_start, i), cx, how));
             cell_start = i + 1;
             if c == '\n' {
                 rows.push(std::mem::take(&mut row));

@@ -1,14 +1,18 @@
 //! Id-blind document comparison.
 //!
 //! Pattern: Canonical form — both sides are reduced to the same normal form
-//! (ids nil, container instances relabelled) and compared with `==`.
+//! (ids nil, container instances relabelled, kept source and layout hints dropped) and compared with `==`.
 
 use super::attrs::BlockAttrs;
 use super::container::Container;
 use super::document::Document;
 use crate::id::Uuid;
-use crate::mark::Mark;
+use crate::mark::{Mark, MarkKind, MarkValue};
 use std::collections::HashMap;
+
+/// `extra` keys that only record layout: blank-line glue, table dash widths, rule style, the
+/// admonition dialect.
+const STYLE_HINTS: [&str; 4] = ["glue", "dashes", "rule", "admonition"];
 
 type Canon = Vec<(String, BlockAttrs, Vec<Mark>)>;
 
@@ -23,6 +27,8 @@ fn canon(d: &Document) -> Canon {
         .map(|b| {
             let mut a = b.attrs.clone();
             a.source = None;
+            // how the text was laid out in the file is style, not content
+            a.extra.retain(|k, _| !STYLE_HINTS.contains(&k.as_str()));
             for c in &mut a.containers {
                 let i = relabel(false, c.inst());
                 c.set_inst(i);
@@ -34,7 +40,14 @@ fn canon(d: &Document) -> Canon {
                 .marks
                 .iter()
                 .cloned()
-                .map(|mut m| (m.id = Uuid::nil(), m).1)
+                .map(|mut m| {
+                    m.id = Uuid::nil();
+                    // `_` or `*` is style
+                    if matches!(m.kind, MarkKind::Emphasis | MarkKind::Strong) {
+                        m.value = MarkValue::None;
+                    }
+                    m
+                })
                 .collect();
             (b.text.to_string(), a, marks)
         })

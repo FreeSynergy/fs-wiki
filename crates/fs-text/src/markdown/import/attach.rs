@@ -10,6 +10,19 @@ use super::state::Imp;
 use crate::doc::{Block, Source};
 
 impl Imp<'_> {
+    /// A block is "glued" when it stands on the line right after the block before it (no blank
+    /// line, no comment between): tight lists, a fence under a paragraph. Written as the hint
+    /// `glue` so the canonical writer can reproduce it.
+    pub(super) fn settle_glue(&self, blocks: &mut [Block]) {
+        for (i, b) in blocks.iter_mut().enumerate() {
+            let glued = i > 0
+                && matches!((self.spans[i - 1], self.spans[i]), (Some(p), Some(s)) if p.1 + 1 == s.0);
+            if glued {
+                b.attrs.extra.insert("glue".into(), "1".into());
+            }
+        }
+    }
+
     /// Give the blocks their [`Source`]. `orig` is the file as read (line endings, BOM).
     pub(super) fn attach_sources(&self, blocks: &mut Vec<Block>, orig: &str) {
         if orig.is_empty() {
@@ -31,7 +44,7 @@ impl Imp<'_> {
         let Some(spans) = spans.filter(|s| s.len() == blocks.len()) else {
             return;
         };
-        let lines: Vec<&str> = orig.split_inclusive('\n').collect();
+        let lines = split_lines(orig);
         let last_line = lines.len().saturating_sub(1);
         let hashes: Vec<String> = blocks.iter().map(Block::fingerprint).collect();
         let mut cursor = 0;
@@ -50,7 +63,9 @@ impl Imp<'_> {
             let text: String = lines[cursor.min(end + 1).min(lines.len())..=end].concat();
             cursor = end + 1;
             let prev = i.checked_sub(1).map(|p| blocks[p].id);
-            let rest = (i + 1..j).map(|k| (blocks[k].id, hashes[k].clone())).collect();
+            let rest = (i + 1..j)
+                .map(|k| (blocks[k].id, hashes[k].clone()))
+                .collect();
             blocks[i].attrs.source = Some(Source {
                 text,
                 prev,
@@ -60,4 +75,32 @@ impl Imp<'_> {
             i = j;
         }
     }
+}
+
+/// The lines of `text` with their line ends; a line ends with LF, CRLF or a lone CR.
+fn split_lines(text: &str) -> Vec<&str> {
+    let b = text.as_bytes();
+    let (mut lines, mut from) = (Vec::new(), 0);
+    let mut i = 0;
+    while i < b.len() {
+        match b[i] {
+            b'\n' => {
+                lines.push(&text[from..=i]);
+                from = i + 1;
+            }
+            b'\r' => {
+                if b.get(i + 1) == Some(&b'\n') {
+                    i += 1;
+                }
+                lines.push(&text[from..=i]);
+                from = i + 1;
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    if from < b.len() {
+        lines.push(&text[from..]);
+    }
+    lines
 }

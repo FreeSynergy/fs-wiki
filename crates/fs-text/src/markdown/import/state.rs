@@ -4,7 +4,7 @@
 //! current [`Leaf`]; `flush` turns the leaf into a block.
 
 use super::blockref::extract_block_ref;
-use super::leaf::Leaf;
+use super::leaf::{Leaf, Span};
 use super::table::widen_table;
 use crate::doc::{Block, BlockAttrs, BlockKind, Container};
 use crate::id::new_id;
@@ -12,9 +12,6 @@ use crate::mark::{Mark, MarkKind, MarkSet, MarkValue};
 use crate::text::Text;
 use std::collections::HashSet;
 use std::ops::Range;
-
-/// First and last source line (0-based) of a block.
-pub(super) type Span = (usize, usize);
 
 /// One open list: instance, start number, next index, tight?
 pub(super) type ListState = (u32, Option<u64>, u64, bool);
@@ -134,6 +131,13 @@ impl<'a> Imp<'a> {
             leaf.text.pop();
             leaf.len -= 1;
         }
+        if matches!(leaf.kind, BlockKind::Heading { .. }) {
+            // an emptied `{}` after a line break leaves the break behind
+            while leaf.text.ends_with('\n') {
+                leaf.text.pop();
+                leaf.len -= 1;
+            }
+        }
         widen_table(&mut leaf);
         let span = self.span_of(&leaf);
         let bracket = leaf
@@ -148,9 +152,6 @@ impl<'a> Imp<'a> {
                 attrs.extra.insert("fence".into(), f);
             }
             _ => {}
-        }
-        if leaf.glue {
-            attrs.extra.insert("glue".into(), "1".into());
         }
         if leaf.unparsed {
             attrs.extra.insert("unparsed".into(), "1".into());

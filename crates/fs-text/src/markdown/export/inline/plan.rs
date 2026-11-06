@@ -116,11 +116,7 @@ impl Index {
     }
 
     /// Indices of the spans that start or end at `x`.
-    pub fn touching<'a>(
-        &'a self,
-        ems: &'a [Em],
-        x: usize,
-    ) -> impl Iterator<Item = usize> + 'a {
+    pub fn touching<'a>(&'a self, ems: &'a [Em], x: usize) -> impl Iterator<Item = usize> + 'a {
         let lo = self.by_end.partition_point(|&i| ems[i].e < x);
         let ends = self.by_end[lo..]
             .iter()

@@ -3,7 +3,6 @@
 //! Pattern: Builder step — each handler opens a [`Leaf`] of the right kind; text and inline
 //! events fill it until the end event flushes it.
 
-use super::hints::glue_before;
 use super::leaf::Leaf;
 use super::state::Imp;
 use crate::doc::BlockKind;
@@ -78,7 +77,6 @@ impl Imp<'_> {
     pub(super) fn rule(&mut self, range: &Range<usize>) {
         self.flush();
         let mut l = Leaf::new(BlockKind::ThematicBreak);
-        l.glue = glue_before(self.src, range.start);
         l.start = Some(range.start);
         l.end = range.end;
         let style = self.src[range.clone()].trim();

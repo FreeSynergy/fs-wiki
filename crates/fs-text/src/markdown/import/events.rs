@@ -3,7 +3,7 @@
 //! Pattern: Visitor-style dispatch — one `match` per event kind, one handler module per
 //! concern (block, container, table, front matter, link, inline).
 
-use super::hints::{glue_before, table_dashes};
+use super::hints::table_dashes;
 use super::state::Imp;
 use crate::doc::BlockKind;
 use pulldown_cmark::{Event, Tag, TagEnd};
@@ -52,14 +52,13 @@ impl Imp<'_> {
         }
     }
 
-    /// The first event inside a leaf fixes its source start, glue and table dash hints.
+    /// The first event inside a leaf fixes its source start, table dash hints.
     fn stamp_leaf(&mut self, range: &Range<usize>) {
         let src = self.src;
         if let Some(l) = self.leaf.as_mut() {
             if l.start.is_none() {
                 l.start = Some(range.start);
                 l.end = l.end.max(range.end);
-                l.glue = glue_before(src, range.start);
                 if let BlockKind::Table { .. } = l.kind {
                     l.dashes = table_dashes(&src[range.clone()]);
                 }

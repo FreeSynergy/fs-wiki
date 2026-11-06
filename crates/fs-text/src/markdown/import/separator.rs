@@ -5,7 +5,8 @@
 //! lists", which the model records by itself, so it is not kept as a block. Anywhere else it is
 //! an ordinary HTML block.
 
-use super::state::{Imp, Span};
+use super::leaf::Span;
+use super::state::Imp;
 use crate::doc::{Block, BlockKind, Container};
 
 /// The text of the separator comment.

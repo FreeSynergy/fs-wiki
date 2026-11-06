@@ -1,3 +1,4 @@
+mod common;
 use fs_text::*;
 use std::path::PathBuf;
 
@@ -65,17 +66,27 @@ fn corpus_roundtrip() {
     let mut normalised = Vec::new();
     for (name, src) in corpus() {
         let d1 = import_markdown(&src);
-        let out = export_markdown(&d1, ExportOptions::default());
+        assert_eq!(
+            export_markdown(&d1, ExportOptions::default()),
+            src,
+            "{name}: an untouched file must come back byte for byte"
+        );
+        // the canonical writer alone (no kept source text)
+        let out = common::canonical(&d1);
         let d2 = import_markdown(&out);
         assert!(
             d1.same_content(&d2),
             "{name}: model unstable after export; {}",
             first_diff(&src, &out)
         );
-        let out2 = export_markdown(&d2, ExportOptions::default());
+        let out2 = common::canonical(&d2);
         assert_eq!(out, out2, "{name}: export not idempotent");
+        let mut plain = d1.clone();
+        for b in &mut plain.blocks {
+            b.attrs.source = None;
+        }
         let adm = export_markdown(
-            &d1,
+            &plain,
             ExportOptions {
                 admonitions: true,
                 ..Default::default()

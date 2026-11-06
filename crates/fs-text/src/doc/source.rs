@@ -36,7 +36,9 @@ impl std::fmt::Write for Fnv {
     fn write_str(&mut self, s: &str) -> std::fmt::Result {
         for b in s.bytes() {
             self.0 ^= u128::from(b);
-            self.0 = self.0.wrapping_mul(0x0000_0000_0100_0000_0000_0000_0000_013B);
+            self.0 = self
+                .0
+                .wrapping_mul(0x0000_0000_0100_0000_0000_0000_0000_013B);
         }
         Ok(())
     }
@@ -52,15 +54,14 @@ impl Block {
         let _ = write!(
             h,
             "{:?}\u{1}{:?}\u{1}{:?}\u{1}{:?}\u{1}{:?}\u{1}{}\u{1}",
-            a.kind,
-            a.containers,
-            a.block_ref,
-            a.heading_attrs,
-            a.extra,
-            self.text
+            a.kind, a.containers, a.block_ref, a.heading_attrs, a.extra, self.text
         );
-        for m in self.marks.iter() {
-            let _ = write!(h, "{:?}\u{2}{}\u{2}{}\u{2}{:?}\u{1}", m.kind, m.start, m.end, m.value);
+        for m in &self.marks {
+            let _ = write!(
+                h,
+                "{:?}\u{2}{}\u{2}{}\u{2}{:?}\u{1}",
+                m.kind, m.start, m.end, m.value
+            );
         }
         format!("{:032x}", h.0)
     }

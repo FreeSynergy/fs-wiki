@@ -5,6 +5,9 @@
 use crate::doc::BlockKind;
 use crate::mark::{Mark, MarkKind, MarkValue};
 
+/// First and last source line (0-based) of a block.
+pub(super) type Span = (usize, usize);
+
 /// An open inline mark: kind, start, value, sequence number.
 pub(super) type OpenMark = (MarkKind, usize, MarkValue, usize);
 
@@ -20,7 +23,6 @@ pub(super) struct Leaf {
     pub start: Option<usize>,
     /// End offset of the last source range seen inside the leaf.
     pub end: usize,
-    pub glue: bool,
     pub dashes: Option<String>,
     /// Thematic break: the line as written, when it was not `---`.
     pub rule: Option<String>,
@@ -43,7 +45,6 @@ impl Leaf {
             heading_attrs: None,
             start: None,
             end: 0,
-            glue: false,
             dashes: None,
             rule: None,
             unparsed: false,
@@ -68,13 +69,17 @@ impl Leaf {
             _ => false,
         };
         if !simple {
-            self.push(&source.replace(['\n', '\t', '\u{2028}'], " "));
+            self.push(
+                &source
+                    .replace(['\n', '\t'], " ")
+                    .replace('\u{2028}', "\u{a0}"),
+            );
             return;
         }
         let b = &one.blocks[0];
         let at = self.len;
         self.push(&b.text.to_string());
-        for m in b.marks.iter() {
+        for m in &b.marks {
             let mut m = m.clone();
             m.start += at;
             m.end += at;

@@ -13,8 +13,8 @@ use std::ops::Range;
 
 impl Imp<'_> {
     /// Text as the model keeps it: a table cell holds no tab or line break (they separate cells
-    /// and rows in the block text), and a typed U+2028 is a plain space (U+2028 is the hard
-    /// break in block text).
+    /// and rows in the block text), and a typed U+2028 becomes a no-break space (U+2028 is the hard
+    /// break in block text; a no-break space survives at the edge of a line, a space does not).
     fn clean<'t>(&self, t: &'t str, text: bool) -> std::borrow::Cow<'t, str> {
         let in_table = matches!(
             self.leaf.as_ref().map(|l| &l.kind),
@@ -29,8 +29,10 @@ impl Imp<'_> {
         {
             t.chars()
                 .map(|c| {
-                    if (in_table && matches!(c, '\t' | '\n' | '\r')) || (text && c == HARD_BREAK) {
+                    if in_table && matches!(c, '\t' | '\n' | '\r') {
                         ' '
+                    } else if text && c == HARD_BREAK {
+                        '\u{a0}'
                     } else {
                         c
                     }

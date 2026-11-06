@@ -56,7 +56,11 @@ fn an_empty_quote_is_a_block() {
         [Container::Quote { .. }]
     ));
     assert_eq!(export(&d), ">\n");
-    assert_eq!(export_markdown(&d, ExportOptions::default()), ">", "unchanged: as read");
+    assert_eq!(
+        export_markdown(&d, ExportOptions::default()),
+        ">",
+        "unchanged: as read"
+    );
     let nested = import_markdown("> >");
     assert_eq!(nested.blocks.len(), 1);
     assert_eq!(nested.blocks[0].attrs.containers.len(), 2);
