@@ -37,7 +37,7 @@ Version 0.1.0 (first tag). Built on `fs-store` v0.2.0 and `fs-interfaces` v0.4.0
 | `export_text(id, media_type)`: Markdown, layers not written | done |
 | Media types (`TextFormat`, Factory): `text/markdown` (parameters and case ignored); anything else is `Error::MediaType` | done |
 | Example `cargo run -p fs-wiki-core --example manifesto`: imports `fs-documentation/docs/en/manifesto.md`, reads it back (identical), lists its links | done |
-| Tests | `fs-wiki-core`: 32 integration tests (`texts_crud` 6, `texts_list` 2, `links` 3, `move_text` 5, `move_folder` 8, `outside_change` 6, `provider` 2); `fs-text` has its own |
+| Tests | `fs-wiki-core`: 32 integration tests (`texts_crud` 6, `texts_list` 2, `links` 3, `move_text` 5, `move_folder` 5, `move_folder_failure` 3, `outside_change` 6, `provider` 2); `fs-text` has its own |
 | capnp-rpc server, GUI, editors, collections / shelves (ADR 0034), named passages' registry, templates in the program | **not started** |
 
 ## Structure and pattern map (ADR 0043)
