@@ -1367,7 +1367,7 @@ checksum = "aa9a19cbb55df58761df49b23516a86d432839add4af60fc256da840f66ed35b"
 [[package]]
 name = "fs-components-primitives"
 version = "0.1.0"
-source = "git+https://github.com/FreeSynergy/fs-components?rev=b736f8f59d4cccd29a61e8bf077985cc4cf121fe#b736f8f59d4cccd29a61e8bf077985cc4cf121fe"
+source = "git+https://github.com/FreeSynergy/fs-components?tag=v0.1.0#c058947f55e7f3cb5bc1c9db5a0d9edbb4a6c00e"
 dependencies = [
  "blinc_cn",
  "blinc_core",
@@ -1377,7 +1377,7 @@ dependencies = [
 [[package]]
 name = "fs-components-widgets"
 version = "0.1.0"
-source = "git+https://github.com/FreeSynergy/fs-components?rev=b736f8f59d4cccd29a61e8bf077985cc4cf121fe#b736f8f59d4cccd29a61e8bf077985cc4cf121fe"
+source = "git+https://github.com/FreeSynergy/fs-components?tag=v0.1.0#c058947f55e7f3cb5bc1c9db5a0d9edbb4a6c00e"
 dependencies = [
  "blinc_cn",
  "blinc_core",
@@ -1389,7 +1389,7 @@ dependencies = [
 [[package]]
 name = "fs-components-workbenches"
 version = "0.1.0"
-source = "git+https://github.com/FreeSynergy/fs-components?rev=b736f8f59d4cccd29a61e8bf077985cc4cf121fe#b736f8f59d4cccd29a61e8bf077985cc4cf121fe"
+source = "git+https://github.com/FreeSynergy/fs-components?tag=v0.1.0#c058947f55e7f3cb5bc1c9db5a0d9edbb4a6c00e"
 dependencies = [
  "blinc_app",
  "blinc_cn",
