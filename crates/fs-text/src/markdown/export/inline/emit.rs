@@ -28,6 +28,17 @@ fn close_str(m: &Mark, d: &str) -> String {
     md_syntax(m.kind).close(m, d)
 }
 
+/// An emphasis opened right behind a `*` run (`*a*` + `*b*`) would fuse with it; `_` keeps
+/// them apart when it still parses (no word character right after the span).
+fn apart_from_star<'a>(d: &'a str, out: &str, chars: &[char], e: &Em) -> &'a str {
+    let after_alnum = chars.get(e.e).copied().is_some_and(char::is_alphanumeric);
+    if d == "*" && out.ends_with('*') && !out.ends_with("\\*") && !after_alnum {
+        "_"
+    } else {
+        d
+    }
+}
+
 /// Render `chars[lo..hi]` with the marks that fall into the window.
 pub(in crate::markdown::export) fn inline(
     chars: &[char],
@@ -39,7 +50,7 @@ pub(in crate::markdown::export) fn inline(
     let ems = plan(marks, lo, hi, cx.opts);
     let chars = &chars[lo..hi];
     let n = chars.len();
-    let ds: Vec<&str> = ems
+    let mut ds: Vec<&str> = ems
         .iter()
         .map(|e| delimiter(marks[e.m], chars, e))
         .collect();
@@ -88,6 +99,7 @@ pub(in crate::markdown::export) fn inline(
                     atom_end = Some(e.e);
                 }
             } else {
+                ds[k] = apart_from_star(ds[k], &out, chars, e);
                 out.push_str(&open_str(m, ds[k]));
                 stack.push(k);
             }
