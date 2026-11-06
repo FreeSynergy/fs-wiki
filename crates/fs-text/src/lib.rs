@@ -1,25 +1,42 @@
 //! `fs-text`: text + layers core of the FreeSynergy wiki (ADR 0033, 0034, 0042).
+//!
+//! Pattern map: see `DESIGN.md`. Entry points: [`Document`] (model), [`Op`] / [`History`]
+//! (commands), [`import_markdown`] / [`export_markdown`] (Markdown adapter behind the
+//! [`Importer`] / [`Exporter`] traits).
+#![deny(missing_docs)]
+
 pub mod anchor;
 pub mod doc;
+pub mod external;
+pub mod format;
+pub mod history;
 pub mod id;
 pub mod links;
-pub mod external;
 pub mod mark;
-pub mod md_export;
-pub mod md_import;
+pub mod markdown;
 pub mod ops;
 pub mod template;
 pub mod text;
 
 pub use anchor::{Anchor, Bias};
-pub use doc::*;
-pub use mark::*;
-pub use md_export::{export_markdown, ExportOptions};
-pub use md_import::import_markdown;
-pub use ops::*;
-pub use text::Text;
-pub use links::{extract_links, rewrite_links, LinkRow};
-pub use template::{instantiate, instantiate_str, DateTime, Values};
-pub use external::{diff_edits, import_external, plan_external_import, TextEdit};
-pub use links::{backlinks, moved_path, DocOps};
-pub use template::TemplateError;
+pub use doc::{Align, Block, BlockAttrs, BlockKind, Container, Document};
+pub use external::{
+    diff_edits, import_external, plan_external_import, plan_external_import_with, TextEdit,
+};
+pub use format::{Exporter, Importer};
+pub use history::{History, Retention, Step};
+pub use links::{
+    backlinks, extract_links, moved_path, rewrite_links, rewrite_links_with, DocOps, LinkRewriter,
+    LinkRow, MovePrefix,
+};
+pub use mark::{
+    Expand, KindSpec, LinkStyle, LinkValue, Mark, MarkBehavior, MarkKind, MarkSet, MarkValue,
+    Overlap, Registry, REGISTRY,
+};
+pub use markdown::{
+    export_markdown, import_markdown, ExportOptions, MarkWriter, MarkdownExporter,
+    MarkdownImporter, MdSyntax,
+};
+pub use ops::{ApplyError, Command, Op};
+pub use template::{instantiate, instantiate_str, DateTime, TemplateError, Values};
+pub use text::{RopeStorage, Text, TextStorage};

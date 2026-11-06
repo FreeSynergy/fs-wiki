@@ -5,6 +5,50 @@ no dependency on `fs-store` (all types are `serde`-serialisable so the store can
 later). ADRs: 0033 (one marking mechanism), 0034 (passage / page), 0039 (three editors),
 0042 (database is the truth, files are exports), 0027 (UUIDv7), 0013 (no copying).
 
+## Layout (ADR 0043: one concept per file, <= 200 lines, `mod.rs` only declares)
+
+```
+src/
+  id.rs  anchor.rs
+  text/      mod, storage (trait), rope (ropey), buffer (Text facade)
+  mark/      mod, behavior (trait), kind, registry, item (Mark), set, merge, value
+  doc/       mod, document, block, attrs, block_kind, container, same
+  ops/       mod, op (enum), command (trait), apply, edit, marks, blocks, error
+  history/   mod, log, step, retention, compact
+  format/    mod, importer (trait), exporter (trait)
+  markdown/  mod, adapter, syntax,
+             import/{run, events, state, leaf, block, container, table, frontmatter,
+                     wikilink, inline, callout, admonition, blockref, hints, loose, options}
+             export/{document, container, layout, callout, leaf, code, table, options,
+                     inline/{emit, plan, writer, delim, atomic, escape, ctx}}
+  external/  mod, diff, plan, blocks
+  links/     mod, row, rewriter (trait), rewrite
+  template/  mod, datetime, format, values, placeholder, instantiate, error
+tests/       one file per feature (marks, history, external, links, templates, markdown,
+             model, props_*, roundtrip)
+```
+
+## Pattern map
+
+| Module | Pattern | Why |
+|---|---|---|
+| `text::storage` / `rope` / `buffer` | Strategy + Adapter + Facade | the rope is one `TextStorage`; `Text` is the small API; a CRDT can replace the rope |
+| `mark::registry` / `behavior` / `kind` | Registry + Strategy | kind -> `MarkBehavior` (expand, overlap, point, layer); new kinds add an entry, no `match` spread |
+| `mark::item` / `merge` / `set` | Strategy client | edit and merge rules ask the behaviour, never the kind |
+| `markdown::syntax` + `export::inline::writer` | Registry + Strategy | kind -> `MdSyntax`, which implements `MarkWriter`; the mark core stays format-free |
+| `format` + `markdown::adapter` | Adapter | `Importer` / `Exporter` traits; Markdown is the first adapter, others plug in |
+| `markdown::import::*` | Builder (event driven) | parser events build blocks; one handler file per concern |
+| `markdown::import::admonition` | Adapter (dialect) | mkdocs admonitions rewritten to callouts before parsing |
+| `markdown::export::*` | Template method + Strategy | document -> layout -> leaf -> inline; callout dialect chosen by option |
+| `ops` | Command | `Op` + `Command::apply` -> inverse; handlers per op kind |
+| `history` | Command history (Caretaker) | steps with inverses, undo/redo cursor, retention (Strategy data) |
+| `external` | Command producer + Adapter over `similar` | diff -> ops, so marks move with text |
+| `links::rewriter` | Strategy | `LinkRewriter` trait, `MovePrefix` = page/folder move |
+| `links::rewrite` / `row` | Command producer / read model | undoable rewrite, link table |
+| `template` | Template method + Value object | find, resolve, splice keeping marks |
+| `doc` | Composite (flattened) | document -> blocks -> containers list |
+| `id`, `anchor` | Factory / Value object | one id source; offset transforms in one type |
+
 ## Model
 
 * `Document { id, blocks }`, `Block { id, text, marks, attrs }`. IDs are UUIDv7.
@@ -12,7 +56,7 @@ later). ADRs: 0033 (one marking mechanism), 0034 (passage / page), 0039 (three e
   A block document (imported from Markdown) has one block per Markdown leaf (paragraph, heading,
   code, table, html, rule, front matter). Nesting (quote, callout, list item, footnote) is
   flattened into `attrs.containers`; `inst` numbers tell instances apart.
-* `Text` is a `ropey` rope addressed by **char offsets** (not bytes). Heading level, code info,
+* `Text` is an editable string addressed by **char offsets** (not bytes); the storage sits behind the `TextStorage` trait (default: a `ropey` rope, `RopeStorage`), so a CRDT sequence such as `loro` can replace it by changing `DefaultStorage`. Heading level, code info,
   table alignment, block ref `^id` are block attributes, not marks.
 * `Anchor { offset, bias }` exists with insert/delete transforms; `MarkSet` currently moves plain
   offsets with the same rules (the API is the seam for CRDT ids later).
@@ -20,7 +64,7 @@ later). ADRs: 0033 (one marking mechanism), 0034 (passage / page), 0039 (three e
 ## Marks (ADR 0033)
 
 `Mark { id, kind, value, start, end, expand }`; `start == end` is a **point** (insert/variable),
-otherwise a **range** (format / name / replace). Registry (`REGISTRY`, `MarkKind::spec()`):
+otherwise a **range** (format / name / replace). Registry (`REGISTRY`, `Registry::get(kind)` / `MarkKind::behavior()` return a `MarkBehavior`; how a kind is written is `markdown::md_syntax(kind)` + `MarkWriter`):
 
 | kind | expand | overlap | point | Markdown |
 |---|---|---|---|---|
@@ -35,7 +79,7 @@ Edit rules: insertion at a range start joins iff `expand.before`, at the end iff
 a point stays put iff `expand.before`. A deletion that covers a mark's whole text removes the
 mark (ADR 0042 §6); the op's inverse restores it. Merge kinds are unioned on `MarkSet::add`.
 
-## Markdown (`md_import`, `md_export`)
+## Markdown (`markdown::import`, `markdown::export`)
 
 `pulldown-cmark` 0.13: CommonMark, tables, task lists, strikethrough, footnotes, heading
 attributes, YAML front matter, wiki links. Own handling: callouts `> [!type]± title`, mkdocs
@@ -47,7 +91,7 @@ Layer marks are **not** written to files (ADR 0042 §2); `ExportOptions::layers`
 
 ## External edits (`external`) — ADR 0042 §5
 
-`plan_external_import(doc, new_text) -> Vec<Op>` / `import_external`. Raw documents: line diff,
+`plan_external_import(doc, new_text) -> Vec<Op>` / `import_external` (`plan_external_import_with` takes any `Importer` + `Exporter`). Raw documents: line diff,
 then char diff in changed hunks, applied back to front as `Op::Edit`, so layer marks move with
 the text and removed text takes its marks (undoable). Block documents: new text is parsed,
 blocks are aligned by their Markdown (Myers), equal blocks keep id and layers, changed blocks get
@@ -57,7 +101,7 @@ text edits plus formatting marks from the file (layer marks kept), new/removed b
 ## Links (`links`) — ADR 0042 §8
 
 `extract_links(doc) -> Vec<LinkRow>` (source doc/block/mark, range, path, target uuid, shown
-title, internal). `rewrite_links(docs, old, new)` moves pages and folders (`old` and `old/…`, keeps
+title, internal). `rewrite_links(docs, old, new)` (= `rewrite_links_with(docs, &MovePrefix)`; any `LinkRewriter` works) moves pages and folders (`old` and `old/…`, keeps
 `#fragment`), updates the mark value and — when the shown text *is* the readable path — the text.
 Returns forward/inverse ops per document. `backlinks(rows, target)` reads the same table.
 
@@ -69,7 +113,7 @@ Returns forward/inverse ops per document. `backlinks(rows, target)` reads the sa
 
 ## Undo (`ops`) — ADR 0042 §10
 
-Every `Op` (`Edit`, `SetMarks`, `AddMark`, `RemoveMark`, `SetAttrs`, `InsertBlock`, `RemoveBlock`)
+Every `Op` is a `Command` (`apply` returns the exact inverse); the variants (`Edit`, `SetMarks`, `AddMark`, `RemoveMark`, `SetAttrs`, `InsertBlock`, `RemoveBlock`)
 applies to a `Document` and returns its exact inverse (edits carry a snapshot of the block's
 marks). `History { retention: { max_age, max_steps }, … }` groups ops into steps, undo/redo,
 `compact` drops older steps (current state stays); forward ops of dropped steps not yet synced
@@ -77,15 +121,18 @@ stay in `pending_sync` until `mark_synced`. `reset` = "reset undo history". All 
 
 ## State
 
-Works and is tested (21 unit/property tests, corpus round trip):
-* model, rope text, anchors, mark registry/edit rules, point/range, merge, unmark;
+Works and is tested (31 tests: unit tests next to the code, integration tests per feature,
+property tests, corpus round trip):
+* model, text behind `TextStorage`, anchors, mark registry/behaviour/edit rules, point/range, merge, unmark;
 * property tests (`proptest`): marks stay valid under random edits, undo restores text and marks
   exactly, outside edits do not change a mark's text, diff import reproduces the target text,
-  Markdown model is stable (md → model → md → model);
-* Markdown import/export incl. footnotes, front matter, wiki links, block refs, callouts, mkdocs
-  admonitions; the whole `fs-documentation/docs/en` tree (1321 files) re-imports stably after
-  export, 1256 byte-identical (with the mkdocs dialect for admonitions), the rest normalised;
+  Markdown model is stable (md -> model -> md -> model);
+* Markdown import/export (behind `Importer`/`Exporter`) incl. footnotes, front matter, wiki links,
+  block refs, callouts, mkdocs admonitions; the whole `fs-documentation/docs/en` tree (1321 files)
+  re-imports stably after export, 1256 byte-identical (with the mkdocs dialect), the rest normalised;
 * external edit import (raw and block), link table + rewrite, templates, history with retention.
+* ADR 0043 refactor done: no file over 200 lines, every module names its pattern,
+  `#![deny(missing_docs)]`, `check_rust_rules.py` reports 0 errors / 0 warnings.
 
 Known limits / not done:
 * Normalisations: indented code -> fenced, setext -> ATX, reference links -> inline, trailing

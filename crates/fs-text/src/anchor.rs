@@ -2,6 +2,9 @@
 //!
 //! Internally a char offset; the API is the only thing callers touch, so it can later be
 //! swapped for CRDT ids.
+//!
+//! Pattern: Newtype / value object — `Anchor` is a small immutable value with the transform
+//! rules attached, so callers never do offset arithmetic themselves.
 
 use serde::{Deserialize, Serialize};
 
@@ -14,21 +17,35 @@ pub enum Bias {
     Right,
 }
 
+/// A char offset plus the side it sticks to.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Anchor {
+    /// Char offset.
     pub offset: usize,
+    /// Side it sticks to on insertion at `offset`.
     pub bias: Bias,
 }
 
 impl Anchor {
+    /// Anchor at `offset` with the given bias.
+    #[must_use]
     pub fn new(offset: usize, bias: Bias) -> Self {
         Self { offset, bias }
     }
+    #[must_use]
     /// Position after inserting `len` chars at `at`.
     pub fn after_insert(self, at: usize, len: usize) -> Self {
         let moves = self.offset > at || (self.offset == at && self.bias == Bias::Right);
-        Self { offset: if moves { self.offset + len } else { self.offset }, bias: self.bias }
+        Self {
+            offset: if moves {
+                self.offset + len
+            } else {
+                self.offset
+            },
+            bias: self.bias,
+        }
     }
+    #[must_use]
     /// Position after deleting `start..end`. Positions inside collapse to `start`.
     pub fn after_delete(self, start: usize, end: usize) -> Self {
         let o = self.offset;
@@ -39,6 +56,9 @@ impl Anchor {
         } else {
             start
         };
-        Self { offset: n, bias: self.bias }
+        Self {
+            offset: n,
+            bias: self.bias,
+        }
     }
 }

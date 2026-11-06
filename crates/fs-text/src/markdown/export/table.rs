@@ -1,0 +1,95 @@
+//! GFM tables: padded cells, delimiter row with the source's dash widths.
+//!
+//! Pattern: Template method — split the block text into cells, render cells inline, then lay
+//! out header, delimiter and body rows.
+
+use super::inline::{inline, Ctx};
+use super::options::ExportOptions;
+use crate::doc::{Align, Block};
+use crate::mark::Mark;
+
+fn split_rows(chars: &[char], marks: &[&Mark], opts: ExportOptions) -> Vec<Vec<String>> {
+    let cx = Ctx {
+        table: true,
+        heading: false,
+        opts,
+    };
+    let mut rows = Vec::new();
+    let mut row = Vec::new();
+    let mut cell_start = 0;
+    for i in 0..=chars.len() {
+        let sep = if i == chars.len() {
+            Some('\n')
+        } else {
+            Some(chars[i]).filter(|c| *c == '\n' || *c == '\t')
+        };
+        if let Some(c) = sep {
+            row.push(inline(chars, marks, cell_start, i, cx));
+            cell_start = i + 1;
+            if c == '\n' {
+                rows.push(std::mem::take(&mut row));
+            }
+        }
+    }
+    rows
+}
+
+fn fmt_row(r: &[String], ncols: usize) -> String {
+    let mut s = String::from("|");
+    for c in 0..ncols {
+        let cell = r.get(c).map_or("", String::as_str);
+        if !cell.is_empty() {
+            s.push(' ');
+            s.push_str(cell);
+        }
+        s.push_str(" |");
+    }
+    s
+}
+
+fn delimiter_row(b: &Block, header: &[String], align: &[Align], ncols: usize) -> String {
+    let mut d = String::from("|");
+    let dashes = b.attrs.extra.get("dashes");
+    let spaced = dashes.is_some_and(|d| d.starts_with('s'));
+    for c in 0..ncols {
+        let given: Option<usize> = dashes
+            .and_then(|d| d.trim_start_matches('s').split(',').nth(c))
+            .and_then(|x| x.parse().ok());
+        let w = given
+            .unwrap_or_else(|| header.get(c).map_or(0, |x| x.chars().count()) + 2)
+            .max(3);
+        let cell = match align.get(c).copied().unwrap_or(Align::None) {
+            Align::None => "-".repeat(w),
+            Align::Left => format!(":{}", "-".repeat(w - 1)),
+            Align::Right => format!("{}:", "-".repeat(w - 1)),
+            Align::Center => format!(":{}:", "-".repeat(w - 2)),
+        };
+        if spaced {
+            d.push(' ');
+            d.push_str(&cell);
+            d.push(' ');
+        } else {
+            d.push_str(&cell);
+        }
+        d.push('|');
+    }
+    d
+}
+
+pub(super) fn render_table(
+    b: &Block,
+    chars: &[char],
+    marks: &[&Mark],
+    align: &[Align],
+    opts: ExportOptions,
+) -> Vec<String> {
+    let rows = split_rows(chars, marks, opts);
+    let ncols = align.len().max(rows.first().map_or(0, Vec::len));
+    let mut out = Vec::new();
+    if let Some(h) = rows.first() {
+        out.push(fmt_row(h, ncols));
+        out.push(delimiter_row(b, h, align, ncols));
+    }
+    out.extend(rows.iter().skip(1).map(|r| fmt_row(r, ncols)));
+    out
+}
