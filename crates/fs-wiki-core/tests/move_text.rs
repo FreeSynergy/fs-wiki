@@ -123,5 +123,9 @@ async fn a_move_is_undoable_text_by_text() {
     assert_eq!(md(&w, a.id).await, "[[new]]\n");
     store.undo(ME, 2).await.unwrap(); // the moved text, then the rewrite in "a"
     assert_eq!(w.get(t.id).await.unwrap().unwrap().path, "old");
-    assert_eq!(md(&w, a.id).await, "[[old]]\n");
+    assert_eq!(
+        md(&w, a.id).await,
+        "[[old]]",
+        "the bytes it was created with"
+    );
 }

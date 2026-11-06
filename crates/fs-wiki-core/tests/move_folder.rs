@@ -143,3 +143,20 @@ async fn moving_up_where_a_name_repeats_is_refused_before_writing() {
     ));
     assert_eq!(everything(&w).await, before);
 }
+
+#[tokio::test]
+async fn a_folder_move_rewrites_only_the_blocks_with_changed_links() {
+    let w = common::wiki().await;
+    w.create("docs/x/one", "[[docs/x/two]]").await.unwrap();
+    let p = w
+        .create("p", "[[docs/x/one]]\n\nuntouched  *odd*   spacing\n")
+        .await
+        .unwrap();
+    w.move_folder("docs/x", "archive/y").await.unwrap();
+    let text = md(&w, p.id).await;
+    assert!(text.starts_with("[[archive/y/one]]\n"), "{text:?}");
+    assert!(
+        text.ends_with("untouched  *odd*   spacing\n"),
+        "an untouched block keeps its bytes: {text:?}"
+    );
+}
