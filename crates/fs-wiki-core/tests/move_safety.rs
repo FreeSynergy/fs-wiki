@@ -79,3 +79,60 @@ async fn a_path_with_the_last_code_point_is_refused_so_no_text_stays_behind() {
         .unwrap()
         .is_empty());
 }
+
+#[tokio::test]
+async fn a_move_interrupted_at_any_write_ends_as_the_undisturbed_one_with_candidate_links() {
+    async fn fill_with_links(w: &WikiRepo) {
+        for (path, md) in [
+            ("t/a.md", "[b](b) [out](../s/p) [self](./a)\n"),
+            ("t/b.md", "[a](a) [idx](sub/) [up](../s/p.md)\n"),
+            ("t/sub/index.md", "[a](../a)\n"),
+            ("s/p.md", "[a](../t/a) [b](../t/b.md) [s](../t/sub/)\n"),
+            ("s/other.md", "[x](../t/a.md#h)\n"),
+        ] {
+            w.create(path, md).await.unwrap();
+        }
+    }
+    let reference = wiki().await;
+    fill_with_links(&reference).await;
+    reference.move_folder("t", "deep/u").await.unwrap();
+    let mut expected = vec![];
+    for t in everything(&reference).await {
+        expected.push((t.path.clone(), common::md(&reference, t.id).await));
+    }
+    for fail_at in 0..7 {
+        let store = Arc::new(TursoStore::open_in_memory().await.unwrap());
+        let healthy = WikiRepo::new(store.clone(), ME);
+        fill_with_links(&healthy).await;
+        let broken = failing(&store, fail_at);
+        assert!(
+            broken.move_folder("t", "deep/u").await.is_err(),
+            "at {fail_at}"
+        );
+        healthy.move_folder("t", "deep/u").await.unwrap();
+        let mut got = vec![];
+        for t in everything(&healthy).await {
+            got.push((t.path.clone(), common::md(&healthy, t.id).await));
+        }
+        assert_eq!(got, expected, "interrupted at write {fail_at}");
+    }
+}
+
+#[tokio::test]
+async fn a_page_move_interrupted_after_the_links_changed_is_finished_by_repeating_it() {
+    let store = Arc::new(TursoStore::open_in_memory().await.unwrap());
+    let healthy = WikiRepo::new(store.clone(), ME);
+    let page = healthy.create("page.md", "p").await.unwrap();
+    let s = healthy
+        .create("s/src.md", "[p](../page) [q](../page.md#h)\n")
+        .await
+        .unwrap();
+    // The link in `s/src.md` is written first (write 0), the page itself last (write 1).
+    let broken = failing(&store, 1);
+    assert!(broken.move_to(page.id, "other/page.md").await.is_err());
+    healthy.move_to(page.id, "other/page.md").await.unwrap();
+    assert_eq!(
+        common::md(&healthy, s.id).await,
+        "[p](../other/page) [q](../other/page.md#h)\n"
+    );
+}

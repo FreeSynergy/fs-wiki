@@ -13,7 +13,7 @@ use fs_text::{Block, Container, Document, LinkValue, MarkKind, MarkValue, Op};
 use super::definitions::relink_definitions;
 use super::shift::Shift;
 use super::target::written;
-use super::titles::title_links;
+use super::titles::relinked_title;
 use crate::path::page_of;
 
 /// The new path text of `link` (a link on the page that moves from `before` to `after`), or
@@ -120,15 +120,8 @@ fn relink_titles(
         let Container::Callout { title, .. } = container else {
             continue;
         };
-        let mut edits = vec![];
-        for l in title_links(title) {
-            let link = LinkValue::new(&title[l.start..l.end], l.style);
-            if let Some(new) = new_written(&link, before, after, shift) {
-                edits.push((l.start, l.end, new));
-            }
-        }
-        for (start, end, new) in edits.into_iter().rev() {
-            title.replace_range(start..end, &new);
+        if let Some(new) = relinked_title(title, before, after, shift) {
+            *title = new;
             changed = true;
         }
     }

@@ -11,6 +11,7 @@ use std::path::Path;
 use fs_components_workbenches::SourceError;
 use fs_wiki_core::{FileOrigin, TextFormat};
 
+use super::export::summary;
 use super::export::{
     Differs, ExportError, export_markdown_checked, export_markdown_if_seen, read_current,
 };
@@ -51,19 +52,27 @@ impl WikiSource {
             let confirmed =
                 overwrite && seen.as_deref() == Some(digest(on_disk.as_bytes()).as_str());
             if !confirmed && disk.as_deref() != Some(markdown.as_str()) {
+                let file = Path::new(target).join(path);
+                let other = disk.as_deref().map_or_else(String::new, |d| {
+                    format!(
+                        " {} already exists with other content ({}) and would be replaced.",
+                        file.display(),
+                        summary(d, &markdown)
+                    )
+                });
                 if let Ok(mut slot) = self.difference.lock() {
                     *slot = Some(Asked {
                         path: path.to_string(),
                         target: target.to_string(),
                         differs: Differs {
-                            file: Path::new(target).join(path),
+                            file,
                             on_disk,
                             wanted: markdown,
                         },
                     });
                 }
                 return Err(SourceError::conflict(format!(
-                    "{why} Press Export again to write it anyway."
+                    "{why}{other} Press Export again to write it anyway."
                 )));
             }
         }

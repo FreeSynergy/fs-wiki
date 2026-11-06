@@ -148,3 +148,17 @@ fn a_callout_title_is_shown_as_text_with_its_formatting_not_as_markup() {
             >= 2
     );
 }
+
+#[test]
+fn a_callout_title_that_is_not_inline_text_is_shown_as_written() {
+    for title in ["1. Install it", "# h", "- item", "> q"] {
+        let b = blocks(&format!("> [!note] {title}\n> body\n"));
+        let Block::Quote(inner) = &b[0] else {
+            panic!("{b:?}")
+        };
+        let Block::Paragraph(head) = &inner[0] else {
+            panic!("{inner:?}")
+        };
+        assert_eq!(head.text, title, "the title is shown as it is stored");
+    }
+}

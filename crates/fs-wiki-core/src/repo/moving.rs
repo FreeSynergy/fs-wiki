@@ -33,14 +33,19 @@ impl WikiRepo {
             paths: &paths,
         };
 
+        // Texts that link to the old path, and texts whose links could now lead to the new one.
         let linking: Query = all_texts(Paging::default()).with_index("link", &text.path);
-        for other in self.reads.query(&linking).await? {
-            if other.envelope.id == id {
-                continue;
-            }
-            let entry = entry_of(other)?;
-            if let Some(doc) = relinked(&entry.document, &entry.path, &entry.path, &shift) {
-                self.store_document(&entry, &entry.path, &doc).await?;
+        let arriving: Query = all_texts(Paging::default()).with_index("link", new.as_str());
+        let mut seen = std::collections::HashSet::new();
+        for query in [linking, arriving] {
+            for other in self.reads.query(&query).await? {
+                if other.envelope.id == id || !seen.insert(other.envelope.id) {
+                    continue;
+                }
+                let entry = entry_of(other)?;
+                if let Some(doc) = relinked(&entry.document, &entry.path, &entry.path, &shift) {
+                    self.store_document(&entry, &entry.path, &doc).await?;
+                }
             }
         }
 

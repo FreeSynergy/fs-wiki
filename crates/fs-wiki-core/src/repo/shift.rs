@@ -52,11 +52,23 @@ impl Shift<'_> {
             .unwrap_or_else(|| w.target.clone())
     }
 
+    /// The text the link means stays, but the move may have put a text in front of it in the
+    /// reader's order (`z.md` before `z/index.md`): then the link is written in full.
+    fn keep_meaning(&self, w: &Written, meant: &str) -> Option<(String, bool)> {
+        let first = candidates_of(&w.target)
+            .into_iter()
+            .find(|c| self.exists_after(c));
+        (self.paths.contains(meant) && first.is_some_and(|f| f != meant))
+            .then(|| (meant.to_string(), false))
+    }
+
     /// The new target path of the link `w`, and whether it is still a folder form (a trailing `/`
     /// may stay); `None` if the text it means does not move.
     pub(super) fn new_target(&self, w: &Written) -> Option<(String, bool)> {
         let meant = self.meaning(w);
-        let now = self.moved(&meant)?;
+        let Some(now) = self.moved(&meant) else {
+            return self.keep_meaning(w, &meant);
+        };
         let t = &w.target;
         let (target, folder_form) = if meant == *t {
             (now.clone(), true)

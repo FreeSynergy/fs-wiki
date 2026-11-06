@@ -58,3 +58,39 @@ fn an_exact_page_is_written_at_once() {
         "clean text\n"
     );
 }
+
+#[test]
+fn one_question_names_both_the_inexactness_and_the_file_that_would_be_replaced() {
+    let (rt, w) = wiki();
+    let entry = rt.block_on(w.create("p.md", "last\n")).unwrap();
+    let mut doc = entry.document.clone();
+    let at = doc.blocks.len() - 1;
+    let n = doc.blocks[at].text.len();
+    doc.blocks[at].splice(0, n, " leading blank");
+    rt.block_on(w.edit(entry.id, doc)).unwrap();
+    let src = WikiSource::new(w, rt.handle().clone(), vec![]);
+    let dir = temp_dir("er-both");
+    std::fs::write(dir.join("p.md"), "somebody else's file\n").unwrap();
+    let target = dir.display().to_string();
+    let err = src.export("p.md", &target, false).unwrap_err();
+    assert!(
+        err.message.contains("could not be written exactly"),
+        "{}",
+        err.message
+    );
+    assert!(
+        err.message.contains("already exists with other content"),
+        "{}",
+        err.message
+    );
+    assert_eq!(
+        std::fs::read_to_string(dir.join("p.md")).unwrap(),
+        "somebody else's file\n"
+    );
+    src.export("p.md", &target, true).unwrap();
+    assert!(
+        std::fs::read_to_string(dir.join("p.md"))
+            .unwrap()
+            .contains("leading blank")
+    );
+}

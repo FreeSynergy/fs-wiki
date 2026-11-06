@@ -144,8 +144,15 @@ impl WikiRepo {
             format!("{old}/"),
             format!("{old}/\u{10FFFF}"),
         );
+        // Texts whose links could now lead to a moved text through an earlier candidate.
+        let arriving = all_texts(Paging::default()).with_index("link", shift.new);
+        let arriving_below = all_texts(Paging::default()).index_between(
+            "link",
+            format!("{}/", shift.new),
+            format!("{}/\u{10FFFF}", shift.new),
+        );
         let mut done: HashSet<ObjectId> = HashSet::new();
-        for query in [exact, below] {
+        for query in [exact, below, arriving, arriving_below] {
             for other in self.reads.query(&query).await? {
                 let id = other.envelope.id;
                 if moving.contains(&id) || !done.insert(id) {

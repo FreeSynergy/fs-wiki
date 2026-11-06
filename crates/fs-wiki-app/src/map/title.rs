@@ -2,8 +2,8 @@
 //!
 //! Pattern: Adapter — fs-text keeps a callout title as Markdown as written (`A **bold** word`).
 //! It is read as Markdown here and shown with its formatting, never as markup; the whole title
-//! is strong, like the type shown when there is no title. A title that is more than one line of
-//! inline text (a block, a list) is shown as its plain text.
+//! is strong, like the type shown when there is no title. A title that does not read as one
+//! paragraph (it begins like a list, a heading, a quote) is shown exactly as it is stored.
 
 use fs_components_widgets::{Inline, Mark, MarkKind};
 use fs_text::{BlockKind, import_markdown};
@@ -17,14 +17,11 @@ pub(super) fn heading(ty: &str, title: &str) -> Inline {
     } else {
         let doc = import_markdown(title);
         match doc.blocks.as_slice() {
-            [one] if matches!(one.attrs.kind, BlockKind::Paragraph) => inline_of(one),
-            blocks => Inline::plain(
-                blocks
-                    .iter()
-                    .map(|b| b.text.to_string())
-                    .collect::<Vec<_>>()
-                    .join(" "),
-            ),
+            [one] if one.attrs.kind == BlockKind::Paragraph && one.attrs.containers.is_empty() => {
+                inline_of(one)
+            }
+            // `1. x`, `# h`, `- x`, `> q` are not blocks in a title: it is shown as written.
+            _ => Inline::plain(title),
         }
     };
     let len = inline.text.chars().count();

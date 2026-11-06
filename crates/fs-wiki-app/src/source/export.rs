@@ -176,7 +176,7 @@ pub fn export_markdown_to(
 }
 
 /// "3 of 40 lines differ, the first is line 7".
-fn summary(on_disk: &str, wanted: &str) -> String {
+pub(super) fn summary(on_disk: &str, wanted: &str) -> String {
     let (a, b): (Vec<&str>, Vec<&str>) = (on_disk.lines().collect(), wanted.lines().collect());
     let total = a.len().max(b.len());
     let differing: Vec<usize> = (0..total).filter(|&i| a.get(i) != b.get(i)).collect();
