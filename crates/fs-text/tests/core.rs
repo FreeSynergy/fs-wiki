@@ -259,7 +259,7 @@ fn layers_are_not_exported_by_default() {
     d.blocks[0].marks.add(Mark::new(MarkKind::Passage, 0, 5, MarkValue::Name("greet".into())));
     d.blocks[0].marks.add(Mark::point(MarkKind::Variable, 5, MarkValue::Variable { name: "who".into(), ty: None }));
     assert_eq!(export_markdown(&d, ExportOptions::default()), "Hello world\n");
-    assert_eq!(export_markdown(&d, ExportOptions { layers: true }), "[Hello]{#greet}{{who}} world\n");
+    assert_eq!(export_markdown(&d, ExportOptions { layers: true, ..Default::default() }), "[Hello]{#greet}{{who}} world\n");
 }
 
 #[test]

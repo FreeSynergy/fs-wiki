@@ -131,7 +131,9 @@ struct Leaf {
     text: String,
     len: usize,
     marks: Vec<Mark>,
-    open: Vec<(MarkKind, usize, MarkValue)>,
+    open: Vec<(MarkKind, usize, MarkValue, usize)>,
+    seq: usize,
+    order: Vec<usize>,
     heading_attrs: Option<String>,
     start: Option<usize>,
     glue: bool,
@@ -140,7 +142,7 @@ struct Leaf {
 
 impl Leaf {
     fn new(kind: BlockKind) -> Self {
-        Self { kind, text: String::new(), len: 0, marks: Vec::new(), open: Vec::new(), heading_attrs: None, start: None, glue: false, dashes: None }
+        Self { kind, text: String::new(), len: 0, marks: Vec::new(), open: Vec::new(), seq: 0, order: Vec::new(), heading_attrs: None, start: None, glue: false, dashes: None }
     }
     fn push(&mut self, s: &str) {
         self.text.push_str(s);
@@ -310,8 +312,8 @@ pub fn import_markdown(src: &str) -> Document {
                     }
                     s.leaf = Some(l);
                 }
-                Tag::Emphasis => s.open(MarkKind::Emphasis, MarkValue::None),
-                Tag::Strong => s.open(MarkKind::Strong, MarkValue::None),
+                Tag::Emphasis => s.open(MarkKind::Emphasis, under(&src, range.start)),
+                Tag::Strong => s.open(MarkKind::Strong, under(&src, range.start)),
                 Tag::Strikethrough => s.open(MarkKind::Strike, MarkValue::None),
                 Tag::Link { link_type, dest_url, title, .. } | Tag::Image { link_type, dest_url, title, .. } => {
                     let is_image = matches!(tag, Tag::Image { .. });
@@ -378,6 +380,8 @@ pub fn import_markdown(src: &str) -> Document {
                 let st = l.len;
                 l.push(c);
                 let end = l.len;
+                l.seq += 1;
+                l.order.push(l.seq);
                 l.marks.push(Mark::new(MarkKind::Code, st, end, MarkValue::None));
             }
             Event::InlineMath(t) | Event::DisplayMath(t) => {
@@ -391,12 +395,16 @@ pub fn import_markdown(src: &str) -> Document {
                 l.push(h);
                 if l.kind != BlockKind::Html {
                     let end = l.len;
+                    l.seq += 1;
+                    l.order.push(l.seq);
                     l.marks.push(Mark::new(MarkKind::Html, st, end, MarkValue::None));
                 }
             }
             Event::FootnoteReference(label) => {
                 s.ensure_leaf();
                 let l = s.leaf.as_mut().unwrap();
+                l.seq += 1;
+                l.order.push(l.seq);
                 l.marks.push(Mark::point(MarkKind::FootnoteRef, l.len, MarkValue::Name(label.to_string())));
             }
             Event::SoftBreak => {
@@ -462,13 +470,16 @@ impl Imp {
         self.ensure_leaf();
         let l = self.leaf.as_mut().unwrap();
         let at = l.len;
-        l.open.push((k, at, v));
+        l.seq += 1;
+        let seq = l.seq;
+        l.open.push((k, at, v, seq));
     }
     fn close(&mut self) {
         if let Some(l) = self.leaf.as_mut() {
-            if let Some((k, st, v)) = l.open.pop() {
+            if let Some((k, st, v, seq)) = l.open.pop() {
                 let end = l.len;
                 l.marks.push(Mark::new(k, st, end, v));
+                l.order.push(seq);
             }
         }
     }
@@ -494,7 +505,7 @@ impl Imp {
         if let Some(d) = leaf.dashes.take() {
             attrs.extra.insert("dashes".into(), d);
         }
-        let mut block = Block { id: new_id(), text: crate::text::Text::new(&leaf.text), marks: MarkSet::from_vec(leaf.marks), attrs };
+        let mut block = Block { id: new_id(), text: crate::text::Text::new(&leaf.text), marks: MarkSet::from_vec(sorted_by_open(leaf.marks, &leaf.order)), attrs };
         let was_fresh = self.fresh_quote.last().copied().unwrap_or(false);
         if let Some(f) = self.fresh_quote.last_mut() {
             *f = false;
@@ -573,5 +584,22 @@ fn table_dashes(table_src: &str) -> Option<String> {
     let line = table_src.lines().nth(1)?;
     let t = line.trim().trim_start_matches('>').trim();
     let t = t.strip_prefix('|')?.strip_suffix('|')?;
-    Some(t.split('|').map(|c| c.trim().chars().count().to_string()).collect::<Vec<_>>().join(","))
+    let spaced = if t.starts_with(' ') { "s" } else { "" };
+    Some(format!("{spaced}{}", t.split('|').map(|c| c.trim().chars().count().to_string()).collect::<Vec<_>>().join(",")))
+}
+
+/// Outer marks (opened first) come first among marks with equal ranges.
+fn sorted_by_open(marks: Vec<Mark>, order: &[usize]) -> Vec<Mark> {
+    let mut v: Vec<(usize, Mark)> = order.iter().copied().zip(marks).collect();
+    v.sort_by_key(|(o, _)| *o);
+    v.into_iter().map(|(_, m)| m).collect()
+}
+
+/// Remember underscore delimiters (`_em_`, `__strong__`) so export can write them back.
+fn under(src: &str, at: usize) -> MarkValue {
+    if src[at..].starts_with('_') {
+        MarkValue::Name("_".into())
+    } else {
+        MarkValue::None
+    }
 }

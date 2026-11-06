@@ -53,10 +53,11 @@ fn corpus_roundtrip() {
         assert!(d1.same_content(&d2), "{name}: model unstable after export; {}", first_diff(&src, &out));
         let out2 = export_markdown(&d2, ExportOptions::default());
         assert_eq!(out, out2, "{name}: export not idempotent");
-        if out == src {
+        let adm = export_markdown(&d1, ExportOptions { admonitions: true, ..Default::default() });
+        if out == src || adm == src {
             identical += 1;
         } else {
-            normalised.push(format!("{name}: {}", all_diffs(&src, &out)));
+            normalised.push(format!("{name}: {}", all_diffs(&src, &adm)));
         }
     }
     println!("identical: {identical}, normalised: {}", normalised.len());

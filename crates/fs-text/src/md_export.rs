@@ -10,6 +10,9 @@ use crate::md_import::HARD_BREAK;
 pub struct ExportOptions {
     /// Also write layer marks with attribute syntax (`{{name}}`, `[text]{#name}`).
     pub layers: bool,
+    /// Write callouts as mkdocs admonitions (`!!! note "Title"`, body indented by 4) instead
+    /// of `> [!note] Title`. Both are read on import.
+    pub admonitions: bool,
 }
 
 /// Export a document. A one-block [`BlockKind::Raw`] document exports its text verbatim.
@@ -32,7 +35,7 @@ pub fn export_blocks(blocks: &[Block], opts: ExportOptions) -> String {
             let tight = tight_join(prev, cs, k);
             let glued = b.attrs.extra.contains_key("glue") && !(blocks[bi - 1].attrs.kind == BlockKind::Paragraph && b.attrs.kind == BlockKind::Paragraph && common(prev, cs) == cs.len() && prev.len() == cs.len());
             if !(tight || glued) {
-                let pfx: String = cs[..k].iter().map(cont_prefix).collect();
+                let pfx: String = cs[..k].iter().map(|c| cont_prefix(c, opts)).collect();
                 out.push(pfx.trim_end().to_string());
             }
         }
@@ -61,8 +64,9 @@ fn common(a: &[Container], b: &[Container]) -> usize {
     a.iter().zip(b).take_while(|(x, y)| x.inst() == y.inst()).count()
 }
 
-fn marker(c: &Container) -> String {
+fn marker(c: &Container, o: ExportOptions) -> String {
     match c {
+        Container::Callout { .. } if o.admonitions => "    ".into(),
         Container::Quote { .. } | Container::Callout { .. } => "> ".into(),
         Container::Item { number, marker, task, .. } => {
             let mut s = match number {
@@ -79,8 +83,9 @@ fn marker(c: &Container) -> String {
         Container::Footnote { label, .. } => format!("[^{label}]: "),
     }
 }
-fn cont_prefix(c: &Container) -> String {
+fn cont_prefix(c: &Container, o: ExportOptions) -> String {
     match c {
+        Container::Callout { .. } if o.admonitions => "    ".into(),
         Container::Quote { .. } | Container::Callout { .. } => "> ".into(),
         Container::Item { number, .. } => " ".repeat(number.map(|n| n.to_string().len() + 2).unwrap_or(2)),
         Container::Footnote { .. } => "    ".into(),
@@ -91,20 +96,32 @@ fn render_in_containers(b: &Block, prev: &[Container], out: &mut Vec<String>, op
     let cs = &b.attrs.containers;
     let k = common(prev, cs);
     let mut fresh: Vec<bool> = (0..cs.len()).map(|d| d >= k).collect();
-    let prefix = |fresh: &[bool], upto: usize| -> String { cs[..upto].iter().enumerate().map(|(d, c)| if fresh[d] { marker(c) } else { cont_prefix(c) }).collect() };
+    let prefix = |fresh: &[bool], upto: usize| -> String { cs[..upto].iter().enumerate().map(|(d, c)| if fresh[d] { marker(c, opts) } else { cont_prefix(c, opts) }).collect() };
     // callout headers for new callouts
     for d in k..cs.len() {
         if let Container::Callout { ty, title, fold, .. } = &cs[d] {
             let mut h = prefix(&fresh, d);
-            h.push_str("> [!");
-            h.push_str(ty);
-            h.push(']');
-            if let Some(f) = fold {
-                h.push(*f);
-            }
-            if !title.is_empty() {
-                h.push(' ');
-                h.push_str(title);
+            if opts.admonitions {
+                h.push_str(match fold {
+                    None => "!!! ",
+                    Some('+') => "???+ ",
+                    Some(_) => "??? ",
+                });
+                h.push_str(ty);
+                if !title.is_empty() {
+                    h.push_str(&format!(" \"{title}\""));
+                }
+            } else {
+                h.push_str("> [!");
+                h.push_str(ty);
+                h.push(']');
+                if let Some(f) = fold {
+                    h.push(*f);
+                }
+                if !title.is_empty() {
+                    h.push(' ');
+                    h.push_str(title);
+                }
             }
             out.push(h.trim_end().to_string());
             for f in fresh.iter_mut().take(d + 1) {
@@ -118,8 +135,12 @@ fn render_in_containers(b: &Block, prev: &[Container], out: &mut Vec<String>, op
     let lines = render_block(b, opts);
     for line in lines {
         let mut l = prefix(&fresh, cs.len());
-        l.push_str(&line);
-        out.push(l.trim_end().to_string());
+        if line.is_empty() {
+            out.push(l.trim_end().to_string());
+        } else {
+            l.push_str(&line);
+            out.push(l);
+        }
         fresh.iter_mut().for_each(|f| *f = false);
     }
 }
@@ -202,8 +223,11 @@ fn render_table(b: &Block, chars: &[char], marks: &[&Mark], align: &[Align], opt
     let fmt_row = |r: &Vec<String>| -> String {
         let mut s = String::from("|");
         for c in 0..ncols {
-            s.push(' ');
-            s.push_str(r.get(c).map(String::as_str).unwrap_or(""));
+            let cell = r.get(c).map(String::as_str).unwrap_or("");
+            if !cell.is_empty() {
+                s.push(' ');
+                s.push_str(cell);
+            }
             s.push_str(" |");
         }
         s
@@ -211,8 +235,9 @@ fn render_table(b: &Block, chars: &[char], marks: &[&Mark], align: &[Align], opt
     if let Some(h) = rows.first() {
         out.push(fmt_row(h));
         let mut d = String::from("|");
+        let spaced = b.attrs.extra.get("dashes").map(|d| d.starts_with('s')).unwrap_or(false);
         for c in 0..ncols {
-            let given: Option<usize> = b.attrs.extra.get("dashes").and_then(|d| d.split(',').nth(c)).and_then(|x| x.parse().ok());
+            let given: Option<usize> = b.attrs.extra.get("dashes").and_then(|d| d.trim_start_matches('s').split(',').nth(c)).and_then(|x| x.parse().ok());
             let w = given.unwrap_or_else(|| h.get(c).map(|x| x.chars().count()).unwrap_or(0) + 2).max(3);
             let a = align.get(c).copied().unwrap_or(Align::None);
             let cell = match a {
@@ -221,7 +246,13 @@ fn render_table(b: &Block, chars: &[char], marks: &[&Mark], align: &[Align], opt
                 Align::Right => format!("{}:", "-".repeat(w - 1)),
                 Align::Center => format!(":{}:", "-".repeat(w - 2)),
             };
-            d.push_str(&cell);
+            if spaced {
+                d.push(' ');
+                d.push_str(&cell);
+                d.push(' ');
+            } else {
+                d.push_str(&cell);
+            }
             d.push('|');
         }
         out.push(d);
@@ -319,6 +350,14 @@ fn inline(chars: &[char], marks: &[&Mark], lo: usize, hi: usize, cx: Ctx) -> Str
     // non-point ranges that became empty are dropped
     ems.retain(|e| e.atomic || e.e > e.s || marks[e.m].is_point());
 
+    let ds: Vec<&str> = ems
+        .iter()
+        .map(|e| match marks[e.m].kind {
+            MarkKind::Emphasis => delim(marks[e.m], chars, e.s, e.e, "*", "_"),
+            MarkKind::Strong => delim(marks[e.m], chars, e.s, e.e, "**", "__"),
+            _ => "",
+        })
+        .collect();
     let mut out = String::new();
     let mut stack: Vec<usize> = Vec::new(); // indices into ems
     let mut opened = vec![false; ems.len()];
@@ -330,11 +369,11 @@ fn inline(chars: &[char], marks: &[&Mark], lo: usize, hi: usize, cx: Ctx) -> Str
             let above: Vec<usize> = stack.split_off(j);
             // close from the top
             for &i in above.iter().rev() {
-                out.push_str(&close_str(marks[ems[i].m], cx));
+                out.push_str(&close_str(marks[ems[i].m], cx, ds[i]));
             }
             for &i in above.iter().skip(1) {
                 if ems[i].e > p {
-                    out.push_str(&open_str(marks[ems[i].m], cx));
+                    out.push_str(&open_str(marks[ems[i].m], cx, ds[i]));
                     stack.push(i);
                 } else {
                     // also ends here; already closed
@@ -351,7 +390,7 @@ fn inline(chars: &[char], marks: &[&Mark], lo: usize, hi: usize, cx: Ctx) -> Str
         // opens, longest first
         let mut atom_end = None;
         let mut cands: Vec<usize> = (0..ems.len()).filter(|&k| !opened[k] && ems[k].s == p && !marks[ems[k].m].is_point()).collect();
-        cands.sort_by_key(|&k| (!ems[k].atomic, std::cmp::Reverse(ems[k].e)));
+        cands.sort_by_key(|&k| (std::cmp::Reverse(ems[k].e), ems[k].atomic));
         for k in cands {
             opened[k] = true;
             let e = &ems[k];
@@ -366,7 +405,7 @@ fn inline(chars: &[char], marks: &[&Mark], lo: usize, hi: usize, cx: Ctx) -> Str
                     atom_end = Some(e.e);
                 }
             } else {
-                out.push_str(&open_str(m, cx));
+                out.push_str(&open_str(m, cx, ds[k]));
                 stack.push(k);
             }
         }
@@ -383,7 +422,7 @@ fn inline(chars: &[char], marks: &[&Mark], lo: usize, hi: usize, cx: Ctx) -> Str
     }
     // anything left open (shouldn't be): close
     while let Some(i) = stack.pop() {
-        out.push_str(&close_str(marks[ems[i].m], cx));
+        out.push_str(&close_str(marks[ems[i].m], cx, ds[i]));
     }
     if cx.heading && out.ends_with('#') {
         let l = out.len() - 1;
@@ -392,9 +431,22 @@ fn inline(chars: &[char], marks: &[&Mark], lo: usize, hi: usize, cx: Ctx) -> Str
     out
 }
 
-fn open_str(m: &Mark, _cx: Ctx) -> String {
+/// `_`/`__` delimiters are kept when the source used them and they still parse (no word
+/// character directly outside).
+fn delim(m: &Mark, chars: &[char], s: usize, e: usize, def: &'static str, under: &'static str) -> &'static str {
+    if m.value == MarkValue::Name("_".into()) {
+        let before = s.checked_sub(1).and_then(|i| chars.get(i)).copied();
+        let after = chars.get(e).copied();
+        if !before.map(char::is_alphanumeric).unwrap_or(false) && !after.map(char::is_alphanumeric).unwrap_or(false) {
+            return under;
+        }
+    }
+    def
+}
+
+fn open_str(m: &Mark, _cx: Ctx, d: &str) -> String {
     match m.kind.spec().markdown {
-        MdSyntax::Delim(o, _) => o.to_string(),
+        MdSyntax::Delim(o, _) => if d.is_empty() { o.to_string() } else { d.to_string() },
         MdSyntax::Link => "[".into(),
         MdSyntax::Image => "![".into(),
         MdSyntax::Layer => "[".into(),
@@ -402,9 +454,9 @@ fn open_str(m: &Mark, _cx: Ctx) -> String {
     }
 }
 
-fn close_str(m: &Mark, _cx: Ctx) -> String {
+fn close_str(m: &Mark, _cx: Ctx, d: &str) -> String {
     match m.kind.spec().markdown {
-        MdSyntax::Delim(_, c) => c.to_string(),
+        MdSyntax::Delim(_, c) => if d.is_empty() { c.to_string() } else { d.to_string() },
         MdSyntax::Link | MdSyntax::Image => match m.link() {
             Some(l) => format!("]({}{})", dest(&l.path), l.title.as_ref().map(|t| format!(" \"{}\"", t.replace('"', "\\\""))).unwrap_or_default()),
             None => "]()".into(),
