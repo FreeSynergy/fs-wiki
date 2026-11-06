@@ -2,16 +2,14 @@
 //! CR, `é`): untouched text comes back byte for byte, whatever it is; and whatever is done to the
 //! model, the export either reads back as the model or says (`ExportReport`) what it could not
 //! write exactly, while untouched blocks stay byte for byte.
-//!
-//! No source is skipped. What the canonical writer cannot say is listed in `explained` and the
-//! tests check it: outside that list an export must be exact.
+//! No source is skipped: what the canonical writer cannot say is listed in `explained`.
 
 mod common;
 use fs_text::*;
 use proptest::prelude::*;
 use std::collections::HashMap;
 
-/// Markdown-ish soup: every char that starts some syntax, plus blanks and line breaks.
+/// Markdown-ish soup: chars that start some syntax, blanks and line breaks.
 const SOUP: &str = "[a-z0-9 \t\n\r*_~|\\\\!:#>`.()\\[\\]{}<&;^+=\"/$é-]{0,160}";
 
 fn export(d: &Document) -> (String, ExportReport) {
@@ -164,8 +162,7 @@ proptest! {
             && !src.contains("]:") && !src.contains('<') {
             prop_assert!(report.rewritten.is_empty(), "{:?} edit 0 at {} {:?}: rewrote neighbours {:?}", src, at, word, report);
         }
-        // text that stands only in a kept source (next to the block, in no block) is in the output
-        // or named in the report: the report cannot lie about it
+        // text only in a kept source is in the output or in the report (it cannot lie)
         for b in &d.blocks {
             let Some(s) = &b.attrs.source else { continue };
             let lead = s.text.get(..s.own).unwrap_or("");

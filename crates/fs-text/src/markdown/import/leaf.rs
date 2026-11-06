@@ -55,6 +55,21 @@ impl Leaf {
             max_cells: 0,
         }
     }
+    /// Write the source-style hints into the block attributes.
+    pub fn put_hints(&mut self, extra: &mut std::collections::BTreeMap<String, String>) {
+        if let Some(f) = self.fence.take() {
+            extra.insert("fence-char".into(), f);
+        }
+        if self.unparsed {
+            extra.insert("unparsed".into(), "1".into());
+        }
+        if let Some(r) = self.rule.take() {
+            extra.insert("rule".into(), r);
+        }
+        if let Some(d) = self.dashes.take() {
+            extra.insert("dashes".into(), d);
+        }
+    }
     pub fn push(&mut self, s: &str) {
         self.text.push_str(s);
         self.len += s.chars().count();

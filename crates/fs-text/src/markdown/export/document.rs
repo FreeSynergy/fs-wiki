@@ -5,12 +5,10 @@
 //! one (tight lists, glued blocks) and delegates the rendering.
 
 use super::container::{common, cont_prefix, lists_would_merge, tight_join};
-use super::keep::{
-    flush, kept_lead, kept_tail, line_ending, open_html, opts_for, source_only_text,
-};
+use super::keep::{flush, kept_lead, kept_tail, line_ending, open_html, opts_for};
 use super::layout::{render_in_containers, Place};
 use super::options::ExportOptions;
-use super::report::{analyse, report_of, ExportReport};
+use super::report::{analyse, full_report, ExportReport};
 use crate::doc::{usable_source, Block, BlockKind, Container, Document};
 use crate::markdown::import_plain;
 
@@ -21,10 +19,10 @@ pub fn export_markdown(doc: &Document, opts: ExportOptions) -> String {
 }
 
 /// What one pass of writing did.
-struct Pass {
-    out: String,
+pub(super) struct Pass {
+    pub out: String,
     /// Per block: written from its kept source.
-    verbatim: Vec<bool>,
+    pub verbatim: Vec<bool>,
     /// The last block was written from a source that reaches the end of the file.
     to_end: bool,
 }
@@ -107,37 +105,6 @@ pub fn export_blocks_report(blocks: &[Block], opts: ExportOptions) -> (String, E
             (all.out, report)
         }
     }
-}
-
-/// The report of a pass: what did not read back, what was rewritten, and text that stood only in
-/// a dropped kept source and is not in the output.
-fn full_report(blocks: &[Block], an: &super::report::Analysis, pass: &Pass) -> ExportReport {
-    let mut report = report_of(blocks, an);
-    report.rewritten = rewritten(blocks, &pass.verbatim);
-    for (i, b) in blocks
-        .iter()
-        .enumerate()
-        .filter(|(i, _)| !pass.verbatim[*i])
-    {
-        for line in source_only_text(b)
-            .into_iter()
-            .filter(|l| !pass.out.contains(l.as_str()))
-        {
-            report.inexact.push(super::report::Inexact {
-                block: blocks[i].id,
-                why: format!("text that stood next to it in the file is not in the output: {line}"),
-            });
-        }
-    }
-    report
-}
-
-/// Blocks whose kept source could have been used but were written anew in this pass.
-fn rewritten(blocks: &[Block], verbatim: &[bool]) -> Vec<crate::id::Uuid> {
-    (0..blocks.len())
-        .filter(|&i| !verbatim[i] && usable_source(blocks, i).is_some())
-        .map(|i| blocks[i].id)
-        .collect()
 }
 
 fn write(blocks: &[Block], opts: ExportOptions, force: &[bool], keep_layout: bool) -> Pass {

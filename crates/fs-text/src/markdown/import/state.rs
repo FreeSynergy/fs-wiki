@@ -153,18 +153,7 @@ impl<'a> Imp<'a> {
             }
             _ => {}
         }
-        if let Some(f) = leaf.fence.take() {
-            attrs.extra.insert("fence-char".into(), f);
-        }
-        if leaf.unparsed {
-            attrs.extra.insert("unparsed".into(), "1".into());
-        }
-        if let Some(r) = leaf.rule.take() {
-            attrs.extra.insert("rule".into(), r);
-        }
-        if let Some(d) = leaf.dashes.take() {
-            attrs.extra.insert("dashes".into(), d);
-        }
+        leaf.put_hints(&mut attrs.extra);
         let marks = MarkSet::from_vec(sorted_by_open(leaf.marks, &leaf.order));
         let mut block = Block {
             id: new_id(),

@@ -5,7 +5,9 @@
 //! Between anchors the blocks written anew may read back as anything (that is reported, not
 //! spread). If an anchor itself reads differently, the neighbours' meaning would change.
 
-use crate::doc::{same_in_file, why_differs, Block};
+use super::document::Pass;
+use super::keep::source_only_text;
+use crate::doc::{same_in_file, usable_source, why_differs, Block};
 use crate::id::Uuid;
 
 /// One block that does not read back exactly as the model says.
@@ -161,4 +163,35 @@ pub(super) fn report_of(blocks: &[Block], a: &Analysis) -> ExportReport {
             .collect(),
         rewritten: Vec::new(),
     }
+}
+
+/// The report of a pass: what did not read back, what was rewritten, and text that stood only in
+/// a dropped kept source and is not in the output.
+pub(super) fn full_report(blocks: &[Block], an: &Analysis, pass: &Pass) -> ExportReport {
+    let mut report = report_of(blocks, an);
+    report.rewritten = rewritten(blocks, &pass.verbatim);
+    for (i, b) in blocks
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| !pass.verbatim[*i])
+    {
+        for line in source_only_text(b)
+            .into_iter()
+            .filter(|l| !pass.out.contains(l.as_str()))
+        {
+            report.inexact.push(Inexact {
+                block: blocks[i].id,
+                why: format!("text that stood next to it in the file is not in the output: {line}"),
+            });
+        }
+    }
+    report
+}
+
+/// Blocks whose kept source could have been used but were written anew in this pass.
+pub(super) fn rewritten(blocks: &[Block], verbatim: &[bool]) -> Vec<crate::id::Uuid> {
+    (0..blocks.len())
+        .filter(|&i| !verbatim[i] && usable_source(blocks, i).is_some())
+        .map(|i| blocks[i].id)
+        .collect()
 }
