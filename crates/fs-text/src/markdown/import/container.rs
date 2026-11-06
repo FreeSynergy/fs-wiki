@@ -105,7 +105,9 @@ impl Imp<'_> {
         let start = range.start
             + (self.src.len() - range.start - self.src[range.start..].trim_start().len());
         l.start = Some(start.min(range.end.saturating_sub(1)).max(range.start));
-        l.end = range.end;
+        // the range of a container may take the blank lines after it
+        l.end = range.start + self.src[range.clone()].trim_end().len();
+        l.end = l.end.max(start + 1);
         self.leaf = Some(l);
         self.flush();
     }

@@ -41,32 +41,64 @@ pub fn export_blocks(blocks: &[Block], opts: ExportOptions) -> String {
             return b.text.to_string();
         }
     }
-    let mut force = vec![opts.layers; blocks.len()];
-    for level in 0..3 {
-        // the first pass keeps the layout around changed blocks; later ones are what is safe
-        let pass = write(blocks, opts, &force, level == 0);
+    let n = blocks.len();
+    let mut force = vec![opts.layers; n];
+    let mut core: Vec<usize> = Vec::new();
+    // radius 0 is the plain pass; then the changed blocks and their surroundings, ever wider
+    let mut radius = 0usize;
+    let mut fallback: Option<String> = None;
+    loop {
+        let pass = write(blocks, opts, &force, radius == 0);
         let kept = pass.verbatim.iter().any(|v| *v);
         let edited = !kept || pass.verbatim.iter().any(|v| !v) || !pass.to_end;
-        if !kept || !edited || same_in_file(blocks, &import_plain(&pass.out).blocks) {
+        if !kept || !edited {
             return pass.out;
         }
-        // widen: the blocks written anew and their neighbours, then everything
-        let mut wider = force.clone();
-        for (i, v) in pass.verbatim.iter().enumerate() {
-            if !v {
-                wider[i.saturating_sub(1)..=(i + 1).min(blocks.len() - 1)].fill(true);
+        let back = import_plain(&pass.out).blocks;
+        if same_in_file(blocks, &back) {
+            return pass.out;
+        }
+        // not proven: remember a pass whose only differences are inside the new blocks
+        if radius > 0 && fallback.is_none() && confined(blocks, &back, &pass.verbatim) {
+            fallback = Some(pass.out);
+        }
+        if radius == 0 {
+            core = (0..n).filter(|i| !pass.verbatim[*i]).collect();
+            if !pass.to_end {
+                core.push(n - 1);
             }
         }
-        if let Some(last) = wider.last_mut().filter(|_| !pass.to_end) {
-            *last = true;
+        radius = if radius == 0 { 1 } else { radius * 3 };
+        if radius >= n {
+            break;
         }
-        force = if wider == force {
-            vec![true; blocks.len()]
-        } else {
-            wider
-        };
+        force = vec![false; n];
+        for &i in &core {
+            force[i.saturating_sub(radius)..=(i + radius).min(n - 1)].fill(true);
+        }
     }
-    write(blocks, opts, &vec![true; blocks.len()], false).out
+    // the whole document written anew; if even that does not read back, the model has a block
+    // the canonical writer cannot say, and the least invasive proven-around pass is kept
+    let all = write(blocks, opts, &vec![true; n], false).out;
+    match fallback {
+        Some(f) if !same_in_file(blocks, &import_plain(&all).blocks) => f,
+        _ => all,
+    }
+}
+
+/// Does the file differ from the model only inside blocks that were written anew? Then the
+/// kept sources are proven, and what is left is what the canonical writer cannot say better.
+fn confined(model: &[Block], back: &[Block], verbatim: &[bool]) -> bool {
+    if model.len() != back.len() {
+        return false;
+    }
+    let mut patched = model.to_vec();
+    for (i, kept) in verbatim.iter().enumerate() {
+        if !kept {
+            patched[i] = back[i].clone();
+        }
+    }
+    same_in_file(&patched, back)
 }
 
 fn write(blocks: &[Block], opts: ExportOptions, force: &[bool], keep_layout: bool) -> Pass {

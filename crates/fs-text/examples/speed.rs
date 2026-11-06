@@ -14,6 +14,15 @@ fn run(name: &str, src: &str) {
     let t = Instant::now();
     let same = export_markdown(&d, ExportOptions::default()) == src;
     let untouched = t.elapsed().as_secs_f64();
+    // one word changed in the first block: the rest is written from kept sources, then proven
+    let mut edited = d.clone();
+    if let Some(b) = edited.blocks.first_mut() {
+        let n = b.text.len();
+        b.splice(0, n.min(1), "X");
+    }
+    let t = Instant::now();
+    let _ = export_markdown(&edited, ExportOptions::default());
+    let one_word = t.elapsed().as_secs_f64();
     let mut plain = d.clone();
     for b in &mut plain.blocks {
         b.attrs.source = None;
@@ -22,7 +31,7 @@ fn run(name: &str, src: &str) {
     let _ = export_markdown(&plain, ExportOptions::default());
     let canonical = t.elapsed().as_secs_f64();
     println!(
-        "{name:28} {:>8} bytes  import {import:7.3}s  canonical export {canonical:7.3}s  untouched export {untouched:7.3}s  identical {same}",
+        "{name:28} {:>8} bytes  import {import:7.3}s  canonical export {canonical:7.3}s  untouched export {untouched:7.3}s  one-word edit export {one_word:7.3}s  identical {same}",
         src.len()
     );
 }
