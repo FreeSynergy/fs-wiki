@@ -47,6 +47,7 @@ Version 0.2.0 (workspace; the tag v0.2.0 is set by the owner). Built on `fs-stor
 | App: store: by default one file per docs folder, `<data dir>/freesynergy/fs-wiki/<folder>-<hash>.db` (`$XDG_DATA_HOME` or `~/.local/share`), so a save survives the exit; `--store memory` keeps nothing and says so at start | done, provisional |
 | App: tree of pages, open, read with formatting, follow links (also relative `.md` links, resolved **in the app**, `source/resolve.rs`), back, search by name and content (`Texts::find`, first 200 hits) | done |
 | App: edit (Markdown text of the page; save = `import_external` against the stored document, then `Texts::edit_if` with the revision read, so layers stay and a second writer gets a conflict instead of being overwritten; the database is the truth, no file is written). Revision = the text's write counter. The lock is inside one process: two programs on one store file are not covered | done; typing in the real window not verified |
+| App: unsaved drafts are backed up (`--drafts`, default `~/.local/share/fs-wiki/drafts`; one subfolder per documentation source, so two wikis do not meet; one JSON file per document, named by the hex of its path or by a hash for long paths; our subfolder 0700 and files 0600, a folder given by the person is not changed; unique temporary file, fsync of file and folder, rename; never inside the docs folder): after 0.5 s without typing and at least every 5 s while typing (a closed window does not flush: it loses at most the last pause); on the next edit of that document the person is offered Restore or Discard for the draft; a document that changed meanwhile makes Save report the conflict first; a save or a chosen discard clears it; a failing backup is shown | done; the close-window case is tested by dropping the widget, not with a real close |
 | App: explicit Export (`source/export.rs`, `export_fs.rs`): the path is checked as a path (`TextPath`), every step is opened with `openat` and no-follow (a swapped link is met by the open itself), the file is written under a temporary name and renamed (a crash leaves the old or the new file; a hard link elsewhere is replaced, not written through). An existing file with other content is a conflict carrying both texts (`export_markdown_checked`, `WikiSource::last_difference`) and is replaced only after a second press. Into the docs folder it records the file as in step and names an old file left by a move (never deleted) | done |
 | App tests | the: `map` (also 1000 nested quotes), `resolve` (schemes, colons after the path, root, folders), `import`, `restart` and `conflicts` (file store and real folder: restart after save, move, outside change, both changed, delete), `source`, `save_race` (4 threads), `export`, `export_safety`, `export_page`, `args` |
 | The reader window (`fs-wiki-app`, on `fs-components`) exists; typing in the real window was not verified. capnp-rpc server, other editors, collections / shelves (ADR 0034), named passages' registry, templates in the program | **not started** |
@@ -86,6 +87,26 @@ has a `Pattern:` line. For `fs-text` see its own DESIGN.md.
 | `source/export.rs`, `export_fs.rs`, `export_page.rs` | Guard / Template method | the only code that writes a file; no-follow, temp and rename; records and old-file notice |
 | `source/problems.rs` | Adapter | failed imports as a page of the neutral model |
 | `args.rs` | Builder-like parser | no extra crate for seven options |
+
+## Try it by hand (start instructions)
+
+Start (needs a graphical session; the first start imports the documentation, about 30 s for 1400 pages (later starts only look at what changed), with a summary line on the terminal before the window opens):
+
+```
+cp -r /srv/FreeSynergy/fs-documentation/docs/en /tmp/fs-docs-copy
+cd /srv/FreeSynergy/fs-wiki && cargo run --release -p fs-wiki-app -- --docs /tmp/fs-docs-copy --export /tmp/fs-docs-copy
+```
+
+Things to try, in this order (typing and clicking are not verified by tests; this is the check):
+
+1. The window shows the tree of pages left, the start page (`index.md`) right. Open a few folders with the arrow keys and Enter, or by clicking; the page changes.
+2. Follow a link in the text (underlined); `Back` (or Alt+Left) returns.
+3. Type a word into the search field (for example `kanban`): the sidebar lists hits; click one. Clear the field to get the tree back.
+4. Press `Edit`, change a word, press `Save` (or Ctrl+S): the page shows the change. Press `Edit`, type something, then `Cancel`: it asks once (press again to discard).
+5. `Edit`, type something, **close the window without saving**, start the app again, open the same page, press `Edit`: a notice offers `Restore` or `Discard` for the draft. Restore brings your text back; nothing is written until you Save.
+6. `Export` writes the page as Markdown to `/tmp/fs-wiki-export/<path>`; pressing it again for an existing file asks first. The documentation folder is never written.
+
+What is known to be rough: emoji that Blinc has no glyph for show as boxes; the first start takes about 30 s; a table with many wide columns may reach past the right edge; the editor text area wraps narrower than its box.
 
 ## Decisions
 

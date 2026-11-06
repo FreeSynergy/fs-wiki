@@ -17,7 +17,16 @@ pub(super) fn inline_of(block: &Block) -> Inline {
 pub(super) fn shaped(text: &str, block: &Block, from: usize) -> Inline {
     let len = text.chars().count();
     let to = from + len;
-    let mut chars: Vec<char> = text.chars().collect();
+    // A soft break (a newline inside a paragraph) is a space in Markdown; a hard break (stored as
+    // U+2028) is a line break. One character for one, so the offsets of the marks stay valid.
+    let mut chars: Vec<char> = text
+        .chars()
+        .map(|c| match c {
+            '\n' => ' ',
+            fs_text::markdown::HARD_BREAK => '\n',
+            other => other,
+        })
+        .collect();
     let mut marks: Vec<Mark> = Vec::new();
     for m in &block.marks {
         if let (Kind::FootnoteRef, MarkValue::Name(label)) = (m.kind, &m.value) {

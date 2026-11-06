@@ -94,3 +94,25 @@ fn deeply_nested_quotes_and_lists_do_not_overflow() {
     let b = blocks(&nested);
     assert!(!b.is_empty());
 }
+
+#[test]
+fn a_soft_break_is_a_space_and_a_hard_break_is_a_line_break() {
+    let soft = blocks("first line\nsecond **line** here\n");
+    let Block::Paragraph(p) = &soft[0] else {
+        panic!("{soft:?}")
+    };
+    assert_eq!(p.text, "first line second line here");
+    let strong = p.marks.iter().find(|m| m.kind == MarkKind::Strong).unwrap();
+    assert_eq!(
+        &p.text[strong.start..strong.end],
+        "line",
+        "marks stay on their text"
+    );
+    for hard in ["one  \ntwo\n", "one\\\ntwo\n"] {
+        let b = blocks(hard);
+        let Block::Paragraph(p) = &b[0] else {
+            panic!("{b:?}")
+        };
+        assert_eq!(p.text, "one\ntwo", "{hard:?}");
+    }
+}

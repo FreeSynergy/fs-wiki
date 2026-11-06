@@ -32,6 +32,8 @@ pub struct Args {
     pub steps: Vec<String>,
     /// Folder to which the Export action may write (nothing is written without the action).
     pub export: Option<PathBuf>,
+    /// Folder for backups of unsaved drafts (default: the app's data directory).
+    pub drafts: Option<PathBuf>,
     /// Picture size.
     pub size: (u32, u32),
     /// `--help` was given.
@@ -64,6 +66,7 @@ pub fn parse(args: &[String]) -> Result<Args, String> {
                 }
             }
             "--snapshot" => out.snapshot = Some(PathBuf::from(value("--snapshot")?)),
+            "--drafts" => out.drafts = Some(PathBuf::from(value("--drafts")?)),
             "--export" => out.export = Some(PathBuf::from(value("--export")?)),
             "--step" => out.steps.push(value("--step")?),
             "--size" => out.size = size(&value("--size")?)?,
@@ -89,6 +92,7 @@ pub const HELP: &str = "fs-wiki-app: read the documentation in a window
                       keeps nothing after exit
   --snapshot <png>    draw a picture instead of opening a window
   --step <step>       with --snapshot, repeatable: open:<path> follow:<href> back search:<term>
+  --drafts <folder>   where unsaved drafts are backed up (default ~/.local/share/fs-wiki/drafts)
   --export <folder>   enable the Export button, writing pages there (e.g. the docs folder)
   --size <WxH>        picture size (default 1200x800)
 The folder is only read, never written.";
