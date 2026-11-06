@@ -11,7 +11,7 @@ fn export(d: &Document) -> String {
 fn stable(src: &str) -> String {
     let d = import_markdown(src);
     let out = export(&d);
-    assert!(d.same_content(&import_markdown(&out)), "{src:?} -> {out:?}");
+    assert!(common::reads_back_as(&d, &out), "{src:?} -> {out:?}");
     out
 }
 

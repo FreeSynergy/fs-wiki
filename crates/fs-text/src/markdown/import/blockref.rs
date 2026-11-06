@@ -1,6 +1,7 @@
 //! Obsidian block references (`text ^id`).
 //!
-//! Pattern: Extractor — a trailing ` ^block-id` is moved from the text to a block attribute.
+//! Pattern: Extractor — a trailing ` ^block-id` is moved from the text to a block attribute
+//! (only plain text with a letter in the id: `mc ^2` and `` `^1` `` are text).
 
 use crate::doc::Block;
 
@@ -9,9 +10,14 @@ pub(super) fn extract_block_ref(b: &mut Block) {
     let t = b.text.to_string();
     if let Some(pos) = t.rfind(" ^") {
         let id = &t[pos + 2..];
-        if !id.is_empty() && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
-            let start = t[..pos].chars().count();
-            let end = b.text.len();
+        // an id has a letter (`^2` after `mc` is an exponent) and is plain text, not code or a link
+        let start = t[..pos].chars().count();
+        let end = b.text.len();
+        let plain = !b.marks.iter().any(|m| m.end > start && m.start < end);
+        if plain
+            && id.chars().any(|c| c.is_ascii_alphabetic())
+            && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+        {
             b.delete(start, end);
             b.attrs.block_ref = Some(id.to_string());
         }

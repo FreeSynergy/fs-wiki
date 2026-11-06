@@ -1,5 +1,6 @@
 //! Property tests: external import reproduces its target; Markdown model is stable.
 
+mod common;
 use fs_text::*;
 use proptest::prelude::*;
 
@@ -18,9 +19,11 @@ proptest! {
         "[a-z*_\\[\\]#> -]{1,12}", ], 1..6)) {
         let src = parts.join("\n\n");
         let d1 = import_markdown(&src);
-        let out = export_markdown(&d1, ExportOptions::default());
-        let d2 = import_markdown(&out);
-        prop_assert!(d1.same_content(&d2), "{src:?} -> {out:?}");
+        // the canonical writer alone: the kept source would only write the file back
+        let out = common::canonical(&d1);
+        prop_assert!(common::reads_back_as(&d1, &out), "{src:?} -> {out:?}");
+        // untouched, the file comes back as it was
+        prop_assert_eq!(export_markdown(&d1, ExportOptions::default()), src);
     }
 }
 

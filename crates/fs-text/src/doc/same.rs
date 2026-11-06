@@ -1,34 +1,36 @@
 //! Id-blind document comparison.
 //!
-//! Pattern: Canonical form — both sides are reduced to the same normal form
-//! (ids nil, container instances relabelled, kept source and layout hints dropped) and compared with `==`.
+//! Pattern: Canonical form — both sides are reduced to the same normal form (ids nil, container
+//! instances relabelled, kept source dropped) and compared with `==`. The exporter uses the
+//! same reduction without the layout style to prove that a file reads back as the model.
 
 use super::attrs::BlockAttrs;
+use super::block::Block;
 use super::container::Container;
 use super::document::Document;
 use crate::id::Uuid;
 use crate::mark::{Mark, MarkKind, MarkValue};
 use std::collections::HashMap;
 
-/// `extra` keys that only record layout: blank-line glue, table dash widths, rule style, the
-/// admonition dialect.
-const STYLE_HINTS: [&str; 4] = ["glue", "dashes", "rule", "admonition"];
-
 type Canon = Vec<(String, BlockAttrs, Vec<Mark>)>;
 
-fn canon(d: &Document) -> Canon {
+/// `extra` keys that only record layout, not content.
+const STYLE_HINTS: [&str; 5] = ["glue", "dashes", "rule", "admonition", "callout-type"];
+
+fn canon(blocks: &[Block], style: bool) -> Canon {
     let mut map: HashMap<(bool, u32), u32> = HashMap::default();
     let mut relabel = |list: bool, i: u32| {
         let n = u32::try_from(map.len()).unwrap_or(u32::MAX);
         *map.entry((list, i)).or_insert(n)
     };
-    d.blocks
+    blocks
         .iter()
         .map(|b| {
             let mut a = b.attrs.clone();
             a.source = None;
-            // how the text was laid out in the file is style, not content
-            a.extra.retain(|k, _| !STYLE_HINTS.contains(&k.as_str()));
+            if !style {
+                a.extra.retain(|k, _| !STYLE_HINTS.contains(&k.as_str()));
+            }
             for c in &mut a.containers {
                 let i = relabel(false, c.inst());
                 c.set_inst(i);
@@ -39,11 +41,11 @@ fn canon(d: &Document) -> Canon {
             let marks = b
                 .marks
                 .iter()
+                .filter(|m| style || m.kind.is_markdown_native())
                 .cloned()
                 .map(|mut m| {
                     m.id = Uuid::nil();
-                    // `_` or `*` is style
-                    if matches!(m.kind, MarkKind::Emphasis | MarkKind::Strong) {
+                    if !style && matches!(m.kind, MarkKind::Emphasis | MarkKind::Strong) {
                         m.value = MarkValue::None;
                     }
                     m
@@ -54,11 +56,17 @@ fn canon(d: &Document) -> Canon {
         .collect()
 }
 
+/// Do two block lists say the same in a file? Like [`Document::same_content`], but layout style
+/// (hints, `_` vs `*`) and layer marks do not count.
+pub(crate) fn same_in_file(a: &[Block], b: &[Block]) -> bool {
+    canon(a, false) == canon(b, false)
+}
+
 impl Document {
-    /// Equality ignoring all ids (documents, blocks, marks); container instance numbers are
-    /// compared by structure (relabelled in order of first appearance).
+    /// Equality ignoring all ids (documents, blocks, marks) and the kept source texts; container
+    /// instance numbers are compared by structure (relabelled in order of first appearance).
     #[must_use]
     pub fn same_content(&self, other: &Document) -> bool {
-        canon(self) == canon(other)
+        canon(&self.blocks, true) == canon(&other.blocks, true)
     }
 }

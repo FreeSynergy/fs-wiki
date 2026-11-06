@@ -50,6 +50,13 @@ impl Imp<'_> {
             self.admon_insts.insert(inst);
         }
         self.containers[n - 1] = callout;
+        if ty != ty.to_lowercase() {
+            // `[!NOTE]` stays `[!NOTE]` when written again
+            block
+                .attrs
+                .extra
+                .insert("callout-type".into(), ty.to_string());
+        }
         if carrier {
             block
                 .attrs

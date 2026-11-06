@@ -11,6 +11,7 @@ mod code;
 mod container;
 mod document;
 mod inline;
+mod keep;
 mod layout;
 mod leaf;
 mod options;

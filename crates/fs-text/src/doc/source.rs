@@ -3,7 +3,8 @@
 //! Pattern: Memento — a [`Source`] remembers the exact text of a block (with the blank lines
 //! before it and the file's line ending) together with a fingerprint of what the block looked
 //! like when it was read. An exporter may write the text back verbatim, but only while the
-//! fingerprint and the neighbour still match: a stale source is never used.
+//! seal and the neighbour still match, and the exporter proves the result by reading it back
+//! (see `markdown::export`): a stale source is never written.
 //!
 //! PROVISIONAL (the owner decides the final rule): kept in `BlockAttrs::source`, so it is part of
 //! the stored form, travels with `Op::SetAttrs` and is ignored by [`Document::same_content`].
@@ -19,9 +20,18 @@ pub struct Source {
     /// The text: blank lines before the block, the block's own lines, line endings as read.
     /// For the last block of a file this includes everything up to the end of the file.
     pub text: String,
+    /// Byte length of the part of `text` in front of the block's own lines (blank lines, and
+    /// text the parser did not turn into a block, such as a second definition of a label).
+    #[serde(default)]
+    pub own: usize,
+    /// The group reaches the end of the file (its text includes everything after it). A last
+    /// group without this flag means blocks were removed from the end.
+    #[serde(default)]
+    pub tail: bool,
     /// The block in front of this one when the text was read (`None` = first block).
     pub prev: Option<Uuid>,
-    /// Fingerprint of the block's content and marks when the text was read.
+    /// Seal over the block's content, the blocks of the group and this text: a source whose text
+    /// was changed afterwards (also in JSON) does not match and is not used.
     pub hash: String,
     /// Blocks that share source lines with this one (their text is part of `text`, they have no
     /// source of their own); all must be unchanged for `text` to be used.
@@ -45,23 +55,44 @@ impl std::fmt::Write for Fnv {
 }
 
 impl Block {
-    /// Fingerprint of what the block says: text, marks (kind, range, value; not their ids),
-    /// kind, containers and the other attributes (not the source itself).
+    /// Fingerprint of what the block says in a file: text, Markdown marks (kind, range, value;
+    /// not their ids, and not layer marks, which are never written), kind, containers and the
+    /// other attributes (not the source itself).
     #[must_use]
     pub fn fingerprint(&self) -> String {
         let mut h = Fnv(0x6c62_272e_07bb_0142_62b8_2175_6295_c58d);
         let a = &self.attrs;
+        let text = self.text.to_string();
         let _ = write!(
             h,
-            "{:?}\u{1}{:?}\u{1}{:?}\u{1}{:?}\u{1}{:?}\u{1}{}\u{1}",
-            a.kind, a.containers, a.block_ref, a.heading_attrs, a.extra, self.text
+            "{:?}\u{1}{:?}\u{1}{:?}\u{1}{:?}\u{1}{:?}\u{1}{}:{}\u{1}",
+            a.kind,
+            a.containers,
+            a.block_ref,
+            a.heading_attrs,
+            a.extra,
+            text.len(),
+            text
         );
-        for m in &self.marks {
+        for m in self.marks.iter().filter(|m| m.kind.is_markdown_native()) {
             let _ = write!(
                 h,
                 "{:?}\u{2}{}\u{2}{}\u{2}{:?}\u{1}",
                 m.kind, m.start, m.end, m.value
             );
+        }
+        format!("{:032x}", h.0)
+    }
+}
+
+impl Source {
+    /// The seal of a source: the block's fingerprint, the group's fingerprints and the text.
+    #[must_use]
+    pub fn seal(block_hash: &str, rest: &[(Uuid, String)], text: &str, own: usize) -> String {
+        let mut h = Fnv(0x6c62_272e_07bb_0142_62b8_2175_6295_c58d);
+        let _ = write!(h, "{block_hash}\u{1}{own}\u{1}{}:{text}", text.len());
+        for (id, hash) in rest {
+            let _ = write!(h, "\u{1}{id}{hash}");
         }
         format!("{:032x}", h.0)
     }
@@ -74,7 +105,7 @@ pub fn usable_source(blocks: &[Block], at: usize) -> Option<(&Source, usize)> {
     let b = blocks.get(at)?;
     let s = b.attrs.source.as_ref()?;
     let prev = at.checked_sub(1).map(|i| blocks[i].id);
-    if s.prev != prev || s.hash != b.fingerprint() {
+    if s.prev != prev || s.hash != Source::seal(&b.fingerprint(), &s.rest, &s.text, s.own) {
         return None;
     }
     for (k, (id, hash)) in s.rest.iter().enumerate() {

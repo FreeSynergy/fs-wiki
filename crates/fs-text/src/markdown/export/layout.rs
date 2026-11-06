@@ -64,7 +64,14 @@ pub(super) fn render_in_containers(
             ty, title, fold, ..
         } = c
         {
-            out.push(callout_header(prefix(&fresh, d), ty, title, *fold, opts));
+            // the type as it was written (`[!NOTE]`), while it is still the same type
+            let shown = b
+                .attrs
+                .extra
+                .get("callout-type")
+                .filter(|t| t.to_lowercase() == *ty)
+                .map_or(ty.as_str(), String::as_str);
+            out.push(callout_header(prefix(&fresh, d), shown, title, *fold, opts));
             for f in fresh.iter_mut().take(d + 1) {
                 *f = false;
             }

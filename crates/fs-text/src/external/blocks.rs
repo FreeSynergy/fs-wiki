@@ -6,7 +6,7 @@
 
 use super::diff::{segments, Seg};
 use super::plan::block_text_ops;
-use crate::doc::{Block, Document};
+use crate::doc::{Block, Document, Source};
 use crate::format::Exporter;
 use crate::id::Uuid;
 use crate::mark::Mark;
@@ -25,11 +25,13 @@ fn with_final_ids(doc: &Document, new_doc: &Document, segs: &[Seg]) -> Document 
     let map: HashMap<Uuid, Uuid> = new_doc.blocks.iter().map(|b| b.id).zip(final_ids).collect();
     let mut nd = new_doc.clone();
     for b in &mut nd.blocks {
+        let fp = b.fingerprint();
         if let Some(src) = b.attrs.source.as_mut() {
             src.prev = src.prev.map(|p| map[&p]);
             for r in &mut src.rest {
                 r.0 = map[&r.0];
             }
+            src.hash = Source::seal(&fp, &src.rest, &src.text, src.own);
         }
     }
     nd

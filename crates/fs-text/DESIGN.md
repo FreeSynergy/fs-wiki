@@ -96,19 +96,34 @@ share a source line (`- > a`) form one group that owns the lines together (`Sour
 The pieces, written in order, are the file byte for byte (`tests/props_bytes.rs` proves it
 for arbitrary text, with CRLF and BOM, and through JSON).
 
-On export a block is written from its source **only if** its fingerprint (128-bit FNV-1a over
-text, marks with kind/range/value but not ids, kind, containers and the other attributes), the
-fingerprint of the blocks in its group and the id of the block in front of it are unchanged.
-Anything else (text edit, mark added or removed, link rewritten by a move, block moved, split,
-merged, list item added, table cell) is written canonically, and a neighbour that moved away
-never keeps a stale source. A canonical block keeps the blank lines it had in front of it
-(and a last block the blank lines after it) while its predecessor is the same, uses the file's
-line ending, the table dash widths, `_` vs `*`, bullet marker, rule style and the mkdocs
-`!!!` dialect of its callout (hint `admonition`). The source is part of the stored form: it
-is serialised with the block (`attrs.source`, skipped when absent), travels with `Op::SetAttrs`,
-and `Document::same_content` ignores it and the pure layout hints (`glue`, `dashes`, `rule`,
-`admonition`, and `_` vs `*`). Costs: the stored document is about twice the size of the text;
-an untouched export is linear and does no read-back.
+On export a block is written from its source **only if** its seal matches (128-bit FNV-1a over
+the block's fingerprint, the fingerprints of the blocks of its group, and the source text itself,
+so a changed text, also in JSON, is not used), the fingerprint is unchanged (text, Markdown
+marks with kind/range/value but not ids and not layer marks, kind, containers, the other
+attributes) and the block in front is the same block. A layer mark (passage, explanation,
+variable) never invalidates a source: layers are not written to files.
+
+**The output proves itself.** When anything was edited (some block is written anew, or the last
+kept source does not reach the end of the file), the output is read back and compared strictly
+with the model (`doc::same_in_file`: text, kind, marks, containers, block ref, heading
+attributes; not layout hints, not `_` vs `*`, not layer marks). If it differs, the changed blocks
+and their neighbours are written canonically, then, if it still differs, the whole document. An
+untouched document skips all this at no cost. Examples that needed it: a removed definition
+(a reference link before it turns literal), a changed definition, a block that loses its
+container, one that becomes a list item in front of an indented block, a heading that becomes a
+paragraph in front of a glued line, HTML that changes in front of a glued line, a block added
+after an unclosed fence. A one-word edit keeps changing one line.
+
+A changed block (first pass) keeps what stood in front of it in the file (blank lines, a second
+definition of a label) while its predecessor is the same, and the blank lines after a changed
+last block; it uses the file's line ending, the table dash widths, `_` vs `*`, bullet marker,
+rule style, the case of a callout type (`[!NOTE]`) and the mkdocs `!!!` dialect (hint
+`admonition`). The source is part of the stored form: serialised with the block (`attrs.source`,
+skipped when absent), travels with `Op::SetAttrs`, and `Document::same_content` ignores it
+(and nothing else: hints and `_` vs `*` count; tests that mean "the same up to layout style"
+strip them explicitly). Costs: the kept source about doubles the text; the JSON of a document is
+about 6.5 times the text (measured by the review; ids of blocks and marks). An untouched export is linear and does no
+read-back.
 
 A file that has no block (empty, blank lines only) is one empty paragraph that owns the text.
 Link reference definitions (`[x]: /u "t"`, `[//]: # (comment)`) are kept as HTML-kind blocks
@@ -160,7 +175,7 @@ stay in `pending_sync` until `mark_synced`. `reset` = "reset undo history". All 
 
 ## State
 
-Works and is tested (86 tests in this crate: unit tests next to the code, integration tests per feature,
+Works and is tested (see `cargo test -p fs-text`: unit tests next to the code, integration tests per feature,
 property tests (`tests/props_bytes.rs`: tab, `~`, `|`, `\`, `!`, `:`, braces, entities, CRLF, BOM; run with
 `PROPTEST_CASES=200000` for a long soak), byte-level round trips (`tests/verbatim*.rs`), corpus round trip,
 JSON form in `tests/serde_form.rs`):
@@ -181,6 +196,8 @@ Known limits / not done:
   kind would change it tries other delimiter forms and finally escapes all ASCII punctuation;
   marks that cannot be written the same way (crossing marks, emphasis inside emphasis of the same
   kind, flanking next to a no-break space) make a form second best, not wrong.
+* A block reference (`text ^id`) needs a letter in the id and plain text: `E = mc ^2` and
+  `` `^1` `` are text.
 * Typed U+2028 becomes a no-break space (U+2028 is the hard break in block text); a tab or line
   break written as `&#9;` / `&#10;` in a table cell becomes a space (they separate cells and rows
   in the block text). Both need a model change to be exact.

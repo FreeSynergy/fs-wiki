@@ -32,9 +32,11 @@ impl Imp<'_> {
             // only blank lines: one empty paragraph keeps them
             let mut b = Block::paragraph("");
             b.attrs.source = Some(Source {
+                hash: Source::seal(&b.fingerprint(), &[], orig, 0),
                 text: orig.to_string(),
+                own: 0,
+                tail: true,
                 prev: None,
-                hash: b.fingerprint(),
                 rest: Vec::new(),
             });
             blocks.push(b);
@@ -60,16 +62,22 @@ impl Imp<'_> {
                 end = last_line;
             }
             let end = end.min(last_line);
-            let text: String = lines[cursor.min(end + 1).min(lines.len())..=end].concat();
+            let from = cursor.min(end + 1).min(lines.len());
+            let text: String = lines[from..=end].concat();
+            // the lines in front of the group's first line are gap (blank lines, stray text)
+            let own_line = spans[i].0.clamp(from, end + 1);
+            let own: usize = lines[from..own_line].iter().map(|l| l.len()).sum();
             cursor = end + 1;
             let prev = i.checked_sub(1).map(|p| blocks[p].id);
-            let rest = (i + 1..j)
+            let rest: Vec<(crate::id::Uuid, String)> = (i + 1..j)
                 .map(|k| (blocks[k].id, hashes[k].clone()))
                 .collect();
             blocks[i].attrs.source = Some(Source {
+                hash: Source::seal(&hashes[i], &rest, &text, own),
                 text,
+                own,
+                tail: j == blocks.len(),
                 prev,
-                hash: hashes[i].clone(),
                 rest,
             });
             i = j;

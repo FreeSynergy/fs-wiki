@@ -9,7 +9,7 @@
 //! blocks that already read back.
 
 use super::variant::Variant;
-use crate::doc::{Block, BlockKind};
+use crate::doc::Block;
 use crate::mark::{Mark, MarkKind, MarkValue};
 use crate::markdown::{import_plain, ExportOptions};
 
@@ -30,24 +30,36 @@ fn representable(m: &Mark) -> bool {
 /// Marks reduced to what the Markdown says: touching spans of one emphasis kind are one span, `*` and `_` are the same,
 /// links compare path, title and style.
 fn normal(marks: &[&Mark]) -> Vec<Norm> {
-    let mut spans: Vec<Norm> = Vec::new();
-    for m in marks.iter().filter(|m| representable(m)) {
-        let key = match &m.value {
-            MarkValue::Link(l) => format!("{}\u{1}{:?}\u{1}{:?}", l.path, l.title, l.style),
-            MarkValue::Name(n) if m.kind == MarkKind::FootnoteRef => n.clone(),
-            _ => String::new(),
-        };
-        spans.push((m.kind, m.start, m.end, key));
-    }
-    spans.sort();
     let merge = |k: MarkKind| matches!(k, MarkKind::Strong | MarkKind::Emphasis | MarkKind::Strike);
+    let key = |m: &Mark| match &m.value {
+        MarkValue::Link(l) => format!("{}\u{1}{:?}\u{1}{:?}", l.path, l.title, l.style),
+        MarkValue::Name(n) if m.kind == MarkKind::FootnoteRef => n.clone(),
+        _ => String::new(),
+    };
+    let norm = |m: &&Mark| (m.kind, m.start, m.end, key(m));
+    // emphasis spans: touching ones of a kind are one; others keep their order (a link around
+    // an empty image is not an empty image around a link)
+    let mut spans: Vec<Norm> = marks
+        .iter()
+        .filter(|m| representable(m) && merge(m.kind))
+        .map(norm)
+        .collect();
+    spans.sort();
     let mut out: Vec<Norm> = Vec::with_capacity(spans.len());
     for s in spans {
         match out.last_mut() {
-            Some(l) if merge(s.0) && l.0 == s.0 && s.1 <= l.2 => l.2 = l.2.max(s.2),
+            Some(l) if l.0 == s.0 && s.1 <= l.2 => l.2 = l.2.max(s.2),
             _ => out.push(s),
         }
     }
+    let mut rest: Vec<Norm> = marks
+        .iter()
+        .filter(|m| representable(m) && !merge(m.kind))
+        .map(norm)
+        .collect();
+    rest.sort_by_key(|n| (n.1, std::cmp::Reverse(n.2)));
+    out.sort_by_key(|n| (n.0 as u8, n.1));
+    out.extend(rest);
     out
 }
 
@@ -85,17 +97,9 @@ fn read_back(b: &Block, lines: &[String]) -> Verdict {
     }
 }
 
-/// Is a read-back worth doing? Text with blanks at its edges cannot be written back exactly
-/// by any form, and an empty block has nothing to check.
+/// Is a read-back worth doing? An empty block has nothing to check.
 fn checkable(b: &Block) -> bool {
-    if matches!(b.attrs.kind, BlockKind::Table { .. }) {
-        return !b.text.is_empty();
-    }
-    let t = b.text.to_string();
-    !t.is_empty()
-        && !t.starts_with(char::is_whitespace)
-        && !t.ends_with(char::is_whitespace)
-        && !b.attrs.extra.contains_key("callout-header")
+    !b.text.is_empty() && !b.attrs.extra.contains_key("callout-header")
 }
 
 /// The lines of block `b` in the first form that reads back right. `render` writes the block in

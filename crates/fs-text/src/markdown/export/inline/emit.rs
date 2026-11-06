@@ -51,13 +51,7 @@ pub(in crate::markdown::export) fn sweep(
         let after_close = close_ended(&mut out, &mut stack, (&ems, marks, &ds), p);
         let mut link_depth = stack.iter().filter(|&&i| is_link(marks[ems[i].m])).count();
         let run = Index::starting_at(&ems, p);
-        // points
-        for k in run.clone() {
-            if marks[ems[k].m].is_point() && !opened[k] {
-                opened[k] = true;
-                out.push_str(&point_str(marks[ems[k].m]));
-            }
-        }
+        write_points(&mut out, run.clone(), (&ems, marks), &mut opened);
         // opens, longest first
         let mut atom_end = None;
         let mut cands: Vec<usize> = run
@@ -156,6 +150,42 @@ fn close_ended(
         }
     }
     after_close
+}
+
+/// Points at one place (footnote references, variables, links and images without text).
+fn write_points(
+    out: &mut String,
+    run: std::ops::Range<usize>,
+    (ems, marks): (&[Em], &[&Mark]),
+    opened: &mut [bool],
+) {
+    let mut nested: Vec<&Mark> = Vec::new();
+    for k in run {
+        let m = marks[ems[k].m];
+        if m.is_point() && !opened[k] {
+            opened[k] = true;
+            if is_link(m) {
+                nested.push(m);
+            } else {
+                out.push_str(&point_str(m));
+            }
+        }
+    }
+    out.push_str(&nested_points(&nested));
+}
+
+/// Links and images without text at one place: the first wraps the rest (`[![](i.png)](t)`).
+fn nested_points(list: &[&Mark]) -> String {
+    match list {
+        [] => String::new(),
+        [one] => point_str(one),
+        [first, rest @ ..] => format!(
+            "{}{}{}",
+            open_str(first, ""),
+            nested_points(rest),
+            close_str(first, "")
+        ),
+    }
 }
 
 fn is_link(m: &Mark) -> bool {

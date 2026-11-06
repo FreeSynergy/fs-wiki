@@ -24,9 +24,21 @@ fn md_files(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
     }
 }
 
+/// The extensions the importer reads.
+fn options() -> pulldown_cmark::Options {
+    use pulldown_cmark::Options as O;
+    O::ENABLE_TABLES
+        | O::ENABLE_FOOTNOTES
+        | O::ENABLE_STRIKETHROUGH
+        | O::ENABLE_TASKLISTS
+        | O::ENABLE_HEADING_ATTRIBUTES
+        | O::ENABLE_YAML_STYLE_METADATA_BLOCKS
+        | O::ENABLE_WIKILINKS
+}
+
 fn render(s: &str) -> String {
     let mut h = String::new();
-    push_html(&mut h, Parser::new_ext(s, pulldown_cmark::Options::all()));
+    push_html(&mut h, Parser::new_ext(s, options()));
     h
 }
 
@@ -66,7 +78,7 @@ fn main() {
     files.sort();
     let (mut n, mut ident, mut lines, mut render_diff) = (0, 0, 0, 0);
     let (mut edits, mut edit_lines, mut edit_ident_rest) = (0usize, 0usize, 0usize);
-    let (mut canon_ident, mut canon_lines, mut canon_render) = (0, 0, 0);
+    let (mut canon_ident, mut canon_lines, mut canon_render, mut canon_unstable) = (0, 0, 0, 0);
     let (mut slow, mut slow_name) = (0.0f64, String::new());
     for p in &files {
         let Ok(src) = std::fs::read_to_string(p) else {
@@ -95,12 +107,21 @@ fn main() {
             b.attrs.source = None;
         }
         let canon = export_markdown(&plain, ExportOptions::default());
+        if !d.same_content(&import_markdown(&canon)) {
+            canon_unstable += 1;
+            if std::env::var_os("SHOWR").is_some() {
+                println!("  unstable: {}", p.display());
+            }
+        }
         if canon == src {
             canon_ident += 1;
         } else {
             canon_lines += changed_lines(&src, &canon);
             if render(&src) != render(&canon) {
                 canon_render += 1;
+                if std::env::var_os("SHOWR").is_some() {
+                    println!("  render differs: {}", p.display());
+                }
             }
         }
         let mut d2 = d.clone();
@@ -123,7 +144,7 @@ fn main() {
     println!(
         "changed lines (untouched round trip): {lines}, files rendering differently: {render_diff}"
     );
-    println!("canonical writer alone: byte-identical {canon_ident}, changed lines {canon_lines}, files rendering differently {canon_render}");
+    println!("canonical writer alone: byte-identical {canon_ident}, changed lines {canon_lines}, files rendering differently {canon_render}, not same_content again {canon_unstable}");
     println!("one-word edits: {edits}, changed lines in total {edit_lines}, edits that change exactly one line (2 diff entries): {edit_ident_rest}");
     println!("slowest: {slow:.3}s {slow_name}");
 }

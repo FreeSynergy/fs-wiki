@@ -53,3 +53,34 @@ pub fn assert_stable(src: &str) -> String {
     );
     out
 }
+
+/// The layout hints (blank-line glue, table dashes, rule style, admonition dialect, callout case)
+/// and the `_` vs `*` style of emphasis removed: what a re-read may legitimately write
+/// differently. The kept source is removed too.
+pub fn without_style(d: &fs_text::Document) -> fs_text::Document {
+    let mut d = d.clone();
+    for b in &mut d.blocks {
+        b.attrs.source = None;
+        b.attrs.extra.retain(|k, _| {
+            !["glue", "dashes", "rule", "admonition", "callout-type"].contains(&k.as_str())
+        });
+        let ms: Vec<_> = b.marks.iter().cloned().collect();
+        let mut v = Vec::new();
+        for mut m in ms {
+            if matches!(
+                m.kind,
+                fs_text::MarkKind::Emphasis | fs_text::MarkKind::Strong
+            ) {
+                m.value = fs_text::MarkValue::None;
+            }
+            v.push(m);
+        }
+        b.marks = fs_text::MarkSet::from_vec(v);
+    }
+    d
+}
+
+/// Does the file read back as the model, up to style?
+pub fn reads_back_as(d: &fs_text::Document, file: &str) -> bool {
+    without_style(d).same_content(&without_style(&fs_text::import_markdown(file)))
+}

@@ -34,6 +34,36 @@ fn words(s: &str) -> HashMap<String, i64> {
     m
 }
 
+/// The extensions the importer reads, rendered to HTML: what a reader sees.
+fn render(s: &str) -> String {
+    use pulldown_cmark::Options as O;
+    let o = O::ENABLE_TABLES
+        | O::ENABLE_FOOTNOTES
+        | O::ENABLE_STRIKETHROUGH
+        | O::ENABLE_TASKLISTS
+        | O::ENABLE_HEADING_ATTRIBUTES
+        | O::ENABLE_YAML_STYLE_METADATA_BLOCKS
+        | O::ENABLE_WIKILINKS;
+    let mut h = String::new();
+    pulldown_cmark::html::push_html(&mut h, pulldown_cmark::Parser::new_ext(s, o));
+    h
+}
+
+/// Does a table have a row with more cells than its header? GFM drops those cells when it
+/// renders; the model keeps them (text a person typed is not dropped), so the pages differ.
+fn has_wide_row(src: &str) -> bool {
+    let cells = |l: &str| l.replace("\\|", "").matches('|').count();
+    let lines: Vec<&str> = src.lines().collect();
+    lines.windows(2).enumerate().any(|(i, w)| {
+        w[0].trim_start().starts_with('|')
+            && w[1].trim_start().starts_with("|-")
+            && lines[i + 2..]
+                .iter()
+                .take_while(|l| l.trim_start().starts_with('|'))
+                .any(|l| cells(l) > cells(w[0]))
+    })
+}
+
 /// Words that occur more often in `a` than in `b`.
 fn missing(a: &str, b: &str) -> Vec<String> {
     let (wa, wb) = (words(a), words(b));
@@ -58,6 +88,7 @@ fn real_docs_round_trip_is_faithful_and_stable() {
     files.sort();
     assert!(!files.is_empty(), "no Markdown files under {dir}");
     let (mut lossy, mut unstable, mut changed) = (Vec::new(), Vec::new(), Vec::new());
+    let mut rendered = Vec::new();
     for f in &files {
         let src = std::fs::read_to_string(f).unwrap();
         let d1 = import_markdown(&src);
@@ -72,6 +103,10 @@ fn real_docs_round_trip_is_faithful_and_stable() {
         if !lost.is_empty() {
             lossy.push(format!("{}: {:?}", f.display(), &lost[..lost.len().min(8)]));
         }
+        // the page looks the same (except where GFM drops the cells of a wide table)
+        if render(&src) != render(&out1) && !has_wide_row(&src) {
+            rendered.push(f.display().to_string());
+        }
         if out1 != out2 || !d1.same_content(&d2) {
             unstable.push(f.display().to_string());
         }
@@ -83,11 +118,14 @@ fn real_docs_round_trip_is_faithful_and_stable() {
         lossy.len(),
         unstable.len()
     );
+    for r in rendered.iter().take(20) {
+        println!("renders differently {r}");
+    }
     for l in lossy.iter().take(20) {
         println!("lossy {l}");
     }
     for u in unstable.iter().take(20) {
         println!("unstable {u}");
     }
-    assert!(changed.is_empty() && lossy.is_empty() && unstable.is_empty());
+    assert!(changed.is_empty() && lossy.is_empty() && unstable.is_empty() && rendered.is_empty());
 }

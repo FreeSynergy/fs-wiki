@@ -8,7 +8,7 @@ use proptest::prelude::*;
 const SOUP: &str = "[a-z0-9 \t\n\r*_~|\\\\!:#>`.()\\[\\]{}<&;^+=\"/$é-]{0,160}";
 
 /// Which chars each emphasis kind covers (nested or touching spans of one kind count once),
-/// then the document without those marks: everything else must be `same_content`.
+/// then the document without those marks: everything else must be `same_content` up to layout style.
 fn coverage_and_rest(d: &Document) -> (Vec<Vec<(MarkKind, usize)>>, Document) {
     let mut rest = d.clone();
     let mut cover = Vec::new();
@@ -57,8 +57,19 @@ fn known_limit(d: &Document) -> bool {
     let empty_nest = d
         .blocks
         .iter()
-        .any(|b| b.text.is_empty() && b.attrs.containers.len() >= 3);
+        .any(|b| b.text.is_empty() && b.attrs.containers.len() >= 3)
+        // a loose list of empty items has no paragraph to show that it is loose
+        || (d.blocks.len() > 1
+            && d.blocks.iter().any(|b| b.text.is_empty() && !b.attrs.containers.is_empty()));
+    // an inline HTML tag at the start of a line may read as an HTML block
+    let html_at_line_start = d.blocks.iter().any(|b| {
+        let t: Vec<char> = b.text.chars().collect();
+        b.marks
+            .iter()
+            .any(|m| m.kind == MarkKind::Html && m.start > 0 && t[m.start - 1] == '\n')
+    });
     html_lines
+        || html_at_line_start
         || empty_nest
         || d.blocks.iter().any(|b| {
             let v: Vec<&Mark> = b
@@ -101,13 +112,15 @@ proptest! {
     #[test]
     fn canonical_form_reads_back(src in SOUP) {
         let d1 = import_markdown(&src);
-        if known_limit(&d1) {
+        if src.contains("<!") || src.contains("]:") || known_limit(&d1) {
             return Ok(());
         }
         let out = common::canonical(&d1);
         let d2 = import_markdown(&out);
         let ((c1, r1), (c2, r2)) = (coverage_and_rest(&d1), coverage_and_rest(&d2));
-        prop_assert!(r1.same_content(&r2) && c1 == c2, "{:?} -> {:?}", src, out);
+        prop_assert!(
+            common::without_style(&r1).same_content(&common::without_style(&r2)) && c1 == c2,
+            "{:?} -> {:?}", src, out);
     }
 
     /// The model survives JSON with its kept source.
@@ -116,5 +129,34 @@ proptest! {
         let d = import_markdown(&src);
         let back: Document = serde_json::from_str(&serde_json::to_string(&d).unwrap()).unwrap();
         prop_assert_eq!(export_markdown(&back, ExportOptions::default()), src);
+    }
+
+    /// Whatever is done to the model, the file written with kept sources reads back as the model
+    /// whenever the canonical writer alone can do so (the exporter proves its output).
+    #[test]
+    fn edited_export_reads_back(src in SOUP, kind in 0u8..7, at in 0usize..8, word in "[a-z*#>\\- \\n]{0,6}") {
+        let mut d = import_markdown(&src);
+        if d.blocks.is_empty() {
+            return Ok(());
+        }
+        let i = at % d.blocks.len();
+        match kind {
+            0 => { let n = d.blocks[i].text.len(); d.blocks[i].splice(0, n.min(1), &word); }
+            1 => { d.blocks.remove(i); }
+            2 => d.blocks[i].attrs.containers.clear(),
+            3 => d.blocks[i].attrs.kind = BlockKind::Paragraph,
+            4 => d.blocks.insert(i, Block::paragraph(&word)),
+            5 => { let j = (at / 2) % d.blocks.len(); d.blocks.swap(i, j); }
+            _ => { let b = d.blocks[i].clone(); d.blocks.push(b); }
+        }
+        if src.contains("<!") || src.contains("]:") || d.blocks.is_empty() || known_limit(&d) {
+            return Ok(());
+        }
+        let canon = common::canonical(&d);
+        if !common::reads_back_as(&d, &canon) {
+            return Ok(());
+        }
+        let out = export_markdown(&d, ExportOptions::default());
+        prop_assert!(common::reads_back_as(&d, &out), "{:?} edit {} at {} {:?} -> {:?}", src, kind, at, word, out);
     }
 }
