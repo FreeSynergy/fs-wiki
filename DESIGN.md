@@ -44,6 +44,7 @@ Version 0.1.x (the app crate is new and untagged until reviewed). Built on `fs-s
 | App: import of every `*.md` under the folder, path = relative path; failures collected with their reason and shown as the first entry "Import problems (n)" | done |
 | App: tree of pages, open, read with formatting, follow links (also relative `.md` links, resolved **in the app**, `source/resolve.rs`), back, search by name and content (`Texts::find`, first 200 hits) | done |
 | App: edit (Markdown text of the page; save = compare the revision, then `import_external` against the stored document and `Texts::edit`, so layers stay; the database is the truth, no file is written). Revision = the store's `updated` time of the text; **the compare is in the adapter and not atomic** (`Texts::edit` has no revision; a compare-and-set in `fs-wiki-core` is a wish) | done; typing in the real window not verified |
+| App: unsaved drafts are backed up (`--drafts`, default `~/.local/share/fs-wiki/drafts`, one JSON file per document, atomic write, never inside the docs folder): after a pause in typing, every 10 s while typing, and when the window closes; on the next edit of that document the person is offered Restore or Discard; a document that changed meanwhile makes Save report the conflict first; a save or a chosen discard clears it; a failing backup is shown | done; the close-window case is tested by dropping the widget, not with a real close |
 | App: explicit Export (`source/export.rs`): the path is checked as a path (`TextPath`), the file is written below the target only, symbolic links are not followed, an existing file with other content is a conflict and is replaced only after the person presses Export a second time | done |
 | App tests | 22: `map` 6 (also 1000 nested quotes), `resolve` 4, `import` 2 (folder unchanged, failures listed), `source` 6 (save never writes the folder, revision conflict, draft kept), `export` 4 (paths that leave the target, no silent replace, symbolic links) |
 | capnp-rpc server, GUI, editors, collections / shelves (ADR 0034), named passages' registry, templates in the program | **not started** |
@@ -81,6 +82,25 @@ has a `Pattern:` line. For `fs-text` see its own DESIGN.md.
 | `source/resolve.rs` | Strategy (pure function) | relative links against the page they are on, `#fragment` and `?query` dropped, folders to `index.md` |
 | `source/problems.rs` | Adapter | failed imports as a page of the neutral model |
 | `args.rs` | Builder-like parser | no extra crate for seven options |
+
+## Try it by hand (start instructions)
+
+Start (needs a graphical session; the first start imports the documentation, about 30 s for 1400 pages, with a line `imported N page(s)` on the terminal before the window opens):
+
+```
+cd /srv/FreeSynergy/fs-wiki && cargo run --release -p fs-wiki-app -- --docs ../fs-documentation/docs/en --export /tmp/fs-wiki-export
+```
+
+Things to try, in this order (typing and clicking are not verified by tests; this is the check):
+
+1. The window shows the tree of pages left, the start page (`index.md`) right. Open a few folders with the arrow keys and Enter, or by clicking; the page changes.
+2. Follow a link in the text (underlined); `Back` (or Alt+Left) returns.
+3. Type a word into the search field (for example `kanban`): the sidebar lists hits; click one. Clear the field to get the tree back.
+4. Press `Edit`, change a word, press `Save` (or Ctrl+S): the page shows the change. Press `Edit`, type something, then `Cancel`: it asks once (press again to discard).
+5. `Edit`, type something, **close the window without saving**, start the app again, open the same page, press `Edit`: a notice offers `Restore` or `Discard` for the draft. Restore brings your text back; nothing is written until you Save.
+6. `Export` writes the page as Markdown to `/tmp/fs-wiki-export/<path>`; pressing it again for an existing file asks first. The documentation folder is never written.
+
+What is known to be rough: emoji that Blinc has no glyph for show as boxes; the first start takes about 30 s; a table with many wide columns may reach past the right edge; the editor text area wraps narrower than its box.
 
 ## Decisions
 

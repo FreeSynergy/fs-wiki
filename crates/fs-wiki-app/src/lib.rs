@@ -11,10 +11,12 @@
 #![allow(clippy::must_use_candidate, clippy::module_name_repetitions)]
 
 pub mod args;
+pub mod drafts;
 pub mod import;
 pub mod map;
 pub mod source;
 
+pub use drafts::FileDraftStore;
 pub use import::{Report, import_folder};
 pub use map::to_document;
 pub use source::{Failure, PROBLEMS_PATH, WikiSource, export_markdown_to, resolve};

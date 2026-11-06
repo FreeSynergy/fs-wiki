@@ -5,10 +5,10 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use fs_components_workbenches::{Labels, Options, Picture, Step, launch, snapshot};
+use fs_components_workbenches::{DraftStore, Labels, Options, Picture, Step, launch, snapshot};
 use fs_store::{Store, TursoStore};
 use fs_wiki_app::args::{HELP, parse};
-use fs_wiki_app::{WikiSource, import_folder};
+use fs_wiki_app::{FileDraftStore, WikiSource, import_folder};
 use fs_wiki_core::WikiRepo;
 
 fn main() {
@@ -65,7 +65,15 @@ fn run() -> Result<(), String> {
         );
         return Ok(());
     }
+    let drafts = args
+        .drafts
+        .clone()
+        .or_else(fs_wiki_app::drafts::default_dir)
+        .map(|dir| FileDraftStore::new(dir, &args.docs))
+        .transpose()?
+        .map(|s| Arc::new(s) as Arc<dyn DraftStore>);
     let mut options = Options::default();
+    options.drafts = drafts;
     options.title = "FreeSynergy Wiki".into();
     options.labels = labels;
     options.export_target = export_target;

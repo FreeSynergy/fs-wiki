@@ -1367,7 +1367,7 @@ checksum = "aa9a19cbb55df58761df49b23516a86d432839add4af60fc256da840f66ed35b"
 [[package]]
 name = "fs-components-primitives"
 version = "0.1.0"
-source = "git+https://github.com/FreeSynergy/fs-components?tag=v0.1.0#c058947f55e7f3cb5bc1c9db5a0d9edbb4a6c00e"
+source = "git+https://github.com/FreeSynergy/fs-components?rev=e76cd34216a1bf5733d107502027273de6f539e0#e76cd34216a1bf5733d107502027273de6f539e0"
 dependencies = [
  "blinc_cn",
  "blinc_core",
@@ -1375,9 +1375,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "fs-components-render"
+version = "0.1.0"
+source = "git+https://github.com/FreeSynergy/fs-components?rev=e76cd34216a1bf5733d107502027273de6f539e0#e76cd34216a1bf5733d107502027273de6f539e0"
+dependencies = [
+ "blinc_app",
+ "blinc_cn",
+ "blinc_core",
+ "blinc_layout",
+ "blinc_noto_emoji",
+ "blinc_theme",
+ "image",
+ "wgpu",
+]
+
+[[package]]
 name = "fs-components-widgets"
 version = "0.1.0"
-source = "git+https://github.com/FreeSynergy/fs-components?tag=v0.1.0#c058947f55e7f3cb5bc1c9db5a0d9edbb4a6c00e"
+source = "git+https://github.com/FreeSynergy/fs-components?rev=e76cd34216a1bf5733d107502027273de6f539e0#e76cd34216a1bf5733d107502027273de6f539e0"
 dependencies = [
  "blinc_cn",
  "blinc_core",
@@ -1389,18 +1404,16 @@ dependencies = [
 [[package]]
 name = "fs-components-workbenches"
 version = "0.1.0"
-source = "git+https://github.com/FreeSynergy/fs-components?tag=v0.1.0#c058947f55e7f3cb5bc1c9db5a0d9edbb4a6c00e"
+source = "git+https://github.com/FreeSynergy/fs-components?rev=e76cd34216a1bf5733d107502027273de6f539e0#e76cd34216a1bf5733d107502027273de6f539e0"
 dependencies = [
  "blinc_app",
  "blinc_cn",
  "blinc_core",
  "blinc_layout",
- "blinc_noto_emoji",
  "blinc_theme",
  "fs-components-primitives",
+ "fs-components-render",
  "fs-components-widgets",
- "image",
- "wgpu",
 ]
 
 [[package]]
@@ -1452,6 +1465,8 @@ dependencies = [
  "fs-store",
  "fs-text",
  "fs-wiki-core",
+ "serde",
+ "serde_json",
  "tokio",
 ]
 
