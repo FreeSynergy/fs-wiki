@@ -4,6 +4,7 @@
 
 use fs_components_widgets::{Block as Out, Document, Inline};
 use fs_text::{Block, BlockKind, Document as Doc};
+use fs_wiki_core::is_hidden_block;
 
 use super::inline::inline_of;
 use super::nest::nest;
@@ -11,7 +12,8 @@ use super::table::table;
 
 /// The document as the components draw it, titled `title`.
 pub fn to_document(title: &str, doc: &Doc) -> Document {
-    Document::new(title, nest(&doc.blocks.iter().collect::<Vec<_>>(), 0))
+    let shown: Vec<&Block> = doc.blocks.iter().filter(|b| !is_hidden_block(b)).collect();
+    Document::new(title, nest(&shown, 0))
 }
 
 /// One block without its containers.

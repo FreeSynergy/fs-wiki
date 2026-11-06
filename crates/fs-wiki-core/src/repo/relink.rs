@@ -8,8 +8,9 @@
 
 use std::cmp::Reverse;
 
-use fs_text::{Block, BlockKind, Document, LinkStyle, LinkValue, MarkKind, MarkValue, Op};
+use fs_text::{Block, Document, LinkValue, MarkKind, MarkValue, Op};
 
+use super::definitions::relink_definitions;
 use super::target::written;
 use crate::path::page_of;
 
@@ -52,7 +53,12 @@ impl Shift<'_> {
 
 /// The new path text of `link` (a link on the page that moves from `before` to `after`), or
 /// `None` if it stays as written.
-fn new_written(link: &LinkValue, before: &str, after: &str, shift: &Shift) -> Option<String> {
+pub(super) fn new_written(
+    link: &LinkValue,
+    before: &str,
+    after: &str,
+    shift: &Shift,
+) -> Option<String> {
     let w = written(link, before)?;
     let moved = shift.map(&w.target);
     if moved.is_none() && before == after {
@@ -96,75 +102,6 @@ pub(super) fn relinked(
         changed |= relink_definitions(&mut out, block, before, after, shift);
     }
     changed.then_some(out)
-}
-
-/// Link reference definitions (`[r]: dest "title"`, stored as plain blocks) get the new target
-/// too, so none keeps the old one.
-fn relink_definitions(
-    out: &mut Document,
-    block: &Block,
-    before: &str,
-    after: &str,
-    shift: &Shift,
-) -> bool {
-    if !matches!(block.attrs.kind, BlockKind::Raw | BlockKind::Html) {
-        return false;
-    }
-    let mut edits = vec![];
-    let mut offset = 0;
-    for line in block.text.to_string().split_inclusive('\n') {
-        if let Some((start, len)) = definition_target(line) {
-            let dest: String = line.chars().skip(start).take(len).collect();
-            let link = LinkValue::new(dest, LinkStyle::Inline);
-            if let Some(new) = new_written(&link, before, after, shift) {
-                edits.push((offset + start, offset + start + len, new));
-            }
-        }
-        offset += line.chars().count();
-    }
-    let changed = !edits.is_empty();
-    for (start, end, insert) in edits.into_iter().rev() {
-        let op = Op::Edit {
-            block: block.id,
-            start,
-            end,
-            insert,
-            restore: None,
-        };
-        out.apply(&op).expect("valid op");
-    }
-    changed
-}
-
-/// (start, length) in chars of the destination of a definition line `[label]: dest ...`.
-fn definition_target(line: &str) -> Option<(usize, usize)> {
-    let chars: Vec<char> = line.chars().collect();
-    let lead = chars.iter().take_while(|c| **c == ' ').count();
-    if lead > 3 || chars.get(lead) != Some(&'[') {
-        return None;
-    }
-    let close =
-        (lead..chars.len().saturating_sub(1)).find(|&i| chars[i] == ']' && chars[i + 1] == ':')?;
-    let mut at = close + 2;
-    while chars
-        .get(at)
-        .is_some_and(|c| c.is_whitespace() && *c != '\n')
-    {
-        at += 1;
-    }
-    let angled = chars.get(at) == Some(&'<');
-    let start = at + usize::from(angled);
-    let len = chars[start..]
-        .iter()
-        .take_while(|c| {
-            if angled {
-                **c != '>'
-            } else {
-                !c.is_whitespace()
-            }
-        })
-        .count();
-    (len > 0).then_some((start, len))
 }
 
 /// The op that gives link mark `mark` of `block` the path `new` (and the shown text, when the

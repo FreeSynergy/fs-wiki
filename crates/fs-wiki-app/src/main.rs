@@ -9,7 +9,8 @@ use fs_components_workbenches::{DraftStore, Labels, Options, Picture, Step, laun
 use fs_store::{Store, TursoStore};
 use fs_wiki_app::args::{HELP, StoreChoice, parse};
 use fs_wiki_app::store_path::{data_dir, store_file};
-use fs_wiki_app::{FileDraftStore, WikiSource, import_folder};
+use fs_wiki_app::{Conflict, FileDraftStore, WikiSource, import_folder};
+use fs_wiki_core::Texts;
 use fs_wiki_core::WikiRepo;
 
 fn main() {
@@ -67,6 +68,30 @@ fn run() -> Result<(), String> {
         report.skipped.len(),
         started.elapsed()
     );
+    let drafts = args
+        .drafts
+        .clone()
+        .or_else(fs_wiki_app::drafts::default_dir)
+        .map(|dir| FileDraftStore::new(dir, &args.docs))
+        .transpose()?;
+    let mut report = report;
+    if let Some(store) = &drafts {
+        // A draft of a page that moved or was deleted is not offered by path any more: show it.
+        let handle = runtime.handle().clone();
+        let texts = wiki.clone();
+        let exists = move |p: &str| matches!(handle.block_on(texts.get_by_path(p)), Ok(Some(_)));
+        for d in store.orphans(&exists).map_err(|e| e.message)? {
+            report.conflicts.push(Conflict {
+                file: d.path,
+                text_path: None,
+                file_text: d.text,
+                reason:
+                    "an unsaved draft of a page that is no longer at this path (moved or deleted)"
+                        .into(),
+            });
+        }
+    }
+    let drafts = drafts.map(|s| Arc::new(s) as Arc<dyn DraftStore>);
     let source = Arc::new(
         WikiSource::from_report(wiki.clone(), runtime.handle().clone(), report)
             .with_origins(wiki, args.docs.clone()),
@@ -87,13 +112,6 @@ fn run() -> Result<(), String> {
         );
         return Ok(());
     }
-    let drafts = args
-        .drafts
-        .clone()
-        .or_else(fs_wiki_app::drafts::default_dir)
-        .map(|dir| FileDraftStore::new(dir, &args.docs))
-        .transpose()?
-        .map(|s| Arc::new(s) as Arc<dyn DraftStore>);
     let mut options = Options::default();
     options.drafts = drafts;
     options.title = "FreeSynergy Wiki".into();

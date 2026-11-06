@@ -11,8 +11,8 @@ use std::path::Path;
 use fs_components_workbenches::SourceError;
 use fs_wiki_core::{FileOrigin, MARKDOWN};
 
-use super::export::{ExportError, export_markdown_checked};
-use super::wiki::WikiSource;
+use super::export::{ExportError, export_markdown_checked, export_markdown_if_seen};
+use super::wiki::{Asked, WikiSource};
 use crate::hash::digest;
 
 fn same_folder(a: &Path, b: &Path) -> bool {
@@ -38,10 +38,17 @@ impl WikiSource {
                 MARKDOWN,
             ))
             .map_err(|e| SourceError::failed(e.to_string()))?;
-        if let Ok(mut slot) = self.difference.lock() {
-            *slot = None;
-        }
-        let mut message = match export_markdown_checked(path, target, &markdown, overwrite) {
+        // An answer "replace" counts only for the question asked before: the same page, folder
+        // and content, and the file must still hold what the person saw. Otherwise ask anew.
+        let asked = self.difference.lock().ok().and_then(|mut slot| slot.take());
+        let seen = asked
+            .filter(|a| a.path == path && a.target == target && a.differs.wanted == markdown)
+            .map(|a| digest(a.differs.on_disk.as_bytes()));
+        let result = match seen.filter(|_| overwrite) {
+            Some(seen) => export_markdown_if_seen(path, target, &markdown, &seen),
+            None => export_markdown_checked(path, target, &markdown, false),
+        };
+        let mut message = match result {
             Ok(m) => m,
             Err(ExportError::Failed(m)) => return Err(SourceError::failed(m)),
             Err(ExportError::Differs(d)) => {
@@ -49,7 +56,11 @@ impl WikiSource {
                     .err()
                     .map_or_else(String::new, |e| e.message);
                 if let Ok(mut slot) = self.difference.lock() {
-                    *slot = Some(d);
+                    *slot = Some(Asked {
+                        path: path.to_string(),
+                        target: target.to_string(),
+                        differs: d,
+                    });
                 }
                 return Err(SourceError::conflict(message));
             }

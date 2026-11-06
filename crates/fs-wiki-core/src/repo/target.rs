@@ -79,7 +79,10 @@ impl Written {
     pub(super) fn candidates(&self) -> Vec<String> {
         let t = &self.target;
         let mut all = vec![t.clone()];
-        if !t.ends_with(".md") {
+        if std::path::Path::new(t)
+            .extension()
+            .is_none_or(|e| e != "md")
+        {
             all.push(format!("{t}.md"));
         }
         all.push(format!("{t}/index.md"));

@@ -14,28 +14,28 @@ use serde::{Deserialize, Serialize};
 
 /// The default folder: `$XDG_DATA_HOME/fs-wiki/drafts`, else `~/.local/share/fs-wiki/drafts`.
 pub fn default_dir() -> Option<PathBuf> {
-    let base = std::env::var_os("XDG_DATA_HOME")
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")))?;
-    Some(base.join("fs-wiki").join("drafts"))
+    Some(
+        crate::store_path::data_dir()?
+            .join("fs-wiki")
+            .join("drafts"),
+    )
 }
 
 /// The file form of a draft.
 #[derive(Serialize, Deserialize)]
-struct Stored {
-    path: String,
-    text: String,
-    original: String,
-    revision: Option<String>,
+pub(crate) struct Stored {
+    pub(crate) path: String,
+    pub(crate) text: String,
+    pub(crate) original: String,
+    pub(crate) revision: Option<String>,
 }
 
 /// Drafts as files in one folder, one subfolder per documentation source.
 pub struct FileDraftStore {
-    dir: PathBuf,
+    pub(crate) dir: PathBuf,
 }
 
-/// A name stays readable (the hex of the path) up to this many characters; longer ones are hashed
-/// (file names are limited to 255 bytes, and a path of 127 bytes already doubles to that).
+/// A name stays readable (hex of the path) up to this many characters; longer ones are hashed.
 const READABLE_NAME: usize = 100;
 
 /// FNV-1a, 64 bit: a hash that is the same on every machine and Rust version.
@@ -112,11 +112,10 @@ fn private(path: &Path, mode: u32) -> Result<(), SourceError> {
     Ok(())
 }
 
-/// An absolute form without touching the disk for names that do not exist yet.
+/// An absolute form, also for names that do not exist yet.
 fn absolute(p: &Path) -> PathBuf {
     std::fs::canonicalize(p).unwrap_or_else(|_| {
         let abs = std::path::absolute(p).unwrap_or_else(|_| p.to_path_buf());
-        // Canonicalise the nearest existing parent so that links in the way count.
         let mut tail = Vec::new();
         let mut at = abs.as_path();
         while let Some(parent) = at.parent() {
@@ -132,7 +131,7 @@ fn absolute(p: &Path) -> PathBuf {
     })
 }
 
-fn failed(e: &dyn std::fmt::Display) -> SourceError {
+pub(crate) fn failed(e: &dyn std::fmt::Display) -> SourceError {
     SourceError::failed(e.to_string())
 }
 
@@ -156,7 +155,6 @@ impl DraftStore for FileDraftStore {
             f.write_all(&json).map_err(|e| failed(&e))?;
             f.sync_all().map_err(|e| failed(&e))?;
             std::fs::rename(&temp, &file).map_err(|e| failed(&e))?;
-            // Make the rename itself durable.
             std::fs::File::open(&self.dir)
                 .and_then(|d| d.sync_all())
                 .map_err(|e| failed(&e))

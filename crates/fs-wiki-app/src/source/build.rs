@@ -57,7 +57,11 @@ impl WikiSource {
 
     /// The texts of the last export that found a file with other content (both versions).
     pub fn last_difference(&self) -> Option<Differs> {
-        self.difference.lock().ok()?.clone()
+        self.difference
+            .lock()
+            .ok()?
+            .as_ref()
+            .map(|a| a.differs.clone())
     }
 
     pub(super) fn text_entry(&self, path: &str) -> Result<TextEntry, SourceError> {

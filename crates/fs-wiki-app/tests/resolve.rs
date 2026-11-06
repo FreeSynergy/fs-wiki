@@ -12,6 +12,7 @@ fn pages(p: &str) -> bool {
         "a/c/index.md",
         "x y.md",
         "a/README.md",
+        "a:b.md",
     ]
     .contains(&p)
 }
@@ -139,4 +140,14 @@ fn the_docs_root_and_folders_without_an_index_open_something() {
         resolve_with_folders("index.md", "a/empty/", &pages, &first),
         Missing("a/empty/".into())
     );
+}
+
+#[test]
+fn a_file_name_with_a_colon_is_a_page_not_a_scheme() {
+    assert_eq!(resolve("index.md", "a:b.md", &pages), Page("a:b.md".into()));
+    assert!(matches!(resolve("index.md", "x:y.md", &pages), Missing(_)));
+    assert!(matches!(
+        resolve("index.md", "file://a:b.md", &pages),
+        Missing(_)
+    ));
 }

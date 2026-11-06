@@ -40,3 +40,28 @@ fn an_export_after_a_move_names_the_old_file_and_keeps_the_next_start_quiet() {
     assert_eq!(all.len(), 1, "no second copy of the page");
     std::fs::remove_dir_all(dir).unwrap();
 }
+
+#[test]
+fn the_second_press_overwrites_only_the_content_the_person_saw() {
+    let dir = temp_dir("ep-bound");
+    let docs = dir.join("docs");
+    write_files(&docs, &[("p.md", "disk v1\n")]);
+    let (rt, w) = common::wiki();
+    rt.block_on(w.create("p.md", "wiki text")).unwrap();
+    let src = WikiSource::new(w, rt.handle().clone(), vec![]);
+    let target = docs.display().to_string();
+    let disk = || std::fs::read_to_string(docs.join("p.md")).unwrap();
+
+    // Pressing "yes" without having been asked overwrites nothing.
+    assert!(src.export("p.md", &target, true).is_err());
+    assert_eq!(disk(), "disk v1\n");
+    // The question is asked about v1 ...
+    assert!(src.export("p.md", &target, false).is_err());
+    // ... the file changes before the answer: ask anew, the newer content is not overwritten.
+    write_files(&docs, &[("p.md", "disk v2, newer\n")]);
+    assert!(src.export("p.md", &target, true).is_err());
+    assert_eq!(disk(), "disk v2, newer\n");
+    // The answer to the new question counts.
+    src.export("p.md", &target, true).unwrap();
+    assert_eq!(disk(), "wiki text");
+}

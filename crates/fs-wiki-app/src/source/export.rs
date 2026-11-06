@@ -12,6 +12,7 @@ use fs_components_workbenches::SourceError;
 use fs_wiki_core::TextPath;
 
 use super::export_fs::{FsError, open_folder, open_root, read_existing, write_atomic};
+use crate::hash::digest;
 
 /// A file that exists with other content than the export would write.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -44,6 +45,16 @@ impl From<FsError> for ExportError {
     }
 }
 
+/// What to do with a file that exists with other content.
+enum Policy {
+    /// Leave it, report the difference.
+    Refuse,
+    /// Replace it, whatever it holds.
+    Replace,
+    /// Replace it only if it still holds the content with this hash (the one the person saw).
+    ReplaceIfSeen(String),
+}
+
 /// Write `markdown` to `target/path`. Returns a message saying where it went.
 ///
 /// # Errors
@@ -55,6 +66,41 @@ pub fn export_markdown_checked(
     markdown: &str,
     overwrite: bool,
 ) -> Result<String, ExportError> {
+    let policy = if overwrite {
+        Policy::Replace
+    } else {
+        Policy::Refuse
+    };
+    export_with(path, target, markdown, &policy)
+}
+
+/// As [`export_markdown_checked`] with overwriting, but only if the file still has the content with
+/// the hash `seen` (see [`crate::hash::digest`]); another content is a [`ExportError::Differs`]
+/// again, so an answer is never applied to something the person did not see. The check and the
+/// rename are two steps; a writer between them still wins (one process, one person).
+///
+/// # Errors
+/// As [`export_markdown_checked`].
+pub fn export_markdown_if_seen(
+    path: &str,
+    target: &str,
+    markdown: &str,
+    seen: &str,
+) -> Result<String, ExportError> {
+    export_with(
+        path,
+        target,
+        markdown,
+        &Policy::ReplaceIfSeen(seen.to_string()),
+    )
+}
+
+fn export_with(
+    path: &str,
+    target: &str,
+    markdown: &str,
+    policy: &Policy,
+) -> Result<String, ExportError> {
     let checked = TextPath::parse(path).map_err(|e| ExportError::Failed(e.to_string()))?;
     let file = Path::new(target).join(checked.as_str());
     let mut parts: Vec<&str> = checked.as_str().split('/').collect();
@@ -64,20 +110,25 @@ pub fn export_markdown_checked(
     for part in parts {
         dir = open_folder(&dir, part, true)?;
     }
-    match read_existing(&dir, name)? {
-        Some(old) if old == markdown => {
+    let existing = read_existing(&dir, name)?;
+    if let Some(old) = &existing {
+        if old.text == markdown {
             return Ok(format!("Already exported to {}.", file.display()));
         }
-        Some(old) if !overwrite => {
+        let allowed = match policy {
+            Policy::Refuse => false,
+            Policy::Replace => true,
+            Policy::ReplaceIfSeen(seen) => digest(old.text.as_bytes()) == *seen,
+        };
+        if !allowed {
             return Err(ExportError::Differs(Differs {
                 file,
-                on_disk: old,
+                on_disk: old.text.clone(),
                 wanted: markdown.to_string(),
             }));
         }
-        _ => {}
     }
-    write_atomic(&dir, name, markdown)?;
+    write_atomic(&dir, name, markdown, existing.as_ref())?;
     Ok(format!("Exported to {}.", file.display()))
 }
 

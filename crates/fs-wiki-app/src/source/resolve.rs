@@ -27,17 +27,32 @@ pub fn resolve_with_folders(
     exists: &dyn Fn(&str) -> bool,
     first_in: &dyn Fn(&str) -> Option<String>,
 ) -> LinkTarget {
-    if let Some(scheme) = scheme_of(href) {
+    let scheme = scheme_of(href);
+    if let Some(scheme) = scheme {
         let opened = OPENED.iter().any(|s| scheme.eq_ignore_ascii_case(s));
-        return if opened {
-            LinkTarget::External(href.to_string())
-        } else {
-            LinkTarget::Missing(href.to_string())
-        };
+        if opened {
+            return LinkTarget::External(href.to_string());
+        }
+        // Not opened. `scheme://...` is shown as it is; a name like `a:b.md` may still be a page.
+        if href[scheme.len() + 1..].starts_with("//") {
+            return LinkTarget::Missing(href.to_string());
+        }
     }
     if href.starts_with("//") {
         return LinkTarget::Missing(href.to_string());
     }
+    match resolve_path(from, href, exists, first_in) {
+        LinkTarget::Missing(_) if scheme.is_some() => LinkTarget::Missing(href.to_string()),
+        found => found,
+    }
+}
+
+fn resolve_path(
+    from: &str,
+    href: &str,
+    exists: &dyn Fn(&str) -> bool,
+    first_in: &dyn Fn(&str) -> Option<String>,
+) -> LinkTarget {
     let page = href.split('#').next().unwrap_or("");
     let page = page.split('?').next().unwrap_or("");
     if page.is_empty() {

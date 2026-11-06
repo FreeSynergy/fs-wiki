@@ -26,6 +26,14 @@ use crate::map::to_document;
 /// Most results of one search.
 const MAX_HITS: usize = 200;
 
+/// The question the last export asked: which page, into which folder, about which content. An
+/// answer counts only for this very question.
+pub(super) struct Asked {
+    pub path: String,
+    pub target: String,
+    pub differs: Differs,
+}
+
 /// The wiki behind the reader.
 pub struct WikiSource {
     pub(super) texts: Arc<dyn Texts>,
@@ -34,7 +42,7 @@ pub struct WikiSource {
     /// The records of imports and the docs folder they belong to (see `with_origins`).
     pub(super) origins: Option<(Arc<dyn Origins>, PathBuf)>,
     /// The difference that made the last export a conflict, for a screen that shows it.
-    pub(super) difference: Mutex<Option<Differs>>,
+    pub(super) difference: Mutex<Option<Asked>>,
 }
 
 fn failed(e: &dyn std::fmt::Display) -> SourceError {

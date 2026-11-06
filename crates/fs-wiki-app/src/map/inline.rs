@@ -56,9 +56,7 @@ fn kind_of(m: &fs_text::Mark) -> Option<MarkKind> {
         (Kind::Emphasis, _) => Some(MarkKind::Emphasis),
         (Kind::Strike, _) => Some(MarkKind::Strike),
         (Kind::Code, _) => Some(MarkKind::Code),
-        (Kind::Link, MarkValue::Link(l)) => Some(MarkKind::Link {
-            href: l.path.clone(),
-        }),
+        (Kind::Link, MarkValue::Link(l)) => Some(MarkKind::Link { href: href_of(l) }),
         _ => None,
     }
 }
@@ -75,5 +73,20 @@ fn insert_at(chars: &mut Vec<char>, marks: &mut [Mark], at: usize, inserted: &st
         if m.end > at {
             m.end += n;
         }
+    }
+}
+
+/// The address the reader hands back when the link is followed. `[[a/b]]` is a path from the root
+/// (that is how the core reads it), so it gets a leading `/`; a Markdown link stays as written and
+/// is relative to its page.
+fn href_of(link: &fs_text::LinkValue) -> String {
+    let wiki = matches!(
+        link.style,
+        fs_text::LinkStyle::Wiki | fs_text::LinkStyle::Embed
+    );
+    if wiki && link.is_internal() && !link.path.starts_with(['#', '/']) {
+        format!("/{}", link.path)
+    } else {
+        link.path.clone()
     }
 }

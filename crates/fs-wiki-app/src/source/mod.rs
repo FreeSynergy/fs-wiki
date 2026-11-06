@@ -12,7 +12,9 @@ mod problems;
 mod resolve;
 mod wiki;
 
-pub use export::{Differs, ExportError, export_markdown_checked, export_markdown_to};
+pub use export::{
+    Differs, ExportError, export_markdown_checked, export_markdown_if_seen, export_markdown_to,
+};
 pub use problems::{Failure, Notes, PROBLEMS_PATH};
 pub use resolve::{resolve, resolve_with_folders};
 pub use wiki::WikiSource;

@@ -3,6 +3,7 @@
 //! Pattern: none — one pure function. One store per docs folder, so two folders never mix their
 //! texts or their records of what was imported.
 
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 use crate::hash::digest;
@@ -26,10 +27,16 @@ pub fn store_file(data: &Path, docs: &Path) -> PathBuf {
 
 /// The user's data directory, if the environment names one.
 pub fn data_dir() -> Option<PathBuf> {
-    let var = |k| {
-        std::env::var_os(k)
-            .filter(|v| !v.is_empty())
-            .map(PathBuf::from)
-    };
-    var("XDG_DATA_HOME").or_else(|| var("HOME").map(|h| h.join(".local").join("share")))
+    data_dir_from(std::env::var_os("XDG_DATA_HOME"), std::env::var_os("HOME"))
+}
+
+/// `xdg` (`$XDG_DATA_HOME`) or else `home/.local/share`. As the XDG specification says, a value
+/// that is empty or not an absolute path is treated as unset (a relative one would put the data
+/// wherever the program happens to run).
+pub fn data_dir_from(xdg: Option<OsString>, home: Option<OsString>) -> Option<PathBuf> {
+    let absolute = |v: OsString| Some(PathBuf::from(v)).filter(|p| p.is_absolute());
+    xdg.and_then(absolute).or_else(|| {
+        home.and_then(absolute)
+            .map(|h| h.join(".local").join("share"))
+    })
 }

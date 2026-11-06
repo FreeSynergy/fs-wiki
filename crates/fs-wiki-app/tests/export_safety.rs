@@ -80,3 +80,57 @@ fn a_conflict_carries_both_texts_so_a_screen_can_show_a_diff() {
     assert!(d.file.ends_with("p.md"));
     std::fs::remove_dir_all(target).unwrap();
 }
+
+#[cfg(unix)]
+#[test]
+fn replacing_a_file_keeps_its_mode_and_a_new_file_is_never_executable() {
+    use std::os::unix::fs::PermissionsExt;
+    let target = temp_dir("exs-mode");
+    write_files(&target, &[("private.md", "old\n"), ("script.md", "old\n")]);
+    let set = |name: &str, mode: u32| {
+        std::fs::set_permissions(target.join(name), std::fs::Permissions::from_mode(mode)).unwrap();
+    };
+    set("private.md", 0o600);
+    set("script.md", 0o755);
+    let t = target.display().to_string();
+    export_markdown_to("private.md", &t, "new\n", true).unwrap();
+    export_markdown_to("script.md", &t, "new\n", true).unwrap();
+    export_markdown_to("fresh.md", &t, "new\n", true).unwrap();
+    let mode = |name: &str| {
+        std::fs::metadata(target.join(name))
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777
+    };
+    assert_eq!(
+        mode("private.md"),
+        0o600,
+        "a private file must stay private"
+    );
+    assert_eq!(mode("script.md"), 0o755);
+    assert_eq!(mode("fresh.md") & 0o111, 0);
+    std::fs::remove_dir_all(target).unwrap();
+}
+
+#[test]
+fn a_long_file_name_and_a_leftover_temporary_file_do_not_stop_the_export() {
+    let target = temp_dir("exs-long");
+    let t = target.display().to_string();
+    let long = format!("{}.md", "n".repeat(252));
+    export_markdown_to(&long, &t, "x\n", false).unwrap();
+    export_markdown_to(&long, &t, "y\n", true).unwrap();
+    // What an earlier crashed export may have left, whatever its name.
+    let pid = std::process::id();
+    write_files(
+        &target,
+        &[
+            (&format!(".p.md.tmp-{pid}"), "junk"),
+            (&format!(".fs-wiki-export-{pid}-0"), "junk"),
+            (&format!(".fs-wiki-export-{pid}-1"), "junk"),
+        ],
+    );
+    export_markdown_to("p.md", &t, "z\n", false).unwrap();
+    assert_eq!(std::fs::read_to_string(target.join("p.md")).unwrap(), "z\n");
+    std::fs::remove_dir_all(target).unwrap();
+}

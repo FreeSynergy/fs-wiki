@@ -137,3 +137,22 @@ fn nothing_unchanged_is_parsed_again_and_what_is_not_looked_at_is_listed() {
     assert_eq!(before, after, "not one text was written");
     std::fs::remove_dir_all(dir).unwrap();
 }
+
+#[test]
+fn a_file_emptied_outside_is_a_conflict_not_an_edit_that_empties_the_text() {
+    let dir = temp_dir("cf-empty");
+    let (store, docs) = (dir.join("store.db"), dir.join("docs"));
+    write_files(&docs, &[("p.md", "important text\n")]);
+    {
+        let (rt, w) = wiki_in_file(&store);
+        rt.block_on(import_folder(w.as_ref(), &docs));
+    }
+    write_files(&docs, &[("p.md", "")]);
+    let (rt, w) = wiki_in_file(&store);
+    let report = rt.block_on(import_folder(w.as_ref(), &docs));
+    assert_eq!((report.updated, report.conflicts.len()), (0, 1));
+    assert_eq!(
+        markdown_at(&rt, &w, "p.md").unwrap().trim(),
+        "important text"
+    );
+}

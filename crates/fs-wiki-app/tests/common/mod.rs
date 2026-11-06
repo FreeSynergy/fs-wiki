@@ -20,11 +20,27 @@ pub fn wiki() -> (Runtime, Arc<WikiRepo>) {
     )
 }
 
-/// A fresh empty folder under the system temp dir.
+/// The folders a test made; removed when the test's thread ends, also when it panics.
+struct Cleanup(Vec<PathBuf>);
+
+impl Drop for Cleanup {
+    fn drop(&mut self) {
+        for dir in &self.0 {
+            let _ = std::fs::remove_dir_all(dir);
+        }
+    }
+}
+
+thread_local! {
+    static CLEANUP: std::cell::RefCell<Cleanup> = const { std::cell::RefCell::new(Cleanup(Vec::new())) };
+}
+
+/// A fresh empty folder under the system temp dir, removed when the test ends.
 pub fn temp_dir(name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("fs-wiki-app-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
+    CLEANUP.with(|c| c.borrow_mut().0.push(dir.clone()));
     dir
 }
 

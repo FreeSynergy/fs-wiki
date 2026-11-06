@@ -38,3 +38,23 @@ fn every_docs_folder_has_its_own_store_in_the_data_directory() {
     assert!(fa.extension().is_some_and(|e| e == "db"));
     std::fs::remove_dir_all(data).unwrap();
 }
+
+#[test]
+fn an_empty_or_relative_data_directory_is_treated_as_unset() {
+    use fs_wiki_app::store_path::data_dir_from;
+    use std::ffi::OsString;
+    let os = |s: &str| Some(OsString::from(s));
+    assert_eq!(
+        data_dir_from(os("/data"), os("/home/u")),
+        Some("/data".into())
+    );
+    for bad in ["", "relative/dir"] {
+        assert_eq!(
+            data_dir_from(os(bad), os("/home/u")),
+            Some("/home/u/.local/share".into()),
+            "{bad:?}"
+        );
+    }
+    assert_eq!(data_dir_from(os(""), os("")), None);
+    assert_eq!(data_dir_from(None, os("rel")), None);
+}

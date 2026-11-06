@@ -116,3 +116,11 @@ fn a_soft_break_is_a_space_and_a_hard_break_is_a_line_break() {
         assert_eq!(p.text, "one\ntwo", "{hard:?}");
     }
 }
+
+#[test]
+fn a_comment_written_as_a_link_definition_is_not_shown() {
+    let b = blocks("Visible text.\n\n[//]: # (private comment)\n\nMore.\n");
+    let shown = format!("{b:?}");
+    assert!(!shown.contains("private"), "{shown}");
+    assert!(shown.contains("Visible") && shown.contains("More"));
+}

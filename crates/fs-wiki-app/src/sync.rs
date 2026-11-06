@@ -106,6 +106,11 @@ async fn changed_file<W: Texts + Origins + ?Sized>(
         ));
     };
     if text_hash(&text) == origin.text_hash {
+        if content.trim().is_empty() && !text_is_empty(&text) {
+            // A file cut to nothing outside is more likely a mishap than an edit.
+            let reason = "the file is empty now but its text is not; the text is kept";
+            return Ok(Outcome::Conflict(Some(text.path), reason.into()));
+        }
         let updated = wiki.import_text(&text.path, MARKDOWN, content).await?;
         record(wiki, &origin.file, hash, &updated).await?;
         return Ok(Outcome::Updated);
@@ -136,4 +141,11 @@ async fn new_file<W: Texts + Origins + ?Sized>(
     let reason = "a text is already there that differs from the file, and nothing records that \
                   they were ever in step; the text is kept";
     Ok(Outcome::Conflict(Some(text.path), reason.into()))
+}
+
+fn text_is_empty(entry: &TextEntry) -> bool {
+    TextFormat::Markdown
+        .export(&entry.document)
+        .trim()
+        .is_empty()
 }

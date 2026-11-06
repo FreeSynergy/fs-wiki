@@ -9,9 +9,11 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::os::fd::OwnedFd;
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use rustix::fs::{
-    AtFlags, CWD, FileType, Mode, OFlags, fstat, fsync, mkdirat, openat, renameat, unlinkat,
+    AtFlags, CWD, FileType, Gid, Mode, OFlags, Uid, fchmod, fchown, fstat, fsync, mkdirat, openat,
+    renameat, unlinkat,
 };
 use rustix::io::Errno;
 
@@ -54,8 +56,18 @@ pub fn open_folder(dir: &OwnedFd, name: &str, create: bool) -> Result<OwnedFd, F
     }
 }
 
-/// The text of the file `name` in `dir`, if it exists; a link or a special file is refused.
-pub fn read_existing(dir: &OwnedFd, name: &str) -> Result<Option<String>, FsError> {
+/// A file that is there: its text, and the mode and owner a replacement must keep.
+pub struct Existing {
+    /// What the file says.
+    pub text: String,
+    /// Permission bits (including setuid and the like).
+    pub mode: u32,
+    uid: u32,
+    gid: u32,
+}
+
+/// The file `name` in `dir`, if it exists; a link or a special file is refused.
+pub fn read_existing(dir: &OwnedFd, name: &str) -> Result<Option<Existing>, FsError> {
     let flags = OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::CLOEXEC;
     let fd = match openat(dir, name, flags, Mode::empty()) {
         Ok(fd) => fd,
@@ -63,19 +75,63 @@ pub fn read_existing(dir: &OwnedFd, name: &str) -> Result<Option<String>, FsErro
         Err(Errno::LOOP) => return Err(FsError::Linked(format!("{name} is a symbolic link"))),
         Err(e) => return Err(other(e)),
     };
-    if FileType::from_raw_mode(fstat(&fd).map_err(other)?.st_mode) != FileType::RegularFile {
+    let stat = fstat(&fd).map_err(other)?;
+    if FileType::from_raw_mode(stat.st_mode) != FileType::RegularFile {
         return Err(FsError::Linked(format!("{name} is not a regular file")));
     }
     let mut text = String::new();
     File::from(fd).read_to_string(&mut text).map_err(other)?;
-    Ok(Some(text))
+    Ok(Some(Existing {
+        text,
+        mode: stat.st_mode & 0o7777,
+        uid: stat.st_uid,
+        gid: stat.st_gid,
+    }))
 }
 
-/// Write `text` as `name` in `dir`: a temporary file, synced, then renamed over the target.
-pub fn write_atomic(dir: &OwnedFd, name: &str, text: &str) -> Result<(), FsError> {
-    let temp = format!(".{name}.tmp-{}", std::process::id());
+/// A temporary name that is short whatever the file is called (names are limited to 255 bytes).
+fn temp_names() -> impl Iterator<Item = String> {
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let first = COUNTER.fetch_add(1000, Ordering::Relaxed);
+    (first..first + 1000).map(|n| format!(".fs-wiki-export-{}-{n}", std::process::id()))
+}
+
+/// Write `text` as `name` in `dir`: a temporary file, synced, then renamed over the target. A file
+/// that is replaced (`keep`) keeps its mode, and its owner where we may; the temporary file is
+/// private until then. A new file gets the usual mode (the umask applies).
+pub fn write_atomic(
+    dir: &OwnedFd,
+    name: &str,
+    text: &str,
+    keep: Option<&Existing>,
+) -> Result<(), FsError> {
     let flags = OFlags::WRONLY | OFlags::CREATE | OFlags::EXCL | OFlags::NOFOLLOW | OFlags::CLOEXEC;
-    let fd = openat(dir, &temp, flags, Mode::from_raw_mode(0o644)).map_err(other)?;
+    let create = Mode::from_raw_mode(if keep.is_some() { 0o600 } else { 0o666 });
+    let mut made = None;
+    for temp in temp_names() {
+        match openat(dir, &temp, flags, create) {
+            Ok(fd) => {
+                made = Some((temp, fd));
+                break;
+            }
+            Err(Errno::EXIST) => {}
+            Err(e) => return Err(other(e)),
+        }
+    }
+    let (temp, fd) = made.ok_or_else(|| other("no free temporary name"))?;
+    if let Some(old) = keep {
+        // Owner first (it may clear setuid bits), then the mode; the owner is best effort.
+        let _ = fchown(
+            &fd,
+            Some(Uid::from_raw(old.uid)),
+            Some(Gid::from_raw(old.gid)),
+        );
+        let restored = fchmod(&fd, Mode::from_raw_mode(old.mode));
+        if let Err(e) = restored {
+            let _ = unlinkat(dir, &temp, AtFlags::empty());
+            return Err(other(e));
+        }
+    }
     let mut file = File::from(fd);
     let result = file
         .write_all(text.as_bytes())
