@@ -10,10 +10,10 @@ later). ADRs: 0033 (one marking mechanism), 0034 (passage / page), 0039 (three e
 ```
 src/
   id.rs  anchor.rs
-  text/      mod, storage (trait), rope (ropey), buffer (Text facade)
+  text/      mod, storage (trait), rope (ropey), buffer (Text facade), grapheme
   mark/      mod, behavior (trait), kind, registry, item (Mark), set, merge, value
   doc/       mod, document, block, attrs, block_kind, container, same
-  ops/       mod, op (enum), command (trait), apply, edit, marks, blocks, error
+  ops/       mod, op (enum), command (trait), apply, edit, marks, blocks, user, error
   history/   mod, log, step, retention, compact
   format/    mod, importer (trait), exporter (trait)
   markdown/  mod, adapter, syntax,
@@ -25,7 +25,7 @@ src/
   links/     mod, row, rewriter (trait), rewrite
   template/  mod, datetime, format, values, placeholder, instantiate, error
 tests/       one file per feature (marks, history, external, links, templates, markdown,
-             model, props_*, roundtrip)
+             model, grapheme, props_*, roundtrip)
 ```
 
 ## Pattern map
@@ -47,6 +47,7 @@ tests/       one file per feature (marks, history, external, links, templates, m
 | `links::rewrite` / `row` | Command producer / read model | undoable rewrite, link table |
 | `template` | Template method + Value object | find, resolve, splice keeping marks |
 | `doc` | Composite (flattened) | document -> blocks -> containers list |
+| `text::grapheme` + `ops::user` | Factory (Command) + Adapter over `unicode-segmentation` | user edits and marks snap to grapheme clusters; replay / import stay exact |
 | `id`, `anchor` | Factory / Value object | one id source; offset transforms in one type |
 
 ## Model
@@ -89,6 +90,16 @@ table delimiter widths, `_` vs `*`, bullet marker) so most files round-trip byte
 Layer marks are **not** written to files (ADR 0042 §2); `ExportOptions::layers` writes
 `{{var}}` and `[text]{#name}` for debugging. `ExportOptions::admonitions` writes the mkdocs dialect.
 
+## Grapheme-safe offsets
+
+Offsets stay chars, but marks and user edits snap to grapheme clusters (UAX #29,
+`unicode-segmentation`): emoji with skin tone, ZWJ sequences, `e` + combining accent, flags,
+`\r\n` are one unit. `Block::add_mark` and `Op::AddMark` grow a range to whole clusters (points
+go to the nearest boundary). `Document::edit_op` / `insert_op` / `delete_op` build an `Op::Edit`
+on boundaries (insertions move to the nearest boundary, ranges grow). A plain `Op::Edit` is exact
+on purpose: undo inverses, link rewrites and external-file import must reproduce text
+byte for byte. `text::grapheme` offers `boundaries`, `snap`, `snap_range`, `is_boundary`.
+
 ## External edits (`external`) — ADR 0042 §5
 
 `plan_external_import(doc, new_text) -> Vec<Op>` / `import_external` (`plan_external_import_with` takes any `Importer` + `Exporter`). Raw documents: line diff,
@@ -121,7 +132,7 @@ stay in `pending_sync` until `mark_synced`. `reset` = "reset undo history". All 
 
 ## State
 
-Works and is tested (31 tests: unit tests next to the code, integration tests per feature,
+Works and is tested (46 tests: unit tests next to the code, integration tests per feature,
 property tests, corpus round trip):
 * model, text behind `TextStorage`, anchors, mark registry/behaviour/edit rules, point/range, merge, unmark;
 * property tests (`proptest`): marks stay valid under random edits, undo restores text and marks
@@ -139,10 +150,11 @@ Known limits / not done:
   double-space hard breaks -> `\`, `*`/`+` bullets kept per item but mixed styles are not
   re-aligned, table cells beyond the header width are dropped (GFM), `$math$`, definition lists,
   sub/superscript are not enabled.
+* Emphasis next to another emphasis with different delimiters (`_-_*a*`) can still export to something that re-parses differently; `export::inline::emit::apart_from_star` fixes only the simple adjacent-star case.
 * Emphasis whitespace-flanking is not repaired on export (a mark ending in a space may not parse
   back); layer syntax (`[x]{#n}`, `{{v}}`) is export-only.
 * Markdown export of a table keeps one block per table (cells joined by TAB/LF in the text).
-* Offsets are chars; no grapheme-boundary snapping. No CRDT / concurrent editing.
+* Offsets are chars. No CRDT / concurrent editing (the `TextStorage` trait is the seam).
 * Edit inverses snapshot the block's marks (O(marks) per op), fine for passage-sized blocks.
 * Named passages' registry (find place, reuse, transclusion) and the "remind on save" UI hint are
   store/UI work; this crate only provides marks, ops and `History::op_count` as size indicator.

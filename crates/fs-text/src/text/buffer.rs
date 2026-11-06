@@ -3,6 +3,7 @@
 //! Pattern: Facade over a Strategy — one small type with the API the crate uses; the storage
 //! strategy is a type parameter (default: the rope), so tests and callers never name it.
 
+use super::grapheme::{self, Snap};
 use super::{DefaultStorage, TextStorage};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::ops::Range;
@@ -48,6 +49,21 @@ impl<S: TextStorage> Text<S> {
     #[must_use]
     pub fn char_at(&self, i: usize) -> Option<char> {
         self.store.char_at(i)
+    }
+    /// Move a char offset to a grapheme-cluster boundary.
+    #[must_use]
+    pub fn snap(&self, offset: usize, dir: Snap) -> usize {
+        grapheme::snap(&self.to_string(), offset, dir)
+    }
+    /// Snap a range outward to cluster boundaries (an empty range stays empty).
+    #[must_use]
+    pub fn snap_range(&self, start: usize, end: usize) -> (usize, usize) {
+        grapheme::snap_range(&self.to_string(), start, end)
+    }
+    /// Is `offset` a grapheme-cluster boundary?
+    #[must_use]
+    pub fn is_boundary(&self, offset: usize) -> bool {
+        grapheme::is_boundary(&self.to_string(), offset)
     }
     /// All chars in order.
     pub fn chars(&self) -> impl Iterator<Item = char> + '_ {

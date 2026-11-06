@@ -1,6 +1,6 @@
 //! Handler for [`crate::Op::Edit`].
 //!
-//! Pattern: Command handler — applies a text edit and builds its inverse from a snapshot of
+//! Pattern: Command handler — applies a text edit (exact offsets: replay, undo and import must reproduce text exactly; user edits snap via `Document::edit_op`) and builds its inverse from a snapshot of
 //! the block's marks, so undo restores marks that died or were cut (wiki-ideas pitfall 8).
 
 use super::error::ApplyError;

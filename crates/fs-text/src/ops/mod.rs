@@ -10,6 +10,7 @@ mod edit;
 mod error;
 mod marks;
 mod op;
+mod user;
 
 pub use command::Command;
 pub use error::ApplyError;

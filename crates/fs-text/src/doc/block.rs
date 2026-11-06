@@ -40,6 +40,16 @@ impl Block {
         Self::new(BlockKind::Paragraph, text)
     }
 
+    /// Add a mark, clamped to the text and snapped to grapheme-cluster boundaries (a range
+    /// grows to whole clusters, a point moves to the nearest boundary), so nobody can mark
+    /// half an emoji or a combined letter. Merge kinds merge as in [`MarkSet::add`].
+    pub fn add_mark(&mut self, mut mark: Mark) -> Uuid {
+        let end = mark.end.min(self.text.len());
+        let start = mark.start.min(end);
+        (mark.start, mark.end) = self.text.snap_range(start, end);
+        self.marks.add(mark)
+    }
+
     /// Insert text; marks move per their expand rules.
     pub fn insert(&mut self, at: usize, s: &str) {
         let at = at.min(self.text.len());

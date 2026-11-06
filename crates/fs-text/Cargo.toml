@@ -12,6 +12,7 @@ serde = { version = "1", features = ["derive"] }
 pulldown-cmark = { version = "0.13", default-features = false }
 similar = "2"
 thiserror = "2"
+unicode-segmentation = "1"
 
 [dev-dependencies]
 similar = "2"

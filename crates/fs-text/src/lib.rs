@@ -39,4 +39,4 @@ pub use markdown::{
 };
 pub use ops::{ApplyError, Command, Op};
 pub use template::{instantiate, instantiate_str, DateTime, TemplateError, Values};
-pub use text::{RopeStorage, Text, TextStorage};
+pub use text::{RopeStorage, Snap, Text, TextStorage};

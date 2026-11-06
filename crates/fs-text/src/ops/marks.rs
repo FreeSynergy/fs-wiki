@@ -26,10 +26,7 @@ pub(super) fn set(doc: &mut Document, id: Uuid, marks: &[Mark]) -> Result<Op, Ap
 pub(super) fn add(doc: &mut Document, id: Uuid, mark: &Mark) -> Result<Op, ApplyError> {
     let b = block(doc, id)?;
     let before = b.marks.as_slice().to_vec();
-    let mut m = mark.clone();
-    m.end = m.end.min(b.text.len());
-    m.start = m.start.min(m.end);
-    b.marks.add(m);
+    b.add_mark(mark.clone());
     Ok(Op::SetMarks {
         block: id,
         marks: before,
