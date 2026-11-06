@@ -1471,6 +1471,7 @@ dependencies = [
  "fs-store",
  "fs-text",
  "fs-wiki-core",
+ "rustix 1.1.6",
  "sha2",
  "tokio",
 ]

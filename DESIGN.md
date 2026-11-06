@@ -19,7 +19,7 @@ consumers have tested it, then 1.0, then only version jumps.) Nothing here is de
 
 ## State
 
-Version 0.1.x (the app crate is new and untagged until reviewed). Built on `fs-store` v0.2.0 and `fs-interfaces` v0.4.0 (git tags).
+Version 0.2.0 (workspace; the tag v0.2.0 is set by the owner). Built on `fs-store` v0.2.0, `fs-interfaces` v0.23.0 and `fs-components` v0.1.0 (git tags).
 
 | Area | State |
 |---|---|
@@ -33,20 +33,23 @@ Version 0.1.x (the app crate is new and untagged until reviewed). Built on `fs-s
 | `list(prefix, page)`: one store query on the index `path`, **exact, case sensitive prefix** (text order range), path order, paged by the store | done |
 | `find(term, page)`: one store query: `Contains` on the name, on the path and on the index `block` (plain text of each block) | done |
 | Link table: marks are the truth; `links(id)` = `extract_links` of the stored document (`LinkEntry`: source, target path as written, place `<block>:<start>-<end>`, title, internal); `backlinks(path)` = one store query on the index `link` (page part of every internal link), then the rows of the texts found | done |
-| `move_to(id, path)`: other texts that link to the old page are rewritten with `rewrite_links_with` (exact page, `#fragment` kept, links to `old/...` stay); the moved text last | done, tested (also links inside the moved text, retry after a stop half way) |
-| `move_folder(prefix, path)` (`moveFolder` of `texts.capnp` 0.6.0, capability `text.move`): the text at `prefix` and all `prefix/...` move, links in all texts follow (also between the moved ones, with `#fragment`; `manual-old` is not below `manual`) | done, tested on a real `TursoStore` (plan, clash, interruption at every write, undo, 510 texts) |
+| `move_to(id, path)`: other texts that link to the old page are rewritten (exact page, `#fragment` kept, links to `old/...` stay); the moved text last, its own relative links written again for its new place. A link is first resolved against the page it stands on (`repo/target.rs`): `[[a/b]]` is a literal path, `[x](../a/b.md)` is relative to its page; a rewritten link keeps its written form (relative stays relative, `./`, trailing `/` and `#fragment` kept). `MovePrefix` of fs-text sees neither the page nor the style, so `repo/relink.rs` does this with the same ops | done, tested (also links inside the moved text, retry after a stop half way) |
+| `move_folder(prefix, path)` (`moveFolder` of `texts.capnp`, capability `text.move`): the text at `prefix` and all `prefix/...` move, links in all texts follow (also between the moved ones and links inside moved pages whose position changed; `manual-old` is not below `manual`). A record of the last move (`repo/move_log.rs`) makes a repeat after a completed move answer with the moved texts and write nothing, refuses a move onto texts that are not part of this very move (`TargetNotEmpty`; no silent merge), and refuses another move while one is unfinished (`MoveUnfinished`; no split folder) | done, tested on a real `TursoStore` (plan, clash, interruption at every write, undo, 510 texts) |
 | `import_text(path, media_type, text)`: new path = create; existing path = outside change: `import_external` diff becomes ordinary ops, layers move with the text, deleted text takes its marks along, unchanged file writes nothing | done, tested |
 | `export_text(id, media_type)`: Markdown, layers not written | done |
+| `edit_if(id, revision, document)` (`editIf` of `texts.capnp` 0.23, `TextEntry::revision`): compare-and-set under the write lock; a stale writer gets `Error::Conflict` and nothing is written. The revision is a counter in the stored record (every write adds one), not a time, so a clock that steps back cannot reuse one. Atomic **inside one process** only | done, tested with racing tasks |
+| `Origins` (`FileOrigin`: file, hash of the file, text id, hash of the text's Markdown): what a file looked like when last imported or exported, stored next to the texts. The core keeps it, the app decides with it | done |
 | Media types (`TextFormat`, Factory): `text/markdown` (parameters and case ignored); anything else is `Error::MediaType` | done |
 | Example `cargo run -p fs-wiki-core --example manifesto`: imports `fs-documentation/docs/en/manifesto.md`, reads it back (identical), lists its links | done |
-| Tests | `fs-wiki-core`: 32 integration tests (`texts_crud` 6, `texts_list` 2, `links` 3, `move_text` 5, `move_folder` 5, `move_folder_failure` 3, `outside_change` 6, `provider` 2); `fs-text` has its own |
-| `fs-wiki-app` (binary): `--docs` (default `../fs-documentation/docs/en`), `--store` (file; default in memory), `--export` (enables the Export button), `--snapshot` + `--step` (a picture without a window, see below) | done |
-| App: import of every `*.md` under the folder, path = relative path; failures collected with their reason and shown as the first entry "Import problems (n)" | done |
+| Tests | `fs-wiki-core`: the integration tests (`texts_crud`, `texts_list`, `links`, `move_text`, `move_folder`, `move_folder_failure`, `move_safety`, `relative_links`, `edit_if`, `outside_change`, `provider`); `fs-text` has its own |
+| `fs-wiki-app` (binary): `--docs` (default `../fs-documentation/docs/en`), `--store` (a file, or `memory`; default one file per docs folder in the data directory), `--export` (enables the Export button), `--snapshot` + `--step` (a picture without a window, see below) | done |
+| App: sync of every `*.md` under the folder (`import.rs`, `sync.rs`), path = relative path. A record per file (hash, text, hash of the text) decides: file as recorded = nothing happens and the file is not parsed, whatever the database holds (a saved, moved or deleted text stays so); file changed and text as recorded = normal edit (ADR 0042 section 5); both changed = the database text stays, the file's version is a conflict shown on the problems page; new file = import; file gone = reported, text kept. Failures, conflicts, gone files and skipped entries (symbolic links, `.MD`, unreadable entries) are the first tree entry "Import problems (n)" | done |
+| App: store: by default one file per docs folder, `<data dir>/freesynergy/fs-wiki/<folder>-<hash>.db` (`$XDG_DATA_HOME` or `~/.local/share`), so a save survives the exit; `--store memory` keeps nothing and says so at start | done, provisional |
 | App: tree of pages, open, read with formatting, follow links (also relative `.md` links, resolved **in the app**, `source/resolve.rs`), back, search by name and content (`Texts::find`, first 200 hits) | done |
-| App: edit (Markdown text of the page; save = compare the revision, then `import_external` against the stored document and `Texts::edit`, so layers stay; the database is the truth, no file is written). Revision = the store's `updated` time of the text; **the compare is in the adapter and not atomic** (`Texts::edit` has no revision; a compare-and-set in `fs-wiki-core` is a wish) | done; typing in the real window not verified |
-| App: explicit Export (`source/export.rs`): the path is checked as a path (`TextPath`), the file is written below the target only, symbolic links are not followed, an existing file with other content is a conflict and is replaced only after the person presses Export a second time | done |
-| App tests | 22: `map` 6 (also 1000 nested quotes), `resolve` 4, `import` 2 (folder unchanged, failures listed), `source` 6 (save never writes the folder, revision conflict, draft kept), `export` 4 (paths that leave the target, no silent replace, symbolic links) |
-| capnp-rpc server, GUI, editors, collections / shelves (ADR 0034), named passages' registry, templates in the program | **not started** |
+| App: edit (Markdown text of the page; save = `import_external` against the stored document, then `Texts::edit_if` with the revision read, so layers stay and a second writer gets a conflict instead of being overwritten; the database is the truth, no file is written). Revision = the text's write counter. The lock is inside one process: two programs on one store file are not covered | done; typing in the real window not verified |
+| App: explicit Export (`source/export.rs`, `export_fs.rs`): the path is checked as a path (`TextPath`), every step is opened with `openat` and no-follow (a swapped link is met by the open itself), the file is written under a temporary name and renamed (a crash leaves the old or the new file; a hard link elsewhere is replaced, not written through). An existing file with other content is a conflict carrying both texts (`export_markdown_checked`, `WikiSource::last_difference`) and is replaced only after a second press. Into the docs folder it records the file as in step and names an old file left by a move (never deleted) | done |
+| App tests | the: `map` (also 1000 nested quotes), `resolve` (schemes, colons after the path, root, folders), `import`, `restart` and `conflicts` (file store and real folder: restart after save, move, outside change, both changed, delete), `source`, `save_race` (4 threads), `export`, `export_safety`, `export_page`, `args` |
+| The reader window (`fs-wiki-app`, on `fs-components`) exists; typing in the real window was not verified. capnp-rpc server, other editors, collections / shelves (ADR 0034), named passages' registry, templates in the program | **not started** |
 
 ## Structure and pattern map (ADR 0043)
 
@@ -78,40 +81,48 @@ has a `Pattern:` line. For `fs-text` see its own DESIGN.md.
 | `import.rs` | Template method | collect, import each, report; the folder is only read |
 | `map/` | Adapter (+ Composite builder in `nest.rs`) | `fs-text` document to the neutral blocks: flat blocks with containers become nested lists/quotes; unknown things become plain text |
 | `source/wiki.rs` | Adapter over `Texts` | the reader's `DataSource`; sync calls through a runtime handle |
-| `source/resolve.rs` | Strategy (pure function) | relative links against the page they are on, `#fragment` and `?query` dropped, folders to `index.md` |
+| `source/resolve.rs` | Strategy (pure function) | relative links against the page they are on, `#fragment` and `?query` dropped; only `http`, `https`, `mailto` are opened (parsed scheme), other schemes are shown; a folder opens `index.md`, `README.md`, else its first page |
+| `sync.rs`, `report.rs`, `hash.rs`, `store_path.rs` | State (decision table) / Value objects | one file against its record; the report; SHA-256; the default store file of a docs folder |
+| `source/export.rs`, `export_fs.rs`, `export_page.rs` | Guard / Template method | the only code that writes a file; no-follow, temp and rename; records and old-file notice |
 | `source/problems.rs` | Adapter | failed imports as a page of the neutral model |
 | `args.rs` | Builder-like parser | no extra crate for seven options |
 
 ## Decisions
 
-* **Relative links are resolved in the app, not in `fs-wiki-core`.** `fs-wiki-core` keeps its literal path rule (wiki links `[[a/b]]`); documentation links are `../x/y.md#z`. Moving it into the core would change what a link means in the contract; whether it should is a question for the owner.
+* **Links are resolved against their page in the core when a link is judged for a move or indexed** (changed from the first version, which treated every link as a literal path and broke correct relative links): `[[a/b]]` and `![[a/b]]` stay literal; a Markdown link is relative to its page (`/x` from the root). The `link` index holds the path a link *means*, so `backlinks` finds relative links. What the app opens (`.md`, `index.md`, folders) is still decided in `source/resolve.rs`. Percent-encoding is not decoded when matching a moved path (a link with `%20` to a moved page is not rewritten); a question for the owner whether the core should know `.md`/`index.md` fallbacks.
 * **The app is read, edit, export:** save goes to the database (`Texts::edit`); a file is only written by the explicit Export action (ADR 0042, 0046). A session that only reads and edits leaves the docs folder unchanged (tests `import`, `source`).
 * **The database is the truth** (ADR 0042): `WikiRepo` never writes a file. `export_text` returns the text; the caller writes it.
   A file that comes back is an `import_text`, which is a diff, not a replacement.
 * **A text's path is part of the record**, and indexed. A move changes the path of one text and the *links* in others, nothing else.
-  Paths are literal: a link matches a text only when its page part equals the path (`[[manual/start]]`). Relative links such as
-  `../start.md` are not resolved (the manifesto example shows the `interfaces/index.md` style).
+  A path never contains U+10FFFF (it ends the order range that lists a folder, so such a text could not be listed or moved).
 * **Derived data is only in the index** (`path`, `link`, `block`): the record can always rebuild it.
-* `fs-text` stays free of storage; the only change there is a test.
+* `fs-text` stays free of storage; the core uses its public API only (`Document`, marks, `Op`); other changes there are in its own DESIGN.md.
 
 ## Crates
 
-* `fs-store` (git tag v0.2.0), `fs-interfaces` (git tag v0.6.0), `fs-text` (same workspace, path).
-* `serde`, `serde_json`, `thiserror`, `async-trait`, `tokio` (sync only).
+* `fs-store` (git tag v0.2.0), `fs-interfaces` (git tag v0.23.0), `fs-text` (same workspace, path).
+* `serde`, `serde_json`, `thiserror`, `async-trait`, `tokio` (sync only); app: `sha2`, `rustix` (no-follow file access).
 
 ## Open points
 
 First visible part (provisional, for the owner): the name of the reader and of the `fs-components-*` crates; `index.md` as the start page; the sidebar shows page titles, folders their name; import problems as a first tree entry; search results capped at 200; the Export folder is explicit (`--export`), never implied.
 
-Measured on `fs-documentation/docs/en` (1389 pages, 510 folders, 6.3 MB), release build, 32 cores: import into an in-memory store **27 s** (the whole startup; debug build 330 s), peak memory **440 MB**, 0 failed. A second start with `--store file` still takes 31 s: importing an existing path is a diff per page. **The reader calls the source on the interface thread** (`examples/timing.rs`, same machine): list of all pages 284 ms once at start, `get_by_path` + mapping of a page 20 ms (a click on a link or a tree row), `find` 34 to 59 ms per search keystroke. Tolerable for now, provisional; a worker thread or an async trait is the next step. The tree is built whole (1900 nodes); the picture and the window then take well under a second. Reading and search results of `find` over all pages were not timed separately.
+Measured on a **copy** of `fs-documentation/docs/en` (1398 pages, 510 folders), release build, 32 cores, **while the machine ran at load 20 to 64, so the numbers mean little** (`cargo run --release -p fs-wiki-app --example real_docs <copy> <folder> <new path>`): the first start into an empty store file took 76 s (the same code at load 64: 183 s; the code before this change, load unknown, 44 s in the same kind of run; an unloaded run of the older code gave 27 s in memory). Writing a record per file costs extra on the first start only. **A second start with nothing changed takes 58 ms** (before: 30.4 s, every file was parsed and diffed); a start after a folder move 40 ms and the moved folder does not come back. Moving `interactions/gestures` (76 texts) took 4 to 17 s depending on load. Links leading nowhere (3794 internal links, resolved as the reader does): 104 before a move and 104 after; the code before this change went from 104 to 131 (27 newly broken) and brought the 76 moved texts back at the next start. The store file is 56 MB. **The reader calls the source on the interface thread** (`examples/timing.rs`, older numbers, other machine state): list of all pages 284 ms once at start, `get_by_path` + mapping of a page 20 ms, `find` 34 to 59 ms per search keystroke; not measured again.
 
 Questions for the owner (all provisional, easy to reverse):
+
+* **Default store** is a file per docs folder in the user's data directory (`--store memory` keeps the old behaviour).
+* **A folder link without an index page** opens the first page of the folder (by path); a folder with no page is Missing.
+* **A conflict** (file and text both changed) keeps the database text and shows the file's version on the problems page every start until the text equals the file; there is no "take the file" button yet.
+* **A file that is gone** keeps its text and is listed; its record stays.
+* **Export into the docs folder after a move** leaves the old file and says so.
+* **Hidden folders** (`.git`) and non-Markdown files are skipped without a note; symbolic links, `.MD` and unreadable entries are listed.
 
 * **Stored media type** `application/vnd.freesynergy.text+json` and the record shape `{ path, document }`: ADR 0034 asks for a
   neutral name for the block specification; this is a placeholder until it exists.
 * **`LinkEntry.at`** is `<block id>:<start>-<end>` (char offsets). The schema only says "where in the source".
 * **Envelope type:** every text is an `Article`; the schema also names `Note`. When is a text a `Note` (short, no heading)?
-* **Original of an imported file** (ADR 0030) is not kept: a file is an export, and later imports are diffs.
+* **Original of an imported file** (ADR 0030) is not kept: only its hash and the hash of the text at that time (`FileOrigin`). A conflict shows the file's current version once per start, until a person resolves it (a save that makes the text equal the file clears it).
 
 Not done / limits:
 
@@ -144,8 +155,7 @@ Not done / limits:
 
 ## Markdown round trip
 
-The property `markdown_model_is_stable` (import, export, import gives the same content) holds
-without exclusions. Real text stays clean: `2 * 3`, `snake_case` and `a_b` get no backslashes.
+The property `markdown_model_is_stable` (import, export, import gives the same content) holds for the inputs the test generates (a fixed set of fragments, not all of Markdown); the check on every file of the documentation tree is `tests/real_docs.rs`, which is `--ignored` and was not run for this section. Real text stays clean: `2 * 3`, `snake_case` and `a_b` get no backslashes.
 
 * **Runs of delimiters.** CommonMark pairs `*`/`_` runs by flanking and the rule of three, which no
   local escaping rule predicts. `inline` therefore writes the plain, escaped form first and reads

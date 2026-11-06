@@ -1,0 +1,74 @@
+//! Building a `WikiSource` and its small accessors.
+//!
+//! Pattern: Builder — `new` or `from_report`, then optionally `with_origins`.
+
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
+
+use fs_components_workbenches::SourceError;
+use fs_wiki_core::{Origins, TextEntry, Texts};
+use tokio::runtime::Handle;
+
+use super::export::Differs;
+use super::problems::{Failure, Notes};
+use super::wiki::WikiSource;
+use crate::report::Report;
+
+impl WikiSource {
+    /// A source over `texts`; `failures` are the files that did not import (shown as a page).
+    pub fn new(texts: Arc<dyn Texts>, runtime: Handle, failures: Vec<Failure>) -> Self {
+        let notes = Notes {
+            failures,
+            ..Notes::default()
+        };
+        Self {
+            texts,
+            runtime,
+            notes,
+            origins: None,
+            difference: Mutex::new(None),
+        }
+    }
+
+    /// A source that also shows the conflicts, gone files and skipped entries of `report`.
+    pub fn from_report(texts: Arc<dyn Texts>, runtime: Handle, report: Report) -> Self {
+        let notes = Notes {
+            failures: report.failures,
+            conflicts: report.conflicts,
+            gone: report.gone,
+            skipped: report.skipped,
+        };
+        Self {
+            texts,
+            runtime,
+            notes,
+            origins: None,
+            difference: Mutex::new(None),
+        }
+    }
+
+    /// Keep the records of `origins` up to date when a page is exported into `docs`, and report an
+    /// old file left behind by a move.
+    #[must_use]
+    pub fn with_origins(mut self, origins: Arc<dyn Origins>, docs: PathBuf) -> Self {
+        self.origins = Some((origins, docs));
+        self
+    }
+
+    /// The texts of the last export that found a file with other content (both versions).
+    pub fn last_difference(&self) -> Option<Differs> {
+        self.difference.lock().ok()?.clone()
+    }
+
+    pub(super) fn text_entry(&self, path: &str) -> Result<TextEntry, SourceError> {
+        self.entry(path)
+    }
+
+    pub(super) fn texts(&self) -> &dyn Texts {
+        self.texts.as_ref()
+    }
+
+    pub(super) fn runtime(&self) -> &Handle {
+        &self.runtime
+    }
+}

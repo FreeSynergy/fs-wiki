@@ -67,11 +67,10 @@ fn run() -> Result<(), String> {
         report.skipped.len(),
         started.elapsed()
     );
-    let source = Arc::new(WikiSource::from_report(
-        wiki,
-        runtime.handle().clone(),
-        report,
-    ));
+    let source = Arc::new(
+        WikiSource::from_report(wiki.clone(), runtime.handle().clone(), report)
+            .with_origins(wiki, args.docs.clone()),
+    );
     let export_target = args.export.as_ref().map(|p| p.display().to_string());
     let mut labels = Labels::default();
     labels.search = "Search pages".into();

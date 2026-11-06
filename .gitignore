@@ -17,3 +17,6 @@ Thumbs.db
 *.swp
 # local secrets (crates.io token etc. live in ~/.cargo, never here)
 .env
+# pictures and scratch files of the app (snapshots); only the placeholder is kept
+/temp/*
+!/temp/.gitkeep

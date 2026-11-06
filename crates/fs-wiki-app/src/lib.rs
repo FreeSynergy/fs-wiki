@@ -22,4 +22,7 @@ pub mod sync;
 pub use import::import_folder;
 pub use map::to_document;
 pub use report::{Conflict, Report};
-pub use source::{Failure, PROBLEMS_PATH, WikiSource, export_markdown_to, resolve};
+pub use source::export;
+pub use source::{
+    Failure, PROBLEMS_PATH, WikiSource, export_markdown_to, resolve, resolve_with_folders,
+};

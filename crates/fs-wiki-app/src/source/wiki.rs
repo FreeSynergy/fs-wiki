@@ -3,34 +3,38 @@
 //! Pattern: Adapter over `Texts` (Repository) — maps entries, reads, finds, link resolution,
 //! editing and export to the workbench's `DocumentSource`.
 //!
-//! Revision: the store's `updated` time of the text. `Texts::edit` has no revision, so `save`
-//! compares the revision in the adapter and then edits; this is **not atomic** (another writer
-//! can slip in between the compare and the edit; a store-level compare-and-set is a wish for
-//! `fs-wiki-core`).
+//! Revision: the text's write counter (`TextEntry::revision`, never goes back whatever the clock
+//! does). `save` edits with `Texts::edit_if`, a compare-and-set under the core's write lock, so a
+//! second writer between the read and the write gets a conflict instead of being overwritten.
+//! The lock is inside one process: two programs writing the same store file are not covered.
 
-use std::sync::Arc;
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 
 use fs_components_widgets::Document;
 use fs_components_workbenches::{
     DocumentSource, EditableText, Entry, Hit, LinkTarget, SourceError,
 };
-use fs_wiki_core::{MARKDOWN, Paging, TextEntry, TextFormat, Texts};
+use fs_wiki_core::{Error, MARKDOWN, Origins, Paging, TextEntry, TextFormat, Texts};
 use tokio::runtime::Handle;
 
-use super::export::export_markdown_to;
-use super::problems::{Failure, Notes, PROBLEMS_PATH, problems_document};
-use super::resolve::resolve;
+use super::export::Differs;
+use super::problems::{Notes, PROBLEMS_PATH, problems_document};
+use super::resolve::resolve_with_folders;
 use crate::map::to_document;
-use crate::report::Report;
 
 /// Most results of one search.
 const MAX_HITS: usize = 200;
 
 /// The wiki behind the reader.
 pub struct WikiSource {
-    texts: Arc<dyn Texts>,
-    runtime: Handle,
-    notes: Notes,
+    pub(super) texts: Arc<dyn Texts>,
+    pub(super) runtime: Handle,
+    pub(super) notes: Notes,
+    /// The records of imports and the docs folder they belong to (see `with_origins`).
+    pub(super) origins: Option<(Arc<dyn Origins>, PathBuf)>,
+    /// The difference that made the last export a conflict, for a screen that shows it.
+    pub(super) difference: Mutex<Option<Differs>>,
 }
 
 fn failed(e: &dyn std::fmt::Display) -> SourceError {
@@ -38,36 +42,21 @@ fn failed(e: &dyn std::fmt::Display) -> SourceError {
 }
 
 fn revision_of(entry: &TextEntry) -> String {
-    format!("{:?}", entry.envelope.updated)
+    entry.revision.to_string()
 }
 
 impl WikiSource {
-    /// A source over `texts`; `failures` are the files that did not import (shown as a page).
-    pub fn new(texts: Arc<dyn Texts>, runtime: Handle, failures: Vec<Failure>) -> Self {
-        let notes = Notes {
-            failures,
-            ..Notes::default()
+    /// The first page in `folder` (`""` = everything), in path order.
+    fn first_in(&self, folder: &str) -> Option<String> {
+        let prefix = if folder.is_empty() {
+            String::new()
+        } else {
+            format!("{folder}/")
         };
-        Self {
-            texts,
-            runtime,
-            notes,
-        }
-    }
-
-    /// A source that also shows the conflicts, gone files and skipped entries of `report`.
-    pub fn from_report(texts: Arc<dyn Texts>, runtime: Handle, report: Report) -> Self {
-        let notes = Notes {
-            failures: report.failures,
-            conflicts: report.conflicts,
-            gone: report.gone,
-            skipped: report.skipped,
-        };
-        Self {
-            texts,
-            runtime,
-            notes,
-        }
+        let first = self
+            .runtime
+            .block_on(self.texts.list(&prefix, Paging::new(1, 0)));
+        first.ok()?.into_iter().next().map(|t| t.path)
     }
 
     fn exists(&self, path: &str) -> bool {
@@ -77,7 +66,7 @@ impl WikiSource {
         )
     }
 
-    fn entry(&self, path: &str) -> Result<TextEntry, SourceError> {
+    pub(super) fn entry(&self, path: &str) -> Result<TextEntry, SourceError> {
         self.runtime
             .block_on(self.texts.get_by_path(path))
             .map_err(|e| failed(&e))?
@@ -115,7 +104,9 @@ impl DocumentSource for WikiSource {
     }
 
     fn resolve(&self, from: &str, href: &str) -> LinkTarget {
-        resolve(from, href, &|p| self.exists(p))
+        resolve_with_folders(from, href, &|p| self.exists(p), &|folder| {
+            self.first_in(folder)
+        })
     }
 
     fn find(&self, term: &str) -> Result<Vec<Hit>, SourceError> {
@@ -150,20 +141,27 @@ impl DocumentSource for WikiSource {
     /// stay with the text. No file is written.
     fn save(&self, path: &str, text: &str, revision: Option<&str>) -> Result<(), SourceError> {
         let entry = self.entry(path)?;
-        if revision.is_some_and(|r| r != revision_of(&entry)) {
-            return Err(SourceError::conflict(
+        let conflict = || {
+            SourceError::conflict(
                 "Someone else changed this document since you started. Your text is kept; \
                  copy it, cancel, and edit the new version.",
-            ));
+            )
+        };
+        if revision.is_some_and(|r| r != revision_of(&entry)) {
+            return Err(conflict());
         }
         let mut document = entry.document.clone();
         if !TextFormat::Markdown.import_external(&mut document, text) {
             return Ok(());
         }
-        self.runtime
-            .block_on(self.texts.edit(entry.id, document))
-            .map(|_| ())
-            .map_err(|e| failed(&e))
+        match self
+            .runtime
+            .block_on(self.texts.edit_if(entry.id, entry.revision, document))
+        {
+            Ok(_) => Ok(()),
+            Err(Error::Conflict { .. }) => Err(conflict()),
+            Err(e) => Err(failed(&e)),
+        }
     }
 
     fn can_export(&self, path: &str) -> bool {
@@ -171,7 +169,6 @@ impl DocumentSource for WikiSource {
     }
 
     fn export(&self, path: &str, target: &str, overwrite: bool) -> Result<String, SourceError> {
-        let markdown = self.source_text(path)?.text;
-        export_markdown_to(path, target, &markdown, overwrite)
+        self.export_page(path, target, overwrite)
     }
 }
