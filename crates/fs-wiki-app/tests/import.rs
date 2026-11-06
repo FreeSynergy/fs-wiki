@@ -51,7 +51,11 @@ fn importing_again_is_a_no_op() {
     let dir = temp_dir("again");
     write_files(&dir, &[("p.md", "# P\n\ntext\n")]);
     assert_eq!(rt.block_on(import_folder(wiki.as_ref(), &dir)).imported, 1);
-    assert_eq!(rt.block_on(import_folder(wiki.as_ref(), &dir)).imported, 1);
+    let second = rt.block_on(import_folder(wiki.as_ref(), &dir));
+    assert_eq!(
+        (second.imported, second.updated, second.unchanged),
+        (0, 0, 1)
+    );
     assert_eq!(
         rt.block_on(wiki.list("", Paging::default())).unwrap().len(),
         1

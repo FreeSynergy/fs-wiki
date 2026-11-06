@@ -11,10 +11,15 @@
 #![allow(clippy::must_use_candidate, clippy::module_name_repetitions)]
 
 pub mod args;
+pub mod hash;
 pub mod import;
 pub mod map;
+pub mod report;
 pub mod source;
+pub mod store_path;
+pub mod sync;
 
-pub use import::{Report, import_folder};
+pub use import::import_folder;
 pub use map::to_document;
+pub use report::{Conflict, Report};
 pub use source::{Failure, PROBLEMS_PATH, WikiSource, export_markdown_to, resolve};

@@ -10,6 +10,6 @@ mod resolve;
 mod wiki;
 
 pub use export::export_markdown_to;
-pub use problems::{Failure, PROBLEMS_PATH};
+pub use problems::{Failure, Notes, PROBLEMS_PATH};
 pub use resolve::resolve;
 pub use wiki::WikiSource;

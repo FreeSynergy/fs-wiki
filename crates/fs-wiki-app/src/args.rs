@@ -7,13 +7,25 @@ use std::path::PathBuf;
 /// The default folder: the English documentation next to this repo.
 pub const DEFAULT_DOCS: &str = "../fs-documentation/docs/en";
 
+/// Where the wiki is kept.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub enum StoreChoice {
+    /// One file per docs folder in the user's data directory (see `store_path`).
+    #[default]
+    Default,
+    /// In memory: every save is lost at exit (`--store memory`).
+    Memory,
+    /// This store file.
+    File(PathBuf),
+}
+
 /// What was asked for on the command line.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct Args {
     /// Folder of Markdown files to import.
     pub docs: PathBuf,
-    /// Store file; `None` = in memory.
-    pub store: Option<PathBuf>,
+    /// Where the wiki is kept.
+    pub store: StoreChoice,
     /// Draw a picture to this file instead of opening a window.
     pub snapshot: Option<PathBuf>,
     /// Steps for the picture: `open:<path>`, `follow:<href>`, `back`, `search:<term>`.
@@ -45,7 +57,12 @@ pub fn parse(args: &[String]) -> Result<Args, String> {
         };
         match arg.as_str() {
             "--docs" => out.docs = PathBuf::from(value("--docs")?),
-            "--store" => out.store = Some(PathBuf::from(value("--store")?)),
+            "--store" => {
+                out.store = match value("--store")?.as_str() {
+                    "memory" => StoreChoice::Memory,
+                    file => StoreChoice::File(PathBuf::from(file)),
+                }
+            }
             "--snapshot" => out.snapshot = Some(PathBuf::from(value("--snapshot")?)),
             "--export" => out.export = Some(PathBuf::from(value("--export")?)),
             "--step" => out.steps.push(value("--step")?),
@@ -67,7 +84,9 @@ fn size(text: &str) -> Result<(u32, u32), String> {
 pub const HELP: &str = "fs-wiki-app: read the documentation in a window
 
   --docs <folder>     Markdown folder to import (default ../fs-documentation/docs/en)
-  --store <file>      keep the wiki in this store file (default: in memory)
+  --store <file>      keep the wiki in this store file (default: one file per docs folder in
+                      the data directory, ~/.local/share/freesynergy/fs-wiki); `--store memory`
+                      keeps nothing after exit
   --snapshot <png>    draw a picture instead of opening a window
   --step <step>       with --snapshot, repeatable: open:<path> follow:<href> back search:<term>
   --export <folder>   enable the Export button, writing pages there (e.g. the docs folder)

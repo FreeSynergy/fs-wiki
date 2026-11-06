@@ -18,9 +18,10 @@ use fs_wiki_core::{MARKDOWN, Paging, TextEntry, TextFormat, Texts};
 use tokio::runtime::Handle;
 
 use super::export::export_markdown_to;
-use super::problems::{Failure, PROBLEMS_PATH, problems_document};
+use super::problems::{Failure, Notes, PROBLEMS_PATH, problems_document};
 use super::resolve::resolve;
 use crate::map::to_document;
+use crate::report::Report;
 
 /// Most results of one search.
 const MAX_HITS: usize = 200;
@@ -29,7 +30,7 @@ const MAX_HITS: usize = 200;
 pub struct WikiSource {
     texts: Arc<dyn Texts>,
     runtime: Handle,
-    failures: Vec<Failure>,
+    notes: Notes,
 }
 
 fn failed(e: &dyn std::fmt::Display) -> SourceError {
@@ -43,10 +44,29 @@ fn revision_of(entry: &TextEntry) -> String {
 impl WikiSource {
     /// A source over `texts`; `failures` are the files that did not import (shown as a page).
     pub fn new(texts: Arc<dyn Texts>, runtime: Handle, failures: Vec<Failure>) -> Self {
+        let notes = Notes {
+            failures,
+            ..Notes::default()
+        };
         Self {
             texts,
             runtime,
-            failures,
+            notes,
+        }
+    }
+
+    /// A source that also shows the conflicts, gone files and skipped entries of `report`.
+    pub fn from_report(texts: Arc<dyn Texts>, runtime: Handle, report: Report) -> Self {
+        let notes = Notes {
+            failures: report.failures,
+            conflicts: report.conflicts,
+            gone: report.gone,
+            skipped: report.skipped,
+        };
+        Self {
+            texts,
+            runtime,
+            notes,
         }
     }
 
@@ -68,10 +88,10 @@ impl WikiSource {
 impl DocumentSource for WikiSource {
     fn entries(&self, prefix: &str) -> Result<Vec<Entry>, SourceError> {
         let mut out = Vec::new();
-        if !self.failures.is_empty() && PROBLEMS_PATH.starts_with(prefix) {
+        if self.notes.count() > 0 && PROBLEMS_PATH.starts_with(prefix) {
             out.push(Entry::new(
                 PROBLEMS_PATH,
-                format!("Import problems ({})", self.failures.len()),
+                format!("Import problems ({})", self.notes.count()),
             ));
         }
         let texts = self
@@ -88,7 +108,7 @@ impl DocumentSource for WikiSource {
 
     fn read(&self, path: &str) -> Result<Document, SourceError> {
         if path == PROBLEMS_PATH {
-            return Ok(problems_document(&self.failures));
+            return Ok(problems_document(&self.notes));
         }
         let t = self.entry(path)?;
         Ok(to_document(&t.envelope.name, &t.document).with_revision(revision_of(&t)))

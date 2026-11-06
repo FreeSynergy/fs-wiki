@@ -7,7 +7,8 @@ use std::time::Instant;
 
 use fs_components_workbenches::{Labels, Options, Picture, Step, launch, snapshot};
 use fs_store::{Store, TursoStore};
-use fs_wiki_app::args::{HELP, parse};
+use fs_wiki_app::args::{HELP, StoreChoice, parse};
+use fs_wiki_app::store_path::{data_dir, store_file};
 use fs_wiki_app::{WikiSource, import_folder};
 use fs_wiki_core::WikiRepo;
 
@@ -27,9 +28,26 @@ fn run() -> Result<(), String> {
     }
     let runtime = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
     let started = Instant::now();
+    let file = match &args.store {
+        StoreChoice::Memory => None,
+        StoreChoice::File(file) => Some(file.clone()),
+        StoreChoice::Default => {
+            let data = data_dir()
+                .ok_or("no data directory (set HOME or XDG_DATA_HOME, or use --store)")?;
+            Some(store_file(&data, &args.docs))
+        }
+    };
+    if let Some(dir) = file.as_ref().and_then(|f| f.parent()) {
+        std::fs::create_dir_all(dir)
+            .map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
+    }
+    match &file {
+        Some(f) => eprintln!("store: {}", f.display()),
+        None => eprintln!("store: in memory, nothing is kept after exit"),
+    }
     let store: Arc<dyn Store> = runtime
         .block_on(async {
-            match &args.store {
+            match &file {
                 Some(file) => TursoStore::open(file).await,
                 None => TursoStore::open_in_memory().await,
             }
@@ -39,15 +57,20 @@ fn run() -> Result<(), String> {
     let wiki = Arc::new(WikiRepo::new(store, "https://localhost/actors/reader"));
     let report = runtime.block_on(import_folder(wiki.as_ref(), &args.docs));
     eprintln!(
-        "imported {} page(s), {} failed, in {:.1?}",
+        "{} new, {} updated, {} unchanged, {} failed, {} conflict(s), {} gone, {} skipped, in {:.1?}",
         report.imported,
+        report.updated,
+        report.unchanged,
         report.failures.len(),
+        report.conflicts.len(),
+        report.gone.len(),
+        report.skipped.len(),
         started.elapsed()
     );
-    let source = Arc::new(WikiSource::new(
+    let source = Arc::new(WikiSource::from_report(
         wiki,
         runtime.handle().clone(),
-        report.failures,
+        report,
     ));
     let export_target = args.export.as_ref().map(|p| p.display().to_string());
     let mut labels = Labels::default();

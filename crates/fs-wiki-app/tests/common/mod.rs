@@ -59,3 +59,31 @@ pub fn fingerprint(root: &Path) -> Vec<(String, Vec<u8>, std::time::SystemTime)>
     out.sort();
     out
 }
+
+/// A wiki over a store file (the file survives `drop`; open it again to "restart").
+pub fn wiki_in_file(file: &Path) -> (Runtime, Arc<WikiRepo>) {
+    let rt = Runtime::new().unwrap();
+    let store: Arc<dyn Store> =
+        rt.block_on(async { Arc::new(TursoStore::open(file).await.unwrap()) });
+    (
+        rt,
+        Arc::new(WikiRepo::new(store, "https://example.org/actors/t")),
+    )
+}
+
+/// The Markdown of the text at `path`, if there is one.
+pub fn markdown_at(rt: &Runtime, wiki: &WikiRepo, path: &str) -> Option<String> {
+    use fs_wiki_core::{MARKDOWN, Texts};
+    rt.block_on(async {
+        let entry = wiki.get_by_path(path).await.unwrap()?;
+        Some(wiki.export_text(entry.id, MARKDOWN).await.unwrap())
+    })
+}
+
+/// Save `text` as a person would in the reader.
+pub fn save(rt: &Runtime, wiki: &Arc<WikiRepo>, path: &str, text: &str) {
+    use fs_components_workbenches::DocumentSource;
+    let src = fs_wiki_app::WikiSource::new(wiki.clone(), rt.handle().clone(), vec![]);
+    let rev = src.source_text(path).unwrap().revision;
+    src.save(path, text, rev.as_deref()).unwrap();
+}
