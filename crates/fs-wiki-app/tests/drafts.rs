@@ -94,7 +94,7 @@ fn a_store_inside_the_docs_folder_is_refused() {
 
 #[cfg(unix)]
 #[test]
-fn folder_and_files_are_private_also_for_an_existing_folder() {
+fn our_folder_and_files_are_private_and_a_given_folder_is_not_changed() {
     use std::os::unix::fs::PermissionsExt;
     let (docs, base) = (temp_dir("dr-perm-docs"), temp_dir("dr-perm"));
     std::fs::set_permissions(&base, std::fs::Permissions::from_mode(0o755)).unwrap();
@@ -104,8 +104,8 @@ fn folder_and_files_are_private_also_for_an_existing_folder() {
     let mode = |p: &std::path::Path| std::fs::metadata(p).unwrap().permissions().mode() & 0o777;
     assert_eq!(
         mode(&base),
-        0o700,
-        "the existing folder stays readable by others"
+        0o755,
+        "a folder we did not make is left as it was"
     );
     assert_eq!(mode(&sub), 0o700);
     let file = std::fs::read_dir(&sub)

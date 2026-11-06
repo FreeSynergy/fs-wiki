@@ -83,17 +83,19 @@ impl FileDraftStore {
         self.dir.join(name)
     }
 
-    /// The folder, private to the user (drafts are private text).
+    /// Our folder (below the one the person gave, which may be shared or not ours, such as
+    /// `/tmp`): new folders are made private, the given one is never changed, and our own
+    /// subfolder is set to 0700 whatever it was.
     fn make_dir(&self) -> Result<(), SourceError> {
-        std::fs::create_dir_all(&self.dir).map_err(|e| failed(&e))?;
-        // Also the folder above it (the drafts base), which `create_dir_all` made too.
-        for d in [Some(self.dir.as_path()), self.dir.parent()]
-            .into_iter()
-            .flatten()
+        let mut builder = std::fs::DirBuilder::new();
+        builder.recursive(true);
+        #[cfg(unix)]
         {
-            private(d, 0o700)?;
+            use std::os::unix::fs::DirBuilderExt;
+            builder.mode(0o700);
         }
-        Ok(())
+        builder.create(&self.dir).map_err(|e| failed(&e))?;
+        private(&self.dir, 0o700)
     }
 }
 
