@@ -156,6 +156,7 @@ struct Imp {
     next_inst: u32,
     lists: Vec<(u32, Option<u64>, u64, bool)>, // inst, start, next index, tight
     pending_tight: bool,
+    item_start: Vec<usize>,
 }
 
 /// Import Markdown text as a block document.
@@ -191,7 +192,7 @@ pub fn import_markdown(src: &str) -> Document {
             }
         }
     }
-    let mut s = Imp { blocks: Vec::new(), containers: Vec::new(), fresh_quote: Vec::new(), leaf: None, next_inst: 1, lists: Vec::new(), pending_tight: true };
+    let mut s = Imp { blocks: Vec::new(), containers: Vec::new(), fresh_quote: Vec::new(), leaf: None, next_inst: 1, lists: Vec::new(), pending_tight: true, item_start: Vec::new() };
     let mut in_code = false;
     let mut link_stack: Vec<bool> = Vec::new();
     for (idx, (ev, range)) in events.iter().enumerate() {
@@ -255,13 +256,14 @@ pub fn import_markdown(src: &str) -> Document {
                         l.2 += 1;
                         r
                     };
-                    let src_slice = &src[range.start..];
+                    let src_slice = src[range.start..].trim_start_matches([' ', '\t']);
                     let marker = if start.is_some() {
                         src_slice.trim_start_matches(|c: char| c.is_ascii_digit()).chars().next().unwrap_or('.')
                     } else {
                         src_slice.chars().next().unwrap_or('-')
                     };
                     s.containers.push(Container::Item { inst, list, number: start.map(|st| st + n), marker, tight, task: None });
+                    s.item_start.push(s.blocks.len());
                 }
                 Tag::FootnoteDefinition(label) => {
                     s.flush();
@@ -346,6 +348,11 @@ pub fn import_markdown(src: &str) -> Document {
                 }
                 TagEnd::Item | TagEnd::FootnoteDefinition => {
                     s.flush();
+                    if matches!(end, TagEnd::Item) && s.item_start.pop() == Some(s.blocks.len()) {
+                        // empty list item: keep it as an empty paragraph
+                        s.leaf = Some(Leaf::new(BlockKind::Paragraph));
+                        s.flush();
+                    }
                     s.containers.pop();
                 }
                 TagEnd::Table => {

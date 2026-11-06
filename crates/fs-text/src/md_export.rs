@@ -480,7 +480,8 @@ fn escape_into(out: &mut String, chars: &[char], p: usize, cx: Ctx, brackets: bo
     let c = chars[p];
     let prev = if p > 0 { Some(chars[p - 1]) } else { None };
     let next = chars.get(p + 1).copied();
-    let ws = |o: Option<char>| o.map(|c| c.is_whitespace()).unwrap_or(true);
+    // text edges count as non-blank: a delimiter run may sit right next to them
+    let ws = |o: Option<char>| o.map(|c| c.is_whitespace()).unwrap_or(false);
     let line_start = !cx.table && !cx.heading && (p == 0 || matches!(chars[p - 1], '\n' | HARD_BREAK));
     let next_blank = matches!(next, None | Some(' ') | Some('\n') | Some(HARD_BREAK));
     let esc = match c {
