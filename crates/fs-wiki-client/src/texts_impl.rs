@@ -1,8 +1,8 @@
-//! `Texts` over the socket: all sixteen methods of the contract.
+//! `Texts` over the socket: the sixteen methods of the contract (the fourteen of `Texts`, `capabilities` and `subscribe`).
 //!
 //! Pattern: Adapter — each method is one call of `texts.capnp`; the arguments are made owned here,
 //! because the call runs on the thread of the connection. `list` and `find` read as many pages as
-//! `Paging` needs (`calls/pages.rs`). The report is the server's own: every method of the trait is
+//! `Paging` needs (`calls/pages.rs`), each page a call of its own with its own deadline. The report is the server's own: every method of the trait is
 //! kept, so nothing the server offers is withheld.
 
 use async_trait::async_trait;
@@ -11,6 +11,7 @@ use fs_store::ObjectId;
 use fs_text::Document;
 use fs_wiki_core::{LinkEntry, Paging, Result, TextEntry, Texts};
 
+use crate::calls::pages::collect;
 use crate::calls::writes::document_json;
 use crate::calls::{reads, writes};
 use crate::RpcTexts;
@@ -34,8 +35,11 @@ impl Texts for RpcTexts {
 
     async fn list(&self, prefix: &str, page: Paging) -> Result<Vec<TextEntry>> {
         let prefix = prefix.to_string();
-        self.call(move |r| async move { reads::list(&r.texts, prefix, page).await })
-            .await
+        collect(page, |cursor| {
+            let prefix = prefix.clone();
+            self.call(move |r| async move { reads::list_page(&r.texts, prefix, cursor).await })
+        })
+        .await
     }
 
     async fn create(&self, path: &str, markdown: &str) -> Result<TextEntry> {
@@ -75,8 +79,11 @@ impl Texts for RpcTexts {
 
     async fn find(&self, term: &str, page: Paging) -> Result<Vec<TextEntry>> {
         let term = term.to_string();
-        self.call(move |r| async move { reads::find(&r.texts, term, page).await })
-            .await
+        collect(page, |cursor| {
+            let term = term.clone();
+            self.call(move |r| async move { reads::find_page(&r.texts, term, cursor).await })
+        })
+        .await
     }
 
     async fn links(&self, id: ObjectId) -> Result<Vec<LinkEntry>> {

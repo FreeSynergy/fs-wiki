@@ -8,13 +8,13 @@
 use std::future::Future;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use fs_interfaces::rpc::client::{Fault, Timeouts, Worker};
 use fs_interfaces::Capabilities;
 use fs_wiki_core::{Error, Registry, Result};
 
+use crate::feed::FeedState;
 use crate::remote::Remote;
 
 /// The name of the server in every error text (`wiki server: ...`).
@@ -29,8 +29,8 @@ pub struct RpcTexts {
     capabilities: Capabilities,
     /// The listeners of `TextFeed::subscribe`: the one remote subscription tells this registry.
     pub(crate) registry: Arc<Registry>,
-    /// Whether the remote subscription is under way or running (see `feed.rs`).
-    pub(crate) started: Arc<AtomicBool>,
+    /// Which remote subscription is the running one (see `feed.rs`).
+    pub(crate) state: Arc<FeedState>,
 }
 
 impl RpcTexts {
@@ -57,7 +57,7 @@ impl RpcTexts {
             worker: Arc::new(worker),
             capabilities,
             registry: Arc::new(Registry::default()),
-            started: Arc::new(AtomicBool::new(false)),
+            state: Arc::default(),
         })
     }
 

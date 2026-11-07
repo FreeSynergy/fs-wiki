@@ -4,7 +4,7 @@
 
 mod common;
 
-use common::Served;
+use common::{ClientOf, Served};
 use fs_interfaces::rpc::DEFAULT_PAGE_SIZE;
 use fs_wiki_core::{Paging, Texts};
 
@@ -27,7 +27,7 @@ fn path_of(t: fs_wiki_core::TextEntry) -> String {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn everything_is_listed_over_several_pages_in_order_and_once() {
-    let served = Served::start().await;
+    let served = Served::in_memory().await;
     let texts = served.client();
     let want = filled(&texts).await;
     let got: Vec<_> = texts
@@ -42,7 +42,7 @@ async fn everything_is_listed_over_several_pages_in_order_and_once() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn limit_and_offset_cut_across_the_page_borders() {
-    let served = Served::start().await;
+    let served = Served::in_memory().await;
     let texts = served.client();
     let want = filled(&texts).await;
     let at = |offset: usize, limit: usize| {
@@ -68,7 +68,7 @@ async fn limit_and_offset_cut_across_the_page_borders() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn find_pages_the_same_way() {
-    let served = Served::start().await;
+    let served = Served::in_memory().await;
     let texts = served.client();
     let want = filled(&texts).await;
     let all = texts.find("needle", Paging::default()).await.unwrap();

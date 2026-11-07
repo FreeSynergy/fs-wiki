@@ -4,7 +4,7 @@
 
 mod common;
 
-use common::{make, paths, Served};
+use common::{make, paths, ClientOf, Served};
 use fs_wiki_core::{Error, TextFormat, Texts};
 
 fn markdown(t: &fs_wiki_core::TextEntry) -> String {
@@ -13,7 +13,7 @@ fn markdown(t: &fs_wiki_core::TextEntry) -> String {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_moved_text_keeps_its_id_and_the_links_to_it_follow() {
-    let served = Served::start().await;
+    let served = Served::in_memory().await;
     let texts = served.client();
     let a = make(&texts, "a", "# A\n").await;
     let b = make(&texts, "b", "see [[a]]\n").await;
@@ -26,7 +26,7 @@ async fn a_moved_text_keeps_its_id_and_the_links_to_it_follow() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_folder_moves_with_everything_below_it() {
-    let served = Served::start().await;
+    let served = Served::in_memory().await;
     let texts = served.client();
     make(&texts, "old", "# Index\n").await;
     make(&texts, "old/x", "x\n").await;
@@ -46,7 +46,7 @@ async fn a_folder_moves_with_everything_below_it() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn the_refusals_of_a_move_are_the_errors_of_the_core() {
-    let served = Served::start().await;
+    let served = Served::in_memory().await;
     let texts = served.client();
     let a = make(&texts, "a", "x\n").await;
     make(&texts, "b", "y\n").await;

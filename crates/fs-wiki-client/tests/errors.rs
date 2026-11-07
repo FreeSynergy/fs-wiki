@@ -4,14 +4,14 @@
 
 mod common;
 
-use common::{make, paths, Served};
+use common::{make, paths, ClientOf, Served};
 use fs_store::ObjectId;
 use fs_wiki_core::{Error, Paging, TextFormat, Texts};
 use fs_wiki_server::MAX_SOURCE_BYTES;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn an_unknown_text_is_not_found_with_its_id() {
-    let served = Served::start().await;
+    let served = Served::in_memory().await;
     let texts = served.client();
     let id = ObjectId::new();
     let doc = TextFormat::Markdown.import("x\n");
@@ -29,7 +29,7 @@ async fn an_unknown_text_is_not_found_with_its_id() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_stale_revision_is_a_conflict_with_the_numbers_and_writes_nothing() {
-    let served = Served::start().await;
+    let served = Served::in_memory().await;
     let texts = served.client();
     let a = make(&texts, "a", "one\n").await;
     let newer = texts
@@ -54,7 +54,7 @@ async fn a_stale_revision_is_a_conflict_with_the_numbers_and_writes_nothing() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_taken_path_and_a_bad_path_are_told_apart() {
-    let served = Served::start().await;
+    let served = Served::in_memory().await;
     let texts = served.client();
     make(&texts, "a", "x\n").await;
     let e = texts.create("a", "y\n").await.unwrap_err();
@@ -71,7 +71,7 @@ async fn a_taken_path_and_a_bad_path_are_told_apart() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn what_the_server_cannot_do_is_unsupported_with_its_capability() {
-    let served = Served::start().await;
+    let served = Served::in_memory().await;
     let texts = served.client();
     let a = make(&texts, "a", "x\n").await;
     let e = texts.export_text(a.id, "text/html").await.unwrap_err();
@@ -91,7 +91,7 @@ async fn what_the_server_cannot_do_is_unsupported_with_its_capability() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_request_the_server_refuses_as_invalid_or_too_large_is_an_error_not_a_hang() {
-    let served = Served::start().await;
+    let served = Served::in_memory().await;
     let texts = served.client();
     let e = texts.find("", Paging::default()).await.unwrap_err();
     assert!(

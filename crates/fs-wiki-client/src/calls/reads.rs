@@ -5,9 +5,9 @@
 use fs_interfaces::rpc::write_object_id;
 use fs_interfaces::texts_capnp::texts::Client;
 use fs_store::ObjectId;
-use fs_wiki_core::{LinkEntry, Paging, Result, TextEntry};
+use fs_wiki_core::{LinkEntry, Result, TextEntry};
 
-use super::pages::{collect, read_page};
+use super::pages::read_page;
 use crate::problems::{error_of, Subject};
 use crate::read::{entry, link, unreadable};
 
@@ -43,50 +43,48 @@ pub(crate) async fn get_by_path(c: &Client, path: String) -> Result<Option<TextE
     entry(r.get_text().map_err(unreadable)?).map(Some)
 }
 
-/// `list`, every page needed for `page`.
-pub(crate) async fn list(c: &Client, prefix: String, page: Paging) -> Result<Vec<TextEntry>> {
-    collect(page, |cursor| {
-        let mut req = c.list_request();
-        req.get().set_prefix(prefix.as_str());
-        req.get().init_cursor().set_opaque(&cursor);
-        async move {
-            let answer = req
-                .send()
-                .promise
-                .await
-                .map_err(|e| error_of(&e, &Subject::None))?;
-            read_page(
-                answer
-                    .get()
-                    .and_then(|r| r.get_page())
-                    .map_err(unreadable)?,
-            )
-        }
-    })
-    .await
+/// One page of `list` at `cursor`.
+pub(crate) async fn list_page(
+    c: &Client,
+    prefix: String,
+    cursor: Vec<u8>,
+) -> Result<(Vec<TextEntry>, Vec<u8>)> {
+    let mut req = c.list_request();
+    req.get().set_prefix(prefix.as_str());
+    req.get().init_cursor().set_opaque(&cursor);
+    let answer = req
+        .send()
+        .promise
+        .await
+        .map_err(|e| error_of(&e, &Subject::None))?;
+    read_page(
+        answer
+            .get()
+            .and_then(|r| r.get_page())
+            .map_err(unreadable)?,
+    )
 }
 
-/// `find`, every page needed for `page`.
-pub(crate) async fn find(c: &Client, term: String, page: Paging) -> Result<Vec<TextEntry>> {
-    collect(page, |cursor| {
-        let mut req = c.find_request();
-        req.get().set_term(term.as_str());
-        req.get().init_cursor().set_opaque(&cursor);
-        async move {
-            let answer = req
-                .send()
-                .promise
-                .await
-                .map_err(|e| error_of(&e, &Subject::None))?;
-            read_page(
-                answer
-                    .get()
-                    .and_then(|r| r.get_page())
-                    .map_err(unreadable)?,
-            )
-        }
-    })
-    .await
+/// One page of `find` at `cursor`.
+pub(crate) async fn find_page(
+    c: &Client,
+    term: String,
+    cursor: Vec<u8>,
+) -> Result<(Vec<TextEntry>, Vec<u8>)> {
+    let mut req = c.find_request();
+    req.get().set_term(term.as_str());
+    req.get().init_cursor().set_opaque(&cursor);
+    let answer = req
+        .send()
+        .promise
+        .await
+        .map_err(|e| error_of(&e, &Subject::None))?;
+    read_page(
+        answer
+            .get()
+            .and_then(|r| r.get_page())
+            .map_err(unreadable)?,
+    )
 }
 
 /// `links`.

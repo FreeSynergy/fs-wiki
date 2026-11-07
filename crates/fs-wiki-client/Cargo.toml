@@ -19,5 +19,6 @@ tokio = { version = "1", features = ["rt", "sync", "net", "time"] }
 
 [dev-dependencies]
 fs-wiki-server = { path = "../fs-wiki-server" }
+fs-wiki-testserver = { path = "../fs-wiki-testserver" }
 tempfile = "3"
 tokio = { version = "1", features = ["full"] }

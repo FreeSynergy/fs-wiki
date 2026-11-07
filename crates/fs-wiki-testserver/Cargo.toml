@@ -1,0 +1,15 @@
+[package]
+name = "fs-wiki-testserver"
+description = "The real fs-wiki-server on a real Unix socket for the tests of the client and the app (dev-dependency only, not published)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+fs-wiki-core = { path = "../fs-wiki-core" }
+fs-wiki-server = { path = "../fs-wiki-server" }
+fs-interfaces = { git = "https://github.com/FreeSynergy/fs-interfaces", tag = "v0.34.0", features = ["rpc"] }
+fs-store = { git = "https://github.com/FreeSynergy/fs-store", tag = "v0.2.0" }
+tempfile = "3"
+tokio = { version = "1", features = ["full"] }

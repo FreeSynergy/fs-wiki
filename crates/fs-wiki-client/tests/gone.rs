@@ -8,7 +8,7 @@ mod common;
 use std::os::unix::net::UnixListener;
 use std::time::Duration;
 
-use common::{make, Served};
+use common::{make, ClientOf, Served};
 use fs_wiki_client::{RpcTexts, Timeouts, CALL_TIMEOUT, CONNECT_TIMEOUT};
 use fs_wiki_core::{Error, Paging, Texts};
 
@@ -20,7 +20,7 @@ fn nothing_listening_is_an_error_at_connect() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_server_that_stopped_answers_with_an_error_every_time() {
-    let mut served = Served::start().await;
+    let mut served = Served::in_memory().await;
     let texts = served.client();
     make(&texts, "a", "x\n").await;
     served.stop();

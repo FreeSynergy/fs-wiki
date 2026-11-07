@@ -4,12 +4,12 @@
 
 mod common;
 
-use common::{make, Served};
+use common::{make, ClientOf, Served};
 use fs_wiki_core::Texts;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn links_are_the_rows_into_the_wiki_as_written_with_no_title() {
-    let served = Served::start().await;
+    let served = Served::in_memory().await;
     let texts = served.client();
     let a = make(
         &texts,
@@ -41,7 +41,7 @@ async fn links_are_the_rows_into_the_wiki_as_written_with_no_title() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn backlinks_find_the_texts_that_point_at_a_path() {
-    let served = Served::start().await;
+    let served = Served::in_memory().await;
     let texts = served.client();
     let x = make(&texts, "x", "to [[target]]\n").await;
     let y = make(&texts, "y", "to [[target#h]] and [[elsewhere]]\n").await;

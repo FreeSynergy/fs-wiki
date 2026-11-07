@@ -4,12 +4,12 @@
 
 mod common;
 
-use common::{make, paths, Served};
+use common::{make, paths, ClientOf, Served};
 use fs_wiki_core::{Paging, TextFormat, Texts, MARKDOWN};
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_text_is_created_read_by_id_and_by_path_and_listed_in_path_order() {
-    let served = Served::start().await;
+    let served = Served::in_memory().await;
     let texts = served.client();
     let a = make(&texts, "manual/start", "# Start\n\nHello.\n").await;
     make(&texts, "manual/end", "# End\n").await;
@@ -39,7 +39,7 @@ async fn a_text_is_created_read_by_id_and_by_path_and_listed_in_path_order() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn edit_and_edit_if_replace_the_document_and_change_the_revision() {
-    let served = Served::start().await;
+    let served = Served::in_memory().await;
     let texts = served.client();
     let a = make(&texts, "a", "one\n").await;
     let doc = TextFormat::Markdown.import("two\n");
@@ -55,7 +55,7 @@ async fn edit_and_edit_if_replace_the_document_and_change_the_revision() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn delete_removes_the_text() {
-    let served = Served::start().await;
+    let served = Served::in_memory().await;
     let texts = served.client();
     let a = make(&texts, "a", "x\n").await;
     texts.delete(a.id).await.unwrap();
@@ -65,7 +65,7 @@ async fn delete_removes_the_text() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn find_looks_in_name_path_and_text_ignoring_case() {
-    let served = Served::start().await;
+    let served = Served::in_memory().await;
     let texts = served.client();
     make(&texts, "guides/kanban", "# Boards\n\nplain\n").await;
     make(&texts, "b", "# Other\n\nA KANBAN word\n").await;
@@ -83,7 +83,7 @@ async fn find_looks_in_name_path_and_text_ignoring_case() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn import_creates_then_updates_and_export_writes_markdown() {
-    let served = Served::start().await;
+    let served = Served::in_memory().await;
     let texts = served.client();
     let made = texts
         .import_text("file", MARKDOWN, "# T\n\none\n")
@@ -103,7 +103,7 @@ async fn import_creates_then_updates_and_export_writes_markdown() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn the_report_of_the_server_is_the_report_of_the_client() {
-    let served = Served::start().await;
+    let served = Served::in_memory().await;
     let texts = served.client();
     let caps = texts.capabilities();
     for id in [

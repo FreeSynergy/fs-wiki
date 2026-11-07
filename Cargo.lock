@@ -1548,6 +1548,7 @@ dependencies = [
  "fs-text",
  "fs-wiki-core",
  "fs-wiki-server",
+ "fs-wiki-testserver",
  "futures",
  "serde_json",
  "tempfile",
@@ -1583,6 +1584,18 @@ dependencies = [
  "tempfile",
  "tokio",
  "uuid",
+]
+
+[[package]]
+name = "fs-wiki-testserver"
+version = "0.2.0"
+dependencies = [
+ "fs-interfaces",
+ "fs-store",
+ "fs-wiki-core",
+ "fs-wiki-server",
+ "tempfile",
+ "tokio",
 ]
 
 [[package]]
