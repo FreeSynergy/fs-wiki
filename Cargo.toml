@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/fs-text", "crates/fs-wiki-core", "crates/fs-wiki-server", "crates/fs-wiki-app"]
+members = ["crates/fs-text", "crates/fs-wiki-core", "crates/fs-wiki-server", "crates/fs-wiki-client", "crates/fs-wiki-app"]
 
 [workspace.package]
 edition = "2021"

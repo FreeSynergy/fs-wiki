@@ -26,6 +26,12 @@ pub enum TextChange {
 pub trait TextListener: Send + Sync {
     /// A text changed.
     fn changed(&self, change: &TextChange);
+
+    /// The feed ended without the listener dropping its [`Subscription`]: a provider behind a
+    /// connection that was lost or that stopped telling, so changes may have been missed. To go on,
+    /// subscribe again and read the current state, in that order. A provider in the same process
+    /// never ends a feed, so the default does nothing.
+    fn ended(&self, _reason: &str) {}
 }
 
 /// Live updates of texts.
@@ -61,6 +67,14 @@ impl Registry {
         let listeners: Vec<_> = self.entries().iter().map(|(_, l)| l.clone()).collect();
         for l in listeners {
             l.changed(change);
+        }
+    }
+
+    /// End the feed: tell every listener why, and forget them. Their subscriptions stay valid to drop.
+    pub fn end(&self, reason: &str) {
+        let listeners: Vec<_> = self.entries().drain(..).map(|(_, l)| l).collect();
+        for l in listeners {
+            l.ended(reason);
         }
     }
 
