@@ -6,7 +6,7 @@
 //! removed, a place does not. (`fs-tasks-server` has the same shape; to move into `fs-interfaces`.)
 
 use fs_interfaces::rpc::invalid_request;
-use fs_store::ObjectId;
+use fs_objects::ObjectId;
 use fs_wiki_core::Place;
 
 const FORM: u8 = 2;
@@ -64,7 +64,7 @@ mod tests {
         let place = Place {
             key: "docs/äpfel \u{0}".into(),
             name: "Äpfel \u{0}\u{1} Mixed Case".into(),
-            id: fs_store::Envelope::new("Article", "x").id,
+            id: fs_objects::Envelope::new("Article", "x").id,
         };
         let bytes = encode(&place);
         assert_eq!(decode(&bytes).unwrap(), Some(place));

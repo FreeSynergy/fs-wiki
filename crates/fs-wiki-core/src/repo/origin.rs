@@ -7,7 +7,7 @@
 //! hashes are opaque to the core; the caller computes them.
 
 use async_trait::async_trait;
-use fs_store::ObjectId;
+use fs_objects::ObjectId;
 use serde::{Deserialize, Serialize};
 
 use super::handle::WikiRepo;

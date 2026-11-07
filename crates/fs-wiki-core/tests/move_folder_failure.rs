@@ -6,7 +6,7 @@ mod common;
 use std::sync::Arc;
 
 use common::{everything, failing, fill, md, paths, setup, ME};
-use fs_store::{ObjectId, TursoStore};
+use fs_objects::{ObjectId, TursoStore};
 use fs_wiki_core::{Error, Paging, TextEntry, Texts, WikiRepo};
 
 fn sorted_ids(texts: &[TextEntry]) -> Vec<ObjectId> {

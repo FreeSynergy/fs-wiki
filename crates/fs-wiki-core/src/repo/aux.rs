@@ -5,7 +5,7 @@
 //! written as the actor `<actor>#bookkeeping`, so the undo of a person's own writes never meets
 //! them. Read by index `key`.
 
-use fs_store::{Envelope, ObjectId, Query, StoredObject};
+use fs_objects::{Envelope, ObjectId, Query, StoredObject};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 

@@ -1,14 +1,14 @@
 //! Text <-> stored object: the record, the envelope and the index fields.
 //!
 //! Pattern: Adapter — maps a path and a [`Document`] onto the AS2 `Article` envelope and index
-//! fields that `fs-store` understands (ADR 0020). The content is the record `{ path, document }`
+//! fields that `fs-objects` understands (ADR 0020). The content is the record `{ path, document }`
 //! as JSON, so the stored object is complete without its index. Index fields (all derived, never
 //! the truth): `path`; `path_key` (its sort key) and `id_key` (the id as text), which give a text its
 //! place in a page; `link` = the path every internal link means (a relative link is resolved against
 //! its page), which answers backlinks in one query; `block` = the plain text of each block, which
 //! answers `find` in the store.
 
-use fs_store::{sort_key, Envelope, IndexFields, ObjectId, StoredObject};
+use fs_objects::{sort_key, Envelope, IndexFields, ObjectId, StoredObject};
 use fs_text::Document;
 use serde::{Deserialize, Serialize};
 

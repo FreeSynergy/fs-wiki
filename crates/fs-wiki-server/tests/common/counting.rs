@@ -10,8 +10,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use fs_store::traits::{ObjectQuery, ObjectRepository};
-use fs_store::{Activity, LogEntry, ObjectId, Query, Result, Store, StoredObject, TursoStore};
+use fs_objects::traits::{ObjectQuery, ObjectRepository};
+use fs_objects::{Activity, LogEntry, ObjectId, Query, Result, Store, StoredObject, TursoStore};
 use fs_wiki_core::WikiRepo;
 
 use super::ME;

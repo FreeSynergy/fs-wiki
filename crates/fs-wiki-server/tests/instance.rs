@@ -7,7 +7,7 @@ use std::sync::Arc;
 use common::{create, with_provider, ME};
 use fs_interfaces::rpc::read_uuid;
 use fs_interfaces::texts_capnp::texts;
-use fs_store::{ActivityFilter, Store, TursoStore};
+use fs_objects::{ActivityFilter, Store, TursoStore};
 use fs_wiki_core::WikiRepo;
 use uuid::Uuid;
 

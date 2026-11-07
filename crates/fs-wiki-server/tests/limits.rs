@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use common::{create, list_paths, read_text, set_id, try_create, with_provider, with_server, ME};
 use fs_interfaces::rpc::{MAX_INTAKE_BYTES, MAX_PAGE_BYTES};
-use fs_store::{Store, TursoStore};
+use fs_objects::{Store, TursoStore};
 use fs_wiki_core::{Texts, WikiRepo};
 use fs_wiki_server::MAX_SOURCE_BYTES;
 

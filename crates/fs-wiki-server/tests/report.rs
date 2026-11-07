@@ -11,7 +11,7 @@ use async_trait::async_trait;
 use common::{problem, set_id, with_provider, with_server, ME};
 use fs_interfaces::rpc::Problem;
 use fs_interfaces::texts_capnp::texts;
-use fs_store::{ObjectId, Store, TursoStore};
+use fs_objects::{ObjectId, Store, TursoStore};
 use fs_text::Document;
 use fs_wiki_core::{
     Capabilities, Paging, Place, Result, TextEntry, TextPage, TextQuery, Texts, Unsupported,
