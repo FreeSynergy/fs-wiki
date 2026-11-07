@@ -12,6 +12,7 @@ use fs_store::Store;
 use tokio::sync::Mutex;
 
 use super::backend::StoreAdapter;
+use crate::feed::Registry;
 
 /// AS2 context of texts; also the first segment of their IRI.
 pub const CONTEXT: &str = "texts";
@@ -28,6 +29,8 @@ pub struct WikiRepo {
     pub(super) actor: String,
     pub(super) instance: String,
     pub(super) write_lock: Mutex<()>,
+    /// The subject of the change feed (`text.subscribe`); told after every write.
+    pub(super) feed: Arc<Registry>,
 }
 
 impl WikiRepo {
@@ -49,6 +52,7 @@ impl WikiRepo {
             actor: actor.into(),
             instance: "local.invalid".into(),
             write_lock: Mutex::new(()),
+            feed: Arc::default(),
         }
     }
 

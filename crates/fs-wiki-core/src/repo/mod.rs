@@ -7,6 +7,7 @@ mod aux;
 mod backend;
 mod book;
 mod definitions;
+mod feed;
 mod folder;
 mod handle;
 mod links;

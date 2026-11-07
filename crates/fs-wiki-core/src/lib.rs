@@ -20,6 +20,7 @@
 
 mod definitions;
 mod error;
+mod feed;
 mod hidden;
 mod media;
 mod path;
@@ -27,6 +28,7 @@ mod repo;
 mod texts;
 
 pub use error::{Error, Result};
+pub use feed::{Registry, Subscription, TextChange, TextFeed, TextListener};
 pub use fs_interfaces::{Capabilities, Unsupported};
 pub use hidden::is_hidden_block;
 pub use media::{TextFormat, MARKDOWN};

@@ -81,11 +81,8 @@ async fn the_store_backed_provider_reports_what_it_can() {
         "link.read",
         "text.import",
         "text.export",
+        "text.subscribe",
     ] {
         assert!(caps.is_supported(id), "{id}");
     }
-    assert_eq!(
-        caps.why_not("text.subscribe").unwrap().reason(),
-        "not built yet; it is possible"
-    );
 }

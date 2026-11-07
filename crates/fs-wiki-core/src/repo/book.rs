@@ -86,7 +86,7 @@ impl Texts for WikiRepo {
     }
 }
 
-/// The store-backed provider offers every method, except the live feed, which is not built yet.
+/// The store-backed provider offers every method of the contract.
 fn capabilities() -> Capabilities {
     let mut caps = Capabilities::new("fs-wiki");
     for id in [
@@ -99,9 +99,10 @@ fn capabilities() -> Capabilities {
         "link.read",
         "text.import",
         "text.export",
+        "text.subscribe",
     ] {
         caps.supported(id);
     }
-    caps.unsupported("text.subscribe", "not built yet; it is possible");
+    caps.supported("text.subscribe");
     caps
 }

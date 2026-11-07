@@ -11,6 +11,7 @@ use fs_text::Document;
 
 use super::handle::WikiRepo;
 use crate::error::{Error, Result};
+use crate::feed::TextChange;
 use crate::path::TextPath;
 use crate::texts::TextEntry;
 
@@ -37,6 +38,7 @@ impl WikiRepo {
         doc.id = id.as_uuid();
         let obj = self.build_object(id, None, path.as_str(), &doc)?;
         self.objects.put(obj, &self.actor).await?;
+        self.feed.notify(&TextChange::Created(id));
         self.entry(id).await
     }
 
@@ -45,12 +47,14 @@ impl WikiRepo {
         doc.id = id.as_uuid();
         let obj = self.build_object(id, Some(&old), &old.path, &doc)?;
         self.objects.put(obj, &self.actor).await?;
+        self.feed.notify(&TextChange::Updated(id));
         self.entry(id).await
     }
 
     pub(super) async fn delete_locked(&self, id: ObjectId) -> Result<()> {
         self.text(id).await?.ok_or(Error::NotFound(id))?;
         self.objects.delete(id, &self.actor).await?;
+        self.feed.notify(&TextChange::Deleted(id));
         Ok(())
     }
 

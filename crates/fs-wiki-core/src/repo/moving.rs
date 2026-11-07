@@ -15,6 +15,7 @@ use super::record::entry_of;
 use super::relink::relinked;
 use super::shift::Shift;
 use crate::error::{Error, Result};
+use crate::feed::TextChange;
 use crate::path::TextPath;
 use crate::texts::{Paging, TextEntry};
 
@@ -64,6 +65,7 @@ impl WikiRepo {
     ) -> Result<()> {
         let obj = self.build_object(prior.id, Some(prior), path, doc)?;
         self.objects.put(obj, &self.actor).await?;
+        self.feed.notify(&TextChange::Updated(prior.id));
         Ok(())
     }
 }
