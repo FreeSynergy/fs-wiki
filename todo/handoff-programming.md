@@ -1,3 +1,4 @@
 - 2026-11-06: fs-wiki-app (read, links, search, edit with revision, guarded export) on branch wiki-app, depends on fs-components by rev until its tag exists; not for main. See DESIGN.md.
 - 2026-11-06: review fixes in fs-wiki-core and fs-wiki-app (restart keeps saves and moves via per-file records, edit_if compare-and-set with fs-interfaces v0.23.0, links resolved against their page, move record, no-follow atomic export, link schemes); see DESIGN.md. Not tagged.
 - 2026-11-07: fs-wiki-server (texts.capnp over a Unix socket, all methods, subscribe), TextFeed in the core, fs-interfaces v0.33.0; branch server, not tagged; see DESIGN.md.
+- 2026-11-07: fs-wiki-client (RpcTexts: Texts + TextFeed over texts.capnp) and fs-wiki-app on it (--socket, records file of its own, no WikiRepo in the app), fs-interfaces v0.34.0; branch client, not tagged; see DESIGN.md.

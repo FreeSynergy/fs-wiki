@@ -3,13 +3,15 @@
 `fs-wiki` is the wiki program of FreeSynergy and the **owner of the text interface** (ADR 0031, 0050): every text is a wiki
 entry, a collection of texts is a wiki. The database is the truth, files are exports (ADR 0042). The contract is `texts.capnp`
 in [`fs-interfaces`](https://github.com/FreeSynergy/fs-interfaces) (ADR 0045); this program is its provider. This repo holds
-four crates; the GUI lives only in `fs-wiki-app`, on [`fs-components`](https://github.com/FreeSynergy/fs-components) (Blinc):
+five crates; the GUI lives only in `fs-wiki-app`, on [`fs-components`](https://github.com/FreeSynergy/fs-components) (Blinc):
 
 * `crates/fs-text`: the **library** of text + layers (document, marks, Markdown, outside changes, links, templates, history).
   No storage, no interface. Its own design is in [`crates/fs-text/DESIGN.md`](crates/fs-text/DESIGN.md).
 * `crates/fs-wiki-app`: the **first visible part**, a thin shell: imports a folder of Markdown files, maps texts to the neutral
-  blocks of `fs-components`, and offers the wiki to the reader workbench as its data source. No Blinc type appears in it.
-* `crates/fs-wiki-server`: the **Cap'n Proto server**: the contract `texts.capnp` (fs-interfaces v0.33.0) over a Unix socket, in front of `Texts` + `TextFeed`. It only translates; no text logic.
+  blocks of `fs-components`, and offers the wiki to the reader workbench as its data source. No Blinc type appears in it. It talks to
+  the running `fs-wiki-server` through `fs-wiki-client` (ADR 0021), never to `WikiRepo` or a store.
+* `crates/fs-wiki-client`: the **Cap'n Proto client**: `RpcTexts` implements `Texts` + `TextFeed` of the core over a Unix socket.
+* `crates/fs-wiki-server`: the **Cap'n Proto server**: the contract `texts.capnp` (fs-interfaces v0.34.0) over a Unix socket, in front of `Texts` + `TextFeed`. It only translates; no text logic.
 * `crates/fs-wiki-core`: the **program core**. The trait `Texts` (Rust form of `Texts` in `texts.capnp`) and `WikiRepo`, its
   implementation over `fs-store`.
 
@@ -20,7 +22,7 @@ consumers have tested it, then 1.0, then only version jumps.) Nothing here is de
 
 ## State
 
-Version 0.2.0 (workspace; the tag v0.2.0 is set by the owner). Built on `fs-store` v0.2.0, `fs-interfaces` v0.33.0 and `fs-components` v0.1.0 (git tags).
+Version 0.2.0 (workspace; the tag v0.2.0 is set by the owner). Built on `fs-store` v0.2.0, `fs-interfaces` v0.34.0 and `fs-components` v0.2.0 (git tags).
 
 | Area | State |
 |---|---|
@@ -46,15 +48,17 @@ Version 0.2.0 (workspace; the tag v0.2.0 is set by the owner). Built on `fs-stor
 | Media types (`TextFormat`, Factory): `text/markdown` (parameters and case ignored); anything else is `Error::MediaType` | done |
 | Example `cargo run -p fs-wiki-core --example manifesto`: imports `fs-documentation/docs/en/manifesto.md`, reads it back (identical), lists its links | done |
 | Tests | `fs-wiki-core`: the integration tests (`texts_crud`, `texts_list`, `links`, `move_text`, `move_folder`, `move_folder_failure`, `move_safety`, `relative_links`, `edit_if`, `outside_change`, `provider`); `fs-text` has its own |
-| Tests (server) | `fs-wiki-server`: 29 over a real Unix socket against the real `TursoStore`: `texts`, `paging`, `links`, `moves`, `transfer`, `report`, `feed`, `cancel` (a client that goes away at a write; fails without `run_to_end`), `errors`, `limits`, `binary` (the real program across a restart, a second start refused, bad arguments). Totals: core 64, server 29, fs-text 116, app 68 |
-| `fs-wiki-app` (binary): `--docs` (default `../fs-documentation/docs/en`), `--store` (a file, or `memory`; default one file per docs folder in the data directory), `--export` (enables the Export button), `--snapshot` + `--step` (a picture without a window, see below) | done |
+| Client `fs-wiki-client` | `RpcTexts::connect(socket)` / `connect_with(socket, Timeouts)`; `Texts`: **all fourteen methods** of the trait and `capabilities` (the server's own report), `TextFeed::subscribe`. `list` / `find` read as many cursor pages as `Paging` needs (texts before `offset` are read too: the cursor is a position the client cannot make). Problems read back as `fs_wiki_core::Error` (inverse of `errors.rs` of the server): `texts/not-found` to `NotFound(id)` / `NoSuchFolder(prefix)`, `texts/conflict` to `Conflict { id, expected, found }`, `path-taken` to `PathTaken`, `move-refused` to `MoveUnfinished` / `TargetNotEmpty`, `texts/invalid` to `InvalidPath` (the path is parsed again by the core's own `TextPath`, no reason is copied), `InvalidMove` (two known reasons), `MediaType`, else `Store(Invalid)`; `unsupported` to `Unsupported`; a method the server does not know to `Unsupported`; `too-large` to `Store(Invalid("too large: ..."))` (the core has no variant); a lost connection, a deadline or an unreadable reply to `Store(Backend)` | done |
+| Client tests | 35 (29 over a real socket against the real server: `texts`, `paging` (more than two pages), `links`, `moves`, `errors`, `feed`, `gone` (nothing listening, a server that stops, a mute socket, the deadlines); 6 unit tests: the table of problems the server cannot be made to send, and the reading of quoted paths) | done |
+| Tests (server) | `fs-wiki-server`: 29 over a real Unix socket against the real `TursoStore`: `texts`, `paging`, `links`, `moves`, `transfer`, `report`, `feed`, `cancel` (a client that goes away at a write; fails without `run_to_end`), `errors`, `limits`, `binary` (the real program across a restart, a second start refused, bad arguments). Totals: core 65, server 29, client 35, fs-text 116, app 75 |
+| `fs-wiki-app` (binary): `--socket` (the running `fs-wiki-server`; default `$XDG_RUNTIME_DIR/freesynergy/wiki.sock`), `--docs` (default `../fs-documentation/docs/en`), `--origins` (the records file, default one per docs folder in the data directory), `--export` (enables the Export button), `--snapshot` + `--step` (a picture without a window, see below). **`--store` is gone**: the wiki lives in the server (`--data DIR` of the server) | done |
 | App: sync of every `*.md` under the folder (`import.rs`, `sync.rs`), path = relative path. A record per file (hash, text, hash of the text) decides: file as recorded = nothing happens and the file is not parsed, whatever the database holds (a saved, moved or deleted text stays so); file changed and text as recorded = normal edit (ADR 0042 section 5); both changed = the database text stays, the file's version is a conflict shown on the problems page; new file = import; file gone = reported, text kept. Failures, conflicts, gone files and skipped entries (symbolic links, `.MD`, unreadable entries) are the first tree entry "Import problems (n)" | done |
-| App: store: by default one file per docs folder, `<data dir>/freesynergy/fs-wiki/<folder>-<hash>.db` (`$XDG_DATA_HOME` or `~/.local/share`), so a save survives the exit; `--store memory` keeps nothing and says so at start | done, provisional |
+| App: no server, no start: without a reachable socket the app does **not** fall back on a store of its own; it names the socket and how to start the server (`server.rs`, tested with the real binary). The texts are the server's, so **one server is one wiki**: use one server (its own `--data`) per documentation source. The records of imported files (`FileOrigin`: file, hash, text, text hash; not part of the contract) are the app's: `FileOrigins` (`origins.rs`), one file per docs folder, `<data dir>/freesynergy/fs-wiki/<folder>-<hash>.origins` (or `--origins FILE`), JSON lines, each save one synced append, rewritten atomically (temporary file, fsync, rename) at every start and after a failed append; a torn last line is ignored, a bad line elsewhere is an error and the file is left alone | done, provisional |
 | App: tree of pages, open, read with formatting, follow links (also relative `.md` links, resolved **in the app**, `source/resolve.rs`), back, search by name and content (`Texts::find`, first 200 hits) | done |
 | App: edit (Markdown text of the page; save = `import_external` against the stored document, then `Texts::edit_if` with the revision read, so layers stay and a second writer gets a conflict instead of being overwritten; the database is the truth, no file is written). Revision = the text's write counter. The lock is inside one process: two programs on one store file are not covered | done; typing in the real window not verified |
 | App: unsaved drafts are backed up (`--drafts`, default `~/.local/share/fs-wiki/drafts`; one subfolder per documentation source, so two wikis do not meet; one JSON file per document, named by the hex of its path or by a hash for long paths; our subfolder 0700 and files 0600, a folder given by the person is not changed; unique temporary file, fsync of file and folder, rename; never inside the docs folder): after 0.5 s without typing and at least every 5 s while typing (a closed window does not flush: it loses at most the last pause); on the next edit of that document the person is offered Restore or Discard for the draft; a document that changed meanwhile makes Save report the conflict first; a save or a chosen discard clears it; a failing backup is shown | done; the close-window case is tested by dropping the widget, not with a real close |
 | App: explicit Export (`source/export.rs`, `export_fs.rs`): the path is checked as a path (`TextPath`), every step is opened with `openat` and no-follow (a swapped link is met by the open itself), the file is written under a temporary name and renamed (a crash leaves the old or the new file; a hard link elsewhere is replaced, not written through). An existing file with other content is a conflict carrying both texts (`export_markdown_checked`, `WikiSource::last_difference`) and is replaced only after a second press **that answers the question just asked**: the answer is bound to the content shown (hash), so a file that changed after the question is asked about anew (`export_markdown_if_seen`). A page whose Markdown cannot say exactly what the page says (fs-text `ExportReport::inexact`) is asked about first in the same flow, before anything is written ("This file could not be written exactly: block 3 (...): reason"; if the target holds a file with other content, the same question says so and how many lines differ); the number of untouched blocks that had to be written anew (`rewritten`) is added to the answer. A replaced file keeps its mode (a 0600 file stays 0600) and its owner where allowed; temporary names are short and unique. Into the docs folder it records the file as in step and names an old file left by a move (never deleted) | done |
-| App tests | the: `map` (also 1000 nested quotes), `resolve` (schemes, colons after the path, root, folders), `import`, `restart` and `conflicts` (file store and real folder: restart after save, move, outside change, both changed, delete), `source`, `save_race` (4 threads), `export`, `export_safety`, `export_page`, `args` |
+| App tests | the: `map` (also 1000 nested quotes), `resolve` (schemes, colons after the path, root, folders), `import`, `restart` and `conflicts` (file store and real folder: restart after save, move, outside change, both changed, delete), `source`, `save_race` (4 threads), `export`, `export_safety`, `export_page`, `args`, `origins`, `server`; all against the real `fs-wiki-server` started inside the test over a real socket (`tests/common/served.rs`), no stand-in |
 | The reader window (`fs-wiki-app`, on `fs-components`) exists; typing in the real window was not verified. other editors, collections / shelves (ADR 0034), named passages' registry, templates in the program | **not started** |
 
 ## Structure and pattern map (ADR 0043)
@@ -93,27 +97,47 @@ has a `Pattern:` line. For `fs-text` see its own DESIGN.md.
 | `feed.rs` | Observer + Adapter | `TextFeed` to the shared forwarder; a failed read ends the feed with `ended` |
 | `main.rs` | none (thin binary) | options, store, serve until a signal |
 
+`fs-wiki-client/src` (**pattern chosen: Adapter** — `Texts` and `TextFeed` of the core stand in front of the Cap'n Proto client of `texts.capnp`, so the app depends on the traits and not on `WikiRepo`; the connection thread, deadlines and the way back of an answer are the shared `Worker` of `fs-interfaces`; trait first, `connect` and `connect_with` were written before the calls):
+
+| Module | Pattern | Why |
+|---|---|---|
+| `peer.rs` | Adapter + Facade | `RpcTexts`: the connection a frontend holds; one thread, calls from any thread |
+| `remote.rs` | Strategy | the root capability and the handshake (`supportReport`); the only part that is the wiki's own |
+| `texts_impl.rs` | Adapter | each method of `Texts` is one call |
+| `calls/reads.rs`, `calls/writes.rs` | Adapter | one request in, one reply read back as core values |
+| `calls/pages.rs` | Iterator (by hand) | `Paging` over opaque cursors |
+| `read.rs` | Adapter | `TextEntry` and `LinkRow` to `TextEntry` and `LinkEntry` |
+| `problems.rs`, `quoted.rs` | Adapter | RFC 9457 problems to `Error` (inverse of `errors.rs` of the server) |
+| `feed.rs` | Observer + Adapter | one remote subscription per connection tells a local `Registry`; listeners come and go with their `Subscription` |
+
 `fs-wiki-app/src`:
 
 | Module | Pattern | Why |
 |---|---|---|
 | `import.rs` | Template method | collect, import each, report; the folder is only read |
 | `map/` | Adapter (+ Composite builder in `nest.rs`) | `fs-text` document to the neutral blocks: flat blocks with containers become nested lists/quotes; unknown things become plain text |
+| `wiki.rs` | Composite | `Texts` from the server and `Origins` from the app's own file, as one value for the sync |
+| `origins.rs` | Repository over a log file (Memento store) | the records of imported files, not part of the contract |
+| `server.rs` | Factory | the `Texts` of the app come from a running server and nowhere else; the message when there is none |
 | `source/wiki.rs` | Adapter over `Texts` | the reader's `DataSource`; sync calls through a runtime handle |
 | `source/resolve.rs` | Strategy (pure function) | relative links against the page they are on, `#fragment` and `?query` dropped; only `http`, `https`, `mailto` are opened (parsed scheme), other schemes are shown; a folder opens `index.md`, `README.md`, else its first page |
-| `sync.rs`, `report.rs`, `hash.rs`, `store_path.rs` | State (decision table) / Value objects | one file against its record; the report; SHA-256; the default store file of a docs folder |
+| `sync.rs`, `report.rs`, `hash.rs`, `store_path.rs` | State (decision table) / Value objects | one file against its record; the report; SHA-256; the default records file of a docs folder |
 | `source/export.rs`, `export_fs.rs`, `export_page.rs` | Guard / Template method | the only code that writes a file; no-follow, temp and rename; records and old-file notice |
 | `source/problems.rs` | Adapter | failed imports as a page of the neutral model |
-| `args.rs` | Builder-like parser | no extra crate for seven options |
+| `args.rs` | Builder-like parser | no extra crate for the few options |
 
 ## Try it by hand (start instructions)
 
-Start (needs a graphical session; the first start imports the documentation, about 30 s for 1400 pages (later starts only look at what changed), with a summary line on the terminal before the window opens):
+Start (needs a graphical session). The wiki lives in the server, so **start the server first**, in one terminal; it keeps its data in its own folder (`--data DIR`, default below `$XDG_DATA_HOME`) and listens on `--socket PATH` (default `$XDG_RUNTIME_DIR/freesynergy/wiki.sock`). Then start the app in a second terminal; the first start imports the documentation, about 30 s for 1400 pages (later starts only look at what changed), with a summary line on the terminal before the window opens:
 
 ```
 cp -r /srv/FreeSynergy/fs-documentation/docs/en /tmp/fs-docs-copy
-cd /srv/FreeSynergy/fs-wiki && cargo run --release -p fs-wiki-app -- --docs /tmp/fs-docs-copy --export /tmp/fs-docs-copy
+cd /srv/FreeSynergy/fs-wiki
+cargo run --release -p fs-wiki-server -- --socket /tmp/fs-wiki.sock --data /tmp/fs-wiki-data      # terminal 1
+cargo run --release -p fs-wiki-app -- --socket /tmp/fs-wiki.sock --docs /tmp/fs-docs-copy --export /tmp/fs-docs-copy   # terminal 2
 ```
+
+Without a server the app stops with that command line in its message; it never starts a store of its own. Stop the server with Ctrl-C when done.
 
 Things to try, in this order (typing and clicking are not verified by tests; this is the check):
 
@@ -139,14 +163,14 @@ What is known to be rough: emoji that Blinc has no glyph for show as boxes; the 
 
 ## Crates
 
-* `fs-store` (git tag v0.2.0), `fs-interfaces` (git tag v0.33.0; the server with feature `rpc`), `fs-text` (same workspace, path).
-* `serde`, `serde_json`, `thiserror`, `async-trait`, `tokio` (sync only); server: `capnp`, `capnp-rpc`; app: `sha2`, `rustix` (no-follow file access).
+* `fs-store` (git tag v0.2.0), `fs-interfaces` (git tag v0.34.0; server and client with feature `rpc`), `fs-text` (same workspace, path).
+* `serde`, `serde_json`, `thiserror`, `async-trait`, `tokio` (sync only); server and client: `capnp`, `capnp-rpc` (the client also `futures`, for the first `subscribe`); app: `sha2`, `rustix` (no-follow file access).
 
 ## Open points
 
 First visible part (provisional, for the owner): the name of the reader and of the `fs-components-*` crates; `index.md` as the start page; the sidebar shows page titles, folders their name; import problems as a first tree entry; search results capped at 200; the Export folder is explicit (`--export`), never implied.
 
-Measured on a **copy** of `fs-documentation/docs/en` (1398 pages, 510 folders), release build, 32 cores, **while the machine ran at load 20 to 64, so the numbers mean little** (`cargo run --release -p fs-wiki-app --example real_docs <copy> <folder> <new path>`): the first start into an empty store file took 76 s (the same code at load 64: 183 s; the code before this change, load unknown, 44 s in the same kind of run; an unloaded run of the older code gave 27 s in memory). Writing a record per file costs extra on the first start only. **A second start with nothing changed takes 58 ms** (before: 30.4 s, every file was parsed and diffed); a start after a folder move 40 ms and the moved folder does not come back. Moving `interactions/gestures` (76 texts) took 4 to 17 s depending on load. Links leading nowhere (3794 internal links, resolved as the reader does): 104 before a move and 104 after; the code before this change went from 104 to 131 (27 newly broken) and brought the 76 moved texts back at the next start. The store file is 56 MB. **The reader calls the source on the interface thread** (`examples/timing.rs`, older numbers, other machine state): list of all pages 284 ms once at start, `get_by_path` + mapping of a page 20 ms, `find` 34 to 59 ms per search keystroke; not measured again.
+Measured on a **copy** of `fs-documentation/docs/en` (1398 pages, 510 folders), release build, 32 cores, **while the machine ran at load 20 to 64, so the numbers mean little** (`cargo run --release -p fs-wiki-app --example real_docs <socket> <copy> <folder> <new path>`, older numbers: they were taken with the core inside the app, before the socket): the first start into an empty store file took 76 s (the same code at load 64: 183 s; the code before this change, load unknown, 44 s in the same kind of run; an unloaded run of the older code gave 27 s in memory). Writing a record per file costs extra on the first start only. **A second start with nothing changed takes 58 ms** (before: 30.4 s, every file was parsed and diffed); a start after a folder move 40 ms and the moved folder does not come back. Moving `interactions/gestures` (76 texts) took 4 to 17 s depending on load. Links leading nowhere (3794 internal links, resolved as the reader does): 104 before a move and 104 after; the code before this change went from 104 to 131 (27 newly broken) and brought the 76 moved texts back at the next start. The store file is 56 MB. **The reader calls the source on the interface thread** (`examples/timing.rs`, older numbers, other machine state): list of all pages 284 ms once at start, `get_by_path` + mapping of a page 20 ms, `find` 34 to 59 ms per search keystroke; not measured again.
 
 Server decisions (provisional, easy to reverse):
 
@@ -160,7 +184,8 @@ Server decisions (provisional, easy to reverse):
 
 Questions for the owner (all provisional, easy to reverse):
 
-* **Default store** is a file per docs folder in the user's data directory (`--store memory` keeps the old behaviour).
+* **One server is one wiki.** The app has no store of its own any more, so two documentation folders in one server would share one text namespace. Use one server (own `--data` and `--socket`) per documentation source, or tell me if the app should prefix paths per folder.
+* **Records file** (`FileOrigins`): JSON lines next to the app's data, one file per docs folder; the simplest thing that survives a restart and writes atomically. A different place (a store object of the server) would need a contract method for it.
 * **A folder link without an index page** opens the first page of the folder (by path); a folder with no page is Missing.
 * **A conflict** (file and text both changed) keeps the database text and shows the file's version on the problems page every start until the text equals the file; there is no "take the file" button yet.
 * **A file that is gone** keeps its text and is listed; its record stays.
@@ -201,7 +226,9 @@ Not done / limits:
 * **Deleting a text** leaves links to it in other texts (dangling, like in any wiki); they are shown as links to a path with no text.
 * `LinkValue.target` (UUID of the target) is not filled; links resolve by path.
 * `find` is substring only (no tokens, no ranking) and also searches code blocks.
-* `subscribe` (`text.subscribe`) is not built; the capnp-rpc server is not written.
+* **Client limits.** `LinkRow` has no `title` and no `internal` flag: `RpcTexts::links` / `backlinks` give an empty `title` and `internal = true`, because the server sends only links into the wiki (a URL or mail address has no row). The core knows both; over the socket they are not available. `list` / `find` cost a full read on the server for every page (see the server decisions). `too-large` has no variant in `Error` and arrives as `Store(Invalid("too large: ..."))`. A feed cannot be dropped per listener on the server: dropping a `Subscription` removes the listener locally, and the one remote subscription runs until the connection ends. The first `subscribe` blocks for one round trip. A `ChangeListener.ended` or a lost connection is told to every listener through the new `TextListener::ended(reason)` (default: nothing; `Registry::end`), after which the next `subscribe` starts a new remote subscription; changes may have been missed, read the state again.
+* **Core change for the client:** `TextListener::ended` and `Registry::end` (additive, tested in `fs-wiki-core/tests/feed.rs`). `fs-interfaces` is v0.34.0 in all crates because the shared client `Worker` lives there.
+* Not verified: a failed append of the records file (no way to make the disk fail in a test); typing in the real window against a server.
 * Offset paging (`Paging`) costs O(offset) in the store; the wire `Cursor` will wrap the offset.
 
 ## Markdown round trip
