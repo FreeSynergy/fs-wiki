@@ -6,7 +6,8 @@
 //! what could not come back.
 
 use fs_interfaces::rpc::{
-    check_answer, check_intake, envelope_weight, write_envelope, MAX_INTAKE_BYTES, MAX_PAGE_BYTES,
+    check_answer, check_intake, envelope_weight, too_large_by, write_envelope, MAX_INTAKE_BYTES,
+    MAX_PAGE_BYTES,
 };
 use fs_interfaces::texts_capnp::text_entry;
 use fs_text::Document;
@@ -48,6 +49,7 @@ pub(crate) fn fill(out: &mut text_entry::Builder<'_>, sent: &Sent) {
     write_envelope(out.reborrow().init_envelope(), &sent.entry.envelope);
     out.set_path(sent.entry.path.as_str());
     out.set_document(sent.json.as_str());
+    // Only equality means anything: `editIf` hands it back unchanged. It is no counter and no time.
     out.set_revision(sent.entry.revision);
 }
 
@@ -60,10 +62,14 @@ pub(crate) fn write_all(
     let sent: Vec<Sent> = texts.into_iter().map(Sent::new).collect::<Result<_, _>>()?;
     let total: usize = sent.iter().map(Sent::weight).sum();
     if total > MAX_PAGE_BYTES {
-        return Err(fs_interfaces::rpc::too_large(format!(
-            "the {} moved texts weigh {total} bytes, at most {MAX_PAGE_BYTES} fit; the move is done, read them with list",
-            sent.len()
-        )));
+        return Err(too_large_by(
+            format!(
+                "the {} moved texts weigh {total} bytes, at most {MAX_PAGE_BYTES} fit; the move is done, read them with list",
+                sent.len()
+            ),
+            total as u64,
+            MAX_PAGE_BYTES as u64,
+        ));
     }
     for (i, s) in (0u32..).zip(&sent) {
         fill(&mut out.reborrow().get(i), s);
@@ -87,10 +93,14 @@ pub const MAX_SOURCE_BYTES: usize = 4 * 1024 * 1024;
 pub(crate) fn source_arg(text: capnp::text::Reader<'_>) -> capnp::Result<&str> {
     let text = text.to_str()?;
     if text.len() > MAX_SOURCE_BYTES {
-        return Err(fs_interfaces::rpc::too_large(format!(
-            "{} bytes of text, at most {MAX_SOURCE_BYTES} are taken",
-            text.len()
-        )));
+        return Err(too_large_by(
+            format!(
+                "{} bytes of text, at most {MAX_SOURCE_BYTES} are taken",
+                text.len()
+            ),
+            text.len() as u64,
+            MAX_SOURCE_BYTES as u64,
+        ));
     }
     Ok(text)
 }
@@ -99,7 +109,7 @@ pub(crate) fn source_arg(text: capnp::text::Reader<'_>) -> capnp::Result<&str> {
 pub(crate) fn required<'a>(text: capnp::text::Reader<'a>, what: &str) -> capnp::Result<&'a str> {
     let text = text_arg(text)?;
     if text.is_empty() {
-        return Err(invalid(format!("{what} must not be empty")));
+        return Err(invalid(format!("{what} must not be empty"), &format!("{what}-empty")));
     }
     Ok(text)
 }
@@ -107,7 +117,7 @@ pub(crate) fn required<'a>(text: capnp::text::Reader<'a>, what: &str) -> capnp::
 /// The document of a request, from its JSON form.
 pub(crate) fn read_document(text: capnp::text::Reader<'_>) -> capnp::Result<Document> {
     let text = text_arg(text)?;
-    serde_json::from_str(text).map_err(|e| invalid(format!("the document does not read: {e}")))
+    serde_json::from_str(text).map_err(|e| invalid(format!("the document does not read: {e}"), "document-unreadable"))
 }
 
 /// Refuse a document whose JSON form could not come back in an answer, before it is stored. Used for
@@ -116,10 +126,14 @@ pub(crate) fn fits(document: &Document) -> capnp::Result<()> {
     let json = serde_json::to_string(document)
         .map_err(|e| capnp::Error::failed(format!("document does not write: {e}")))?;
     if json.len() > MAX_INTAKE_BYTES {
-        return Err(fs_interfaces::rpc::too_large(format!(
-            "the text becomes {} bytes as a document, at most {MAX_INTAKE_BYTES} fit",
-            json.len()
-        )));
+        return Err(too_large_by(
+            format!(
+                "the text becomes {} bytes as a document, at most {MAX_INTAKE_BYTES} fit",
+                json.len()
+            ),
+            json.len() as u64,
+            MAX_INTAKE_BYTES as u64,
+        ));
     }
     Ok(())
 }

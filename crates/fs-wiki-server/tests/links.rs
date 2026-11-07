@@ -8,7 +8,7 @@ use common::{create, set_id, with_server};
 use fs_interfaces::rpc::read_uuid;
 
 #[tokio::test(flavor = "current_thread")]
-async fn links_lists_the_links_into_the_wiki_as_written_and_not_urls() {
+async fn links_lists_every_link_as_written_with_its_title_and_where_it_points() {
     with_server(|root| async move {
         let a = create(
             &root,
@@ -27,11 +27,21 @@ async fn links_lists_the_links_into_the_wiki_as_written_and_not_urls() {
                     read_uuid(r.get_source().unwrap()).unwrap(),
                     r.get_target().unwrap().to_string().unwrap(),
                     r.get_at().unwrap().to_string().unwrap(),
+                    r.get_title().unwrap().to_string().unwrap(),
+                    r.get_internal(),
                 )
             })
             .collect();
-        let targets: Vec<_> = got.iter().map(|g| g.1.as_str()).collect();
-        assert_eq!(targets, ["b#part", "c.md"], "the URL is no row");
+        let rows: Vec<_> = got.iter().map(|g| (g.1.as_str(), g.3.as_str(), g.4)).collect();
+        assert_eq!(
+            rows,
+            [
+                ("b#part", "bee", true),
+                ("c.md", "c", true),
+                ("https://example.org/x", "out", false)
+            ],
+            "every link is a row; `internal` tells a text of the wiki from an outside address"
+        );
         assert!(got.iter().all(|g| g.0 == a.id));
         assert!(
             got[0].2.contains(':') && got[0].2.contains('-'),

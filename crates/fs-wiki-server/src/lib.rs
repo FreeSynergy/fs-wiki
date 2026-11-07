@@ -12,6 +12,7 @@
 
 mod cursor;
 mod errors;
+mod facts;
 mod feed;
 mod links;
 mod paging;

@@ -6,6 +6,7 @@
 //! `Manual` and `manual` are two paths.
 
 use crate::error::{Error, Result};
+use crate::reason::Reason;
 
 /// A valid readable path such as `manual/start`.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -24,23 +25,23 @@ impl TextPath {
             })
         };
         if path.is_empty() {
-            return bad("empty");
+            return bad(Reason::Empty);
         }
         if path.contains('#') {
-            return bad("'#' starts a fragment, it is not part of a path");
+            return bad(Reason::Fragment);
         }
         if path.contains('\\') || path.chars().any(char::is_control) {
-            return bad("backslash or control character");
+            return bad(Reason::Control);
         }
         if path.contains('\u{10FFFF}') {
             // It ends the text-order range that lists a folder, so such a text could not be listed.
-            return bad("U+10FFFF is reserved as the end of the order");
+            return bad(Reason::Reserved);
         }
         for segment in path.split('/') {
             match segment {
-                "" => return bad("empty segment (leading, trailing or double '/')"),
-                "." | ".." => return bad("'.' and '..' are not allowed"),
-                s if s.trim() != s => return bad("segment with leading or trailing space"),
+                "" => return bad(Reason::EmptySegment),
+                "." | ".." => return bad(Reason::DotSegment),
+                s if s.trim() != s => return bad(Reason::EdgeSpace),
                 _ => {}
             }
         }

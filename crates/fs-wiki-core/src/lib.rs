@@ -25,6 +25,7 @@ mod hidden;
 mod media;
 mod page;
 mod path;
+mod reason;
 mod repo;
 mod texts;
 
@@ -35,5 +36,6 @@ pub use hidden::is_hidden_block;
 pub use media::{TextFormat, MARKDOWN};
 pub use page::{Place, Placed, TextPage, TextQuery};
 pub use path::TextPath;
+pub use reason::Reason;
 pub use repo::{FileOrigin, IndexReport, Origins, WikiRepo, CONTENT_TYPE, CONTEXT, TEXT_TYPE};
 pub use texts::{LinkEntry, Paging, TextEntry, Texts};

@@ -5,6 +5,8 @@
 
 use fs_store::ObjectId;
 
+use crate::reason::Reason;
+
 /// Result of every fallible operation of this crate.
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -26,7 +28,7 @@ pub enum Error {
         /// The path as given.
         path: String,
         /// What is wrong with it.
-        reason: &'static str,
+        reason: Reason,
     },
     /// A folder move that cannot be done at all, whatever the store holds.
     #[error("cannot move {from:?} to {to:?}: {reason}")]
@@ -36,7 +38,7 @@ pub enum Error {
         /// The target as given.
         to: String,
         /// What is wrong with it.
-        reason: &'static str,
+        reason: Reason,
     },
     /// No text at the path and none below it.
     #[error("nothing at {0:?} or below it")]

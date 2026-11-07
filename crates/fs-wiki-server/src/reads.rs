@@ -10,7 +10,7 @@ use fs_interfaces::texts_capnp::texts;
 use fs_wiki_core::{TextQuery, Texts};
 
 use crate::errors::{rpc_error, rpc_error_for_format};
-use crate::links::{internal, write_links};
+use crate::links::{rows, write_links};
 use crate::paging::write_page;
 use crate::wire::{count, required, text_arg, write_entry, Sent};
 
@@ -73,8 +73,8 @@ pub(crate) async fn links(
 ) -> Done {
     let id = read_object_id(params.get()?.get_id()?)?;
     let links = texts.links(id).await.map_err(rpc_error)?;
-    let rows = internal(&links)?;
-    write_links(results.get().init_items(count(rows.len())?), &rows);
+    let rows = rows(&links)?;
+    write_links(results.get().init_items(count(rows.len())?), rows);
     Ok(())
 }
 
@@ -85,8 +85,8 @@ pub(crate) async fn backlinks(
 ) -> Done {
     let path = required(params.get()?.get_path()?, "path")?;
     let links = texts.backlinks(path).await.map_err(rpc_error)?;
-    let rows = internal(&links)?;
-    write_links(results.get().init_items(count(rows.len())?), &rows);
+    let rows = rows(&links)?;
+    write_links(results.get().init_items(count(rows.len())?), rows);
     Ok(())
 }
 

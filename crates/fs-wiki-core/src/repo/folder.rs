@@ -31,6 +31,7 @@ use super::relink::relinked;
 use super::shift::Shift;
 use crate::error::{Error, Result};
 use crate::path::TextPath;
+use crate::reason::Reason;
 use crate::texts::{Paging, TextEntry};
 
 impl WikiRepo {
@@ -49,7 +50,7 @@ impl WikiRepo {
             reason,
         };
         if within(new, old) {
-            return Err(invalid("the target lies inside the folder itself"));
+            return Err(invalid(Reason::InsideItself));
         }
         let steps = self.plan(old, new).await?;
         let last = self.last_move().await?;
@@ -69,9 +70,7 @@ impl WikiRepo {
             return Err(Error::NoSuchFolder(old.into()));
         }
         if steps.iter().any(|s| within(&s.new, old)) {
-            return Err(invalid(
-                "a moved text would land inside the old folder, which an interrupted move could not tell apart",
-            ));
+            return Err(invalid(Reason::InsideOld));
         }
         if let Some(r) = last.as_ref().filter(|r| !r.done && same.is_none()) {
             return Err(Error::MoveUnfinished {
