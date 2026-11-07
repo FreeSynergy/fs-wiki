@@ -21,6 +21,19 @@ six crates (one of them only for tests); the GUI lives only in `fs-wiki-app`, on
 **Interface status: draft, consumers: none (0 of 2).** (ADR 0045: the interface is a target; it stays draft until two independent
 consumers have tested it, then 1.0, then only version jumps.) Nothing here is declared 1.0.
 
+## Handover (2026-11-07, end of the sprint day)
+
+Branch `client` (`5ed6664`, four independent Opus rounds, `gates.sh` green on a fresh clone at that commit, 344 tests) holds
+`fs-wiki-client` (`RpcTexts`: `Texts` + `TextFeed` over `texts.capnp`) and `fs-wiki-app` talking to `fs-wiki-server` over Cap'n Proto.
+**Not merged, not tagged:** `origin/main` moved on (server round, tag `v0.3.0` by thread 3). Next plan: rebase `client` onto `main`,
+resolve the version (the tag `v0.3.0` exists; this becomes `v0.3.1`), run `gates.sh` on a fresh clone, tag.
+Open on `client`: the guess "no text named by the records exists on the server" can be replaced by `Texts::identity()`
+(`SupportReport.instance`, `fs-store` v0.4.0); "backup with only some of the texts" stays open. One low finding of round five:
+with a single entry in the records, one failing `get` already counts as "all failed" and stops the import (`check.rs`); drop that
+rule or trigger it only on connection faults. `check.rs` says `Pattern: none` but calls the server; `origins_log.rs` says `none`
+but writes files: both belong to the open pattern questions. `deleted` in a record has no effect in the real program yet (the app
+has no way to delete). A local, unpushed branch `t1-bump` (version 0.3.0 commit) was dropped in favour of the tag by thread 3.
+
 ## State
 
 Version 0.2.0 (workspace; the tag v0.2.0 is set by the owner). Built on `fs-store` v0.2.0, `fs-interfaces` v0.34.0 and `fs-components` v0.2.0 (git tags).
