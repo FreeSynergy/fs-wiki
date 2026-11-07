@@ -10,7 +10,9 @@ use fs_wiki_core::{Error, Paging, TextQuery, Texts, WikiRepo};
 /// A copy of the database written by `fs-wiki-core` 0.2.0 (five texts), opened by this version.
 async fn old_wiki(dir: &Path) -> WikiRepo {
     for name in ["v020.db", "v020.db-wal"] {
-        let from = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures").join(name);
+        let from = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures")
+            .join(name);
         std::fs::copy(from, dir.join(name)).unwrap();
     }
     let store: Arc<dyn Store> = Arc::new(TursoStore::open(dir.join("v020.db")).await.unwrap());
@@ -26,11 +28,22 @@ async fn the_first_page_of_old_texts_fails_loudly_and_upgrade_index_repairs_them
 
     let all = TextQuery::Prefix(String::new());
     let error = wiki.page(&all, None, 2).await.unwrap_err();
-    assert!(matches!(&error, Error::Stored(m) if m.contains("upgrade_index")), "{error}");
+    assert!(
+        matches!(&error, Error::Stored(m) if m.contains("upgrade_index")),
+        "{error}"
+    );
 
     let report = wiki.upgrade_index().await.unwrap();
-    assert_eq!((report.rewritten, report.failed.len()), (5, 0), "{report:?}");
-    assert_eq!(wiki.upgrade_index().await.unwrap().rewritten, 0, "nothing left to do");
+    assert_eq!(
+        (report.rewritten, report.failed.len()),
+        (5, 0),
+        "{report:?}"
+    );
+    assert_eq!(
+        wiki.upgrade_index().await.unwrap().rewritten,
+        0,
+        "nothing left to do"
+    );
 
     let (mut seen, mut place) = (vec![], None);
     loop {
@@ -48,7 +61,15 @@ async fn the_first_page_of_old_texts_fails_loudly_and_upgrade_index_repairs_them
     let said = |texts: &[fs_wiki_core::TextEntry]| -> Vec<_> {
         texts
             .iter()
-            .map(|t| (t.id, t.path.clone(), t.revision, t.envelope.name.clone(), t.document.clone()))
+            .map(|t| {
+                (
+                    t.id,
+                    t.path.clone(),
+                    t.revision,
+                    t.envelope.name.clone(),
+                    t.document.clone(),
+                )
+            })
             .collect()
     };
     assert!(said(&after) == said(&before), "the texts changed");

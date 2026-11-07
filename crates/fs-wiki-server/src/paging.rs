@@ -6,7 +6,7 @@
 
 use fs_interfaces::rpc::{Problem, MAX_ITEM_BYTES, MAX_PAGE_BYTES, TOO_LARGE};
 use fs_interfaces::texts_capnp::text_page;
-use fs_wiki_core::{Place, Texts, TextPage, TextQuery};
+use fs_wiki_core::{Place, TextPage, TextQuery, Texts};
 
 use crate::cursor::{decode, encode};
 use crate::errors::rpc_error;

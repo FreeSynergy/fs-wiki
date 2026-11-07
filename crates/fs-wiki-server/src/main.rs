@@ -26,6 +26,18 @@ fn main() {
         if let Some(instance) = instance {
             repo = repo.with_instance(instance);
         }
+        // Texts stored before 0.3.0 get the index fields the pages need; what cannot be repaired is
+        // named, and a page says so as well.
+        let report = repo.upgrade_index().await.map_err(std::io::Error::other)?;
+        if report.rewritten > 0 {
+            eprintln!(
+                "fs-wiki-server: index completed for {} texts",
+                report.rewritten
+            );
+        }
+        for failed in &report.failed {
+            eprintln!("fs-wiki-server: text not repaired: {failed}");
+        }
         let repo = Arc::new(repo);
         Ok(TextsServer::new(repo.clone(), repo).into_client().client)
     });

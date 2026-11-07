@@ -109,7 +109,10 @@ pub(crate) fn source_arg(text: capnp::text::Reader<'_>) -> capnp::Result<&str> {
 pub(crate) fn required<'a>(text: capnp::text::Reader<'a>, what: &str) -> capnp::Result<&'a str> {
     let text = text_arg(text)?;
     if text.is_empty() {
-        return Err(invalid(format!("{what} must not be empty"), &format!("{what}-empty")));
+        return Err(invalid(
+            format!("{what} must not be empty"),
+            &format!("{what}-empty"),
+        ));
     }
     Ok(text)
 }
@@ -117,23 +120,53 @@ pub(crate) fn required<'a>(text: capnp::text::Reader<'a>, what: &str) -> capnp::
 /// The document of a request, from its JSON form.
 pub(crate) fn read_document(text: capnp::text::Reader<'_>) -> capnp::Result<Document> {
     let text = text_arg(text)?;
-    serde_json::from_str(text).map_err(|e| invalid(format!("the document does not read: {e}"), "document-unreadable"))
+    serde_json::from_str(text).map_err(|e| {
+        invalid(
+            format!("the document does not read: {e}"),
+            "document-unreadable",
+        )
+    })
+}
+
+/// Counts the bytes written and refuses to take more than `left`: the JSON form of a document is
+/// measured without being kept, and measuring stops where the limit is crossed.
+struct Measure {
+    seen: usize,
+    left: usize,
+}
+
+impl std::io::Write for Measure {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.seen += bytes.len();
+        if bytes.len() > self.left {
+            return Err(std::io::Error::other("over the limit"));
+        }
+        self.left -= bytes.len();
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
 }
 
 /// Refuse a document whose JSON form could not come back in an answer, before it is stored. Used for
-/// Markdown, whose document may be many times larger than the text it came from.
+/// Markdown, whose document may be many times larger than the text it came from. The JSON is only
+/// counted, never built as a string, and counting stops at the limit.
 pub(crate) fn fits(document: &Document) -> capnp::Result<()> {
-    let json = serde_json::to_string(document)
-        .map_err(|e| capnp::Error::failed(format!("document does not write: {e}")))?;
-    if json.len() > MAX_INTAKE_BYTES {
-        return Err(too_large_by(
+    let mut measure = Measure {
+        seen: 0,
+        left: MAX_INTAKE_BYTES,
+    };
+    match serde_json::to_writer(&mut measure, document) {
+        Ok(()) => Ok(()),
+        Err(e) if e.is_io() => Err(too_large_by(
             format!(
-                "the text becomes {} bytes as a document, at most {MAX_INTAKE_BYTES} fit",
-                json.len()
+                "the text becomes more than {MAX_INTAKE_BYTES} bytes as a document, at most {MAX_INTAKE_BYTES} fit"
             ),
-            json.len() as u64,
+            measure.seen as u64,
             MAX_INTAKE_BYTES as u64,
-        ));
+        )),
+        Err(e) => Err(capnp::Error::failed(format!("document does not write: {e}"))),
     }
-    Ok(())
 }

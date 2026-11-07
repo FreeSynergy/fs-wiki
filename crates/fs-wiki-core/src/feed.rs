@@ -7,6 +7,7 @@
 
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
+use fs_interfaces::Unsupported;
 use fs_store::ObjectId;
 
 /// What happened to a text. A move is an `Updated` of the moved text and of every text whose links
@@ -30,8 +31,9 @@ pub trait TextListener: Send + Sync {
 
 /// Live updates of texts.
 pub trait TextFeed: Send + Sync {
-    /// Tell `listener` about every change until the returned [`Subscription`] is dropped.
-    fn subscribe(&self, listener: Arc<dyn TextListener>) -> Subscription;
+    /// Tell `listener` about every change until the returned [`Subscription`] is dropped. A provider
+    /// whose report does not carry `text.subscribe` answers [`Unsupported`] (ADR 0045).
+    fn subscribe(&self, listener: Arc<dyn TextListener>) -> Result<Subscription, Unsupported>;
 }
 
 type Entries = Vec<(u64, Arc<dyn TextListener>)>;

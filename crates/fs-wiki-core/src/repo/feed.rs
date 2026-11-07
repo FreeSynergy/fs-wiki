@@ -5,11 +5,13 @@
 
 use std::sync::Arc;
 
+use fs_interfaces::Unsupported;
+
 use super::handle::WikiRepo;
 use crate::feed::{Subscription, TextFeed, TextListener};
 
 impl TextFeed for WikiRepo {
-    fn subscribe(&self, listener: Arc<dyn TextListener>) -> Subscription {
-        self.feed.add(listener)
+    fn subscribe(&self, listener: Arc<dyn TextListener>) -> Result<Subscription, Unsupported> {
+        Ok(self.feed.add(listener))
     }
 }

@@ -64,13 +64,23 @@ async fn reading_all_pages_costs_rows_in_proportion_to_the_data() {
     for (name, how) in [("list", Read::List), ("find", Read::Find)] {
         let (small, seen_small) = rows_for(80, how).await;
         let (large, seen_large) = rows_for(160, how).await;
-        assert_eq!((seen_small, seen_large), (80, 160), "{name}: every text once");
+        assert_eq!(
+            (seen_small, seen_large),
+            (80, 160),
+            "{name}: every text once"
+        );
         #[allow(clippy::cast_precision_loss)]
         let ratio = large as f64 / small as f64;
         eprintln!("{name}: {small} rows for 80 texts, {large} rows for 160, ratio {ratio:.2}");
         // Linear is about 2, a whole list read for every page is about 4.
-        assert!(ratio < 3.0, "{name}: {small} -> {large} rows, ratio {ratio:.2}");
-        assert!(large < 2 * 160 + 10 * 160 / PAGE, "{name}: {large} rows for 160");
+        assert!(
+            ratio < 3.0,
+            "{name}: {small} -> {large} rows, ratio {ratio:.2}"
+        );
+        assert!(
+            large < 2 * 160 + 10 * 160 / PAGE,
+            "{name}: {large} rows for 160"
+        );
     }
 }
 
@@ -92,7 +102,11 @@ async fn import_work(n: usize) -> (usize, usize) {
             }
             let now = counted.touched.load(Ordering::Relaxed);
             let before = slot.get().0;
-            slot.set(if round == 0 { (now, 0) } else { (before, now - before) });
+            slot.set(if round == 0 {
+                (now, 0)
+            } else {
+                (before, now - before)
+            });
         }
     })
     .await;

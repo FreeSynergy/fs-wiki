@@ -9,7 +9,7 @@ four crates; the GUI lives only in `fs-wiki-app`, on [`fs-components`](https://g
   No storage, no interface. Its own design is in [`crates/fs-text/DESIGN.md`](crates/fs-text/DESIGN.md).
 * `crates/fs-wiki-app`: the **first visible part**, a thin shell: imports a folder of Markdown files, maps texts to the neutral
   blocks of `fs-components`, and offers the wiki to the reader workbench as its data source. No Blinc type appears in it.
-* `crates/fs-wiki-server`: the **Cap'n Proto server**: the contract `texts.capnp` (fs-interfaces v0.33.0) over a Unix socket, in front of `Texts` + `TextFeed`. It only translates; no text logic.
+* `crates/fs-wiki-server`: the **Cap'n Proto server**: the contract `texts.capnp` (fs-interfaces v0.44.0) over a Unix socket, in front of `Texts` + `TextFeed`. It only translates; no text logic.
 * `crates/fs-wiki-core`: the **program core**. The trait `Texts` (Rust form of `Texts` in `texts.capnp`) and `WikiRepo`, its
   implementation over `fs-store`.
 
@@ -20,7 +20,7 @@ consumers have tested it, then 1.0, then only version jumps.) Nothing here is de
 
 ## State
 
-Version 0.2.0 (workspace; the tag v0.2.0 is set by the owner). Built on `fs-store` v0.2.0, `fs-interfaces` v0.33.0 and `fs-components` v0.1.0 (git tags).
+Version 0.3.0 (workspace, branch `bump-044`; the tag is set by the owner). Built on `fs-store` v0.4.0, `fs-interfaces` v0.44.0 and `fs-components` v0.2.0 (git tags). New in 0.3.0: pages cut in the store at a place, no quadratic import, `LinkRow.title` / `internal`, store identity in the report, typed problem extensions, `TextFeed::subscribe` may say `Unsupported`.
 
 | Area | State |
 |---|---|
@@ -35,6 +35,9 @@ Version 0.2.0 (workspace; the tag v0.2.0 is set by the owner). Built on `fs-stor
 | `path` unique: checked in the store before every write under a per-repo write lock; a clash is `Error::PathTaken`; invalid paths are `Error::InvalidPath` (`TextPath`) | done (in-process only, see open points) |
 | `create(path, markdown)`, `edit(id, document)` (id of the document forced to the text id; envelope, IRI and `published` stay), `delete` (the text and its layers; undoable through the store) | done |
 | `list(prefix, page)`: one store query on the index `path`, **exact, case sensitive prefix** (text order range), path order, paged by the store | done |
+| `page(query, after, size)` (`Texts::page`, `repo/page.rs`): the page behind `list` / `find` on the wire. A `Place` = (`path_key`, name, id) is where a text stands in the order; the page after a place is at most three store queries with a limit (same key and name, later id; same key, later name; later key), never the whole list. The index fields `path_key` (`sort_key(path)`) and `id_key` (id as text) are written with every text. The first page checks that every text has them (`Error::Stored`, names `upgrade_index`) | done, tested (`counting`, `places`) |
+| `upgrade_index()` (`repo/upgrade.rs`): adds `path_key` and `id_key` to texts stored by 0.2.0 (only the index; the document is not read; `updated` moves, `revision` does not). A text that cannot be repaired is named in the `IndexReport`. The server runs it at start and prints the count | done, tested on a real 0.2.0 database (`tests/fixtures/v020.db`) and by the real program |
+| `identity()` (`Texts::identity`, `WikiRepo::with_info`): the id of the store (`StoreInfo`), `None` for a provider without a store; the report's `instance` comes from it | done, tested over the socket |
 | `find(term, page)`: one store query: `Contains` on the name, on the path and on the index `block` (plain text of each block) | done |
 | Link table: marks are the truth; `links(id)` = `extract_links` of the stored document (`LinkEntry`: source, target path as written, place `<block>:<start>-<end>`, title, internal); `backlinks(path)` = one store query on the index `link` (page part of every internal link), then the rows of the texts found | done |
 | `move_to(id, path)`: other texts that link to the old page are rewritten (exact page, `#fragment` kept, links to `old/...` stay); the moved text last, its own relative links written again for its new place. A link is first resolved against the page it stands on (`repo/target.rs`): `[[a/b]]` is a literal path, `[x](../a/b.md)` is relative to its page; a rewritten link keeps its written form (relative stays relative, `./`, trailing `/` and `#fragment` kept). `MovePrefix` of fs-text sees neither the page nor the style, so `repo/relink.rs` does this with the same ops | done, tested (also links inside the moved text, retry after a stop half way) |
@@ -46,7 +49,7 @@ Version 0.2.0 (workspace; the tag v0.2.0 is set by the owner). Built on `fs-stor
 | Media types (`TextFormat`, Factory): `text/markdown` (parameters and case ignored); anything else is `Error::MediaType` | done |
 | Example `cargo run -p fs-wiki-core --example manifesto`: imports `fs-documentation/docs/en/manifesto.md`, reads it back (identical), lists its links | done |
 | Tests | `fs-wiki-core`: the integration tests (`texts_crud`, `texts_list`, `links`, `move_text`, `move_folder`, `move_folder_failure`, `move_safety`, `relative_links`, `edit_if`, `outside_change`, `provider`); `fs-text` has its own |
-| Tests (server) | `fs-wiki-server`: 29 over a real Unix socket against the real `TursoStore`: `texts`, `paging`, `links`, `moves`, `transfer`, `report`, `feed`, `cancel` (a client that goes away at a write; fails without `run_to_end`), `errors`, `limits`, `binary` (the real program across a restart, a second start refused, bad arguments). Totals: core 64, server 29, fs-text 116, app 68 |
+| Tests (server) | `fs-wiki-server` over a real Unix socket against the real `TursoStore`: `texts`, `paging`, `places` (a cursor is a place), `counting` (rows for n and 2n texts: list, find, import), `links`, `moves`, `transfer`, `report`, `instance`, `problems`, `feed` (waits for the event, no fixed time), `feed_ends` (`ended`; `Unsupported` subscribe), `cancel` (a client that goes away at a write; fails without `run_to_end`), `errors`, `limits`, `binary` (the real program across a restart), `upgrade` (the real program on a 0.2.0 database). Counts of the last run are in the report of the commit |
 | `fs-wiki-app` (binary): `--docs` (default `../fs-documentation/docs/en`), `--store` (a file, or `memory`; default one file per docs folder in the data directory), `--export` (enables the Export button), `--snapshot` + `--step` (a picture without a window, see below) | done |
 | App: sync of every `*.md` under the folder (`import.rs`, `sync.rs`), path = relative path. A record per file (hash, text, hash of the text) decides: file as recorded = nothing happens and the file is not parsed, whatever the database holds (a saved, moved or deleted text stays so); file changed and text as recorded = normal edit (ADR 0042 section 5); both changed = the database text stays, the file's version is a conflict shown on the problems page; new file = import; file gone = reported, text kept. Failures, conflicts, gone files and skipped entries (symbolic links, `.MD`, unreadable entries) are the first tree entry "Import problems (n)" | done |
 | App: store: by default one file per docs folder, `<data dir>/freesynergy/fs-wiki/<folder>-<hash>.db` (`$XDG_DATA_HOME` or `~/.local/share`), so a save survives the exit; `--store memory` keeps nothing and says so at start | done, provisional |
@@ -71,7 +74,12 @@ has a `Pattern:` line. For `fs-text` see its own DESIGN.md.
 | `repo/backend.rs` | Adapter | `Arc<dyn Store>` as `dyn ObjectRepository` + `dyn ObjectQuery` |
 | `repo/record.rs` | Adapter | path + `Document` <-> `StoredObject` (record, envelope, index fields) |
 | `repo/name.rs` | Strategy (fallback order) | the derived name (ADR 0032) |
-| `repo/read.rs` | Builder consumer | one `Query` per read, run by the store |
+| `repo/read.rs` | Builder consumer | one `Query` per read, run by the store; a lookup by path has no order |
+| `repo/page.rs` | Iterator (resumable) over the Repository | the page after a `Place` as at most three limited queries |
+| `repo/upgrade.rs` | Template method | find texts without `path_key` / `id_key`, add them, report |
+| `repo/keys.rs` | none (constants) | names of the index fields |
+| `page.rs` | Value object | `TextQuery`, `Place`, `Placed`, `TextPage` |
+| `reason.rs` | none (plain data) | why a path or move is refused: sentence for people, token for programs |
 | `repo/write.rs` | Template method | check path, build, write, read back; `*_locked` flows are reused by move and import |
 | `repo/folder.rs` | Command producer, plan then execute | the plan is made from reads, refused or executed in two phases; `MovePrefix` of fs-text is the strategy |
 | `repo/moving.rs` | Command producer + Strategy | `rewrite_links_with` yields the rewrite, `MovePage` is the strategy |
@@ -88,7 +96,9 @@ has a `Pattern:` line. For `fs-text` see its own DESIGN.md.
 |---|---|---|
 | `texts_service.rs` | Adapter + Facade | the root capability `TextsServer`; depends on `dyn Texts` + `dyn TextFeed`, never on `WikiRepo`; each method forwards to `reads` / `writes` |
 | `reads.rs`, `writes.rs` | Adapter (+ Command for writes) | wire in, one trait call, wire out; every write runs through `run_to_end`, so a client that goes away cannot leave a move half done |
-| `wire.rs`, `links.rs` | Adapter | texts, pages (by weight) and link rows on the wire; every size checked here |
+| `wire.rs`, `links.rs` | Adapter | texts and link rows on the wire; every size checked here (`fits` counts the document's JSON without building it and stops at the limit) |
+| `paging.rs`, `cursor.rs` | Adapter / none | the page of the provider cut by weight, written with the cursor of its last place; the cursor as bytes (same shape as `fs-tasks-server`, to move into `fs-interfaces`) |
+| `facts.rs` | none (pure function) | the extensions of a problem, from the core error |
 | `errors.rs` | Adapter | core errors as RFC 9457 problems; an unknown media type is the explicit `Unsupported` of `text.import` / `text.export` |
 | `feed.rs` | Observer + Adapter | `TextFeed` to the shared forwarder; a failed read ends the feed with `ended` |
 | `main.rs` | none (thin binary) | options, store, serve until a signal |
@@ -139,10 +149,19 @@ What is known to be rough: emoji that Blinc has no glyph for show as boxes; the 
 
 ## Crates
 
-* `fs-store` (git tag v0.2.0), `fs-interfaces` (git tag v0.33.0; the server with feature `rpc`), `fs-text` (same workspace, path).
+* `fs-store` (git tag v0.4.0), `fs-interfaces` (git tag v0.44.0; the server with feature `rpc`), `fs-text` (same workspace, path).
 * `serde`, `serde_json`, `thiserror`, `async-trait`, `tokio` (sync only); server: `capnp`, `capnp-rpc`; app: `sha2`, `rustix` (no-follow file access).
 
 ## Open points
+
+Open points of 0.3.0 (honest list):
+
+* `moveFolder` still answers `too-large` after the move was done when the moved texts together exceed one message (the text says how to read them). The cursor-less answer is the contract's.
+* `fits` no longer builds the JSON string, but Markdown is still parsed twice per import (once to measure, once in the core): about 0.4 ms per page, small against the store.
+* `fs-store`: an exact index lookup is O(n), and `order_by_index` sorts every candidate before it cuts. Pages stay linear in rows read, but each page query costs the store O(texts left). Reported, not changed.
+* `upgrade_index` moves `updated` of a repaired text (it is a write); `revision` and the document stay.
+* The cursor module is a copy of the one in `fs-tasks-server`; one shared implementation belongs in `fs-interfaces`.
+* `fs-wiki-app` and `fs-text` were not changed. The app is built on `fs-components` v0.2.0 (the tag v0.4.0 that thread 1 may use does not exist on GitHub yet).
 
 First visible part (provisional, for the owner): the name of the reader and of the `fs-components-*` crates; `index.md` as the start page; the sidebar shows page titles, folders their name; import problems as a first tree entry; search results capped at 200; the Export folder is explicit (`--export`), never implied.
 
@@ -150,12 +169,27 @@ Measured on a **copy** of `fs-documentation/docs/en` (1398 pages, 510 folders), 
 
 Server decisions (provisional, easy to reverse):
 
-* **`links` / `backlinks` answer only links into the wiki.** `LinkRow.target` is "the readable path of the target"; a URL or mail address is no path, so it has no row (the core still has it in `LinkEntry`). The target stays as written, with `#fragment`. The title and the `internal` flag of `LinkEntry` have no place in `LinkRow`. The lists have no cursor: an answer above one message is `too-large`.
+* **`links` / `backlinks` answer every link** (contract 0.39): `LinkRow.title` is the link text as written, `internal` is true for a target that is a text of this wiki (it may not exist yet) and false for an outside address (URL, mail). The target stays as written, with `#fragment`. Before 0.3.0 outside links had no row. The lists have no cursor: an answer above one message is `too-large`. `TextEntry.revision` is only compared for equality (`editIf`); it is no counter and no time.
 * **`find` with an empty term is refused** (422), not "everything".
-* **`list` / `find` read all matching texts for every page** and cut the page at the cursor (the cursor of `fs-interfaces` is a position; its decoder is private, so a window cannot be asked of the store). Fine for hundreds of texts; for the 1400 pages of the documentation each page costs a full read. A public cursor position in `fs-interfaces::rpc` would let the core read one window.
+* **`list` / `find` pages are cut in the store** (0.3.0). The cursor is a place (form byte 2 + sort key, name, id), not a position: a text added or removed elsewhere changes neither what was read nor what comes next. A cursor of the old form (byte 1) is refused as `invalid-request`. The query is ordered by `path_key`, because the store's conditions compare the raw value and its order uses the folded value; with the folded value stored as the value both agree. Two paths that fold to the same key (`Alpha`, `alpha`) are told apart by name, then id. The page also stops by weight (`fitting`); an item above one message is `too-large` with the cursor past it.
+* **Why the import of 1398 files did not finish (found 2026-11-07).** `text_at` (path lookup before every create / import) and `aux_get` (the file record) were queries with `order_by_index`: the store computes the sort key of every text for each lookup, so a lookup costs O(n) and an import O(n^2) (debug build, whole documentation: minutes). A path or a key names one object, so both lookups are now unordered with `limit(1)`. Measured on 50..400 real files of `fs-documentation` (debug, loaded machine): import 50 -> 1.7 s, 100 -> 4.1 s, 200 -> 11.4 s, 400 -> 37.8 s before; 100 -> 2.0 s, 200 -> 3.6 s, 400 -> 8.4 s after (parse alone: 0.18 s for 400). What remains is the store: an exact index lookup is still O(n) there (about 2.6 ms at 100 texts, 5.5 ms at 400), reported for `fs-store`, not changed here. `moveFolder` and `backlinks` use ordered index queries too (one per move, not per text).
 * **The server parses on the thread that serves all connections.** Hence the 4 MiB limit on Markdown. A document is large (one-letter paragraphs: 105 times the Markdown), which `fs-text`'s serde form could shrink (thread 1).
 * **`moveFolder` is answered with all moved texts**, as the contract says; above one message it answers `too-large` after the move was done.
 * **`media_type`**: only `text/markdown` is known; any other is `Unsupported` of that method, though the report lists the capability as offered.
+* **Problem extensions** (keys of `fs-interfaces` `problem_keys`; the detail text is unchanged; `server/facts.rs`):
+
+  | Problem | status | `id` | `kind` | `issue` | `path` | `size` / `limit` |
+  |---|---|---|---|---|---|---|
+  | `texts/not-found` | 404 | the text | `page` | | | |
+  | `texts/not-found` (no text at or below a folder) | 404 | | `folder` | | the folder | |
+  | `texts/conflict` | 409 | the text | `page` | | | |
+  | `texts/path-taken` | 409 | | `page` | | the taken path | |
+  | `texts/move-refused` | 409 | | `folder` | | the target in the way (unfinished move: the folder) | |
+  | `texts/invalid` (path) | 422 | | `page` | token of `Reason` (`empty`, `fragment`, `empty-segment`, ...) | the path | |
+  | `texts/invalid` (folder move) | 422 | | `folder` | `inside-itself`, `inside-old-folder` | the folder | |
+  | `texts/invalid` (request) | 422 | | | `path-empty`, `term-empty`, `document-unreadable`, `media-type` ... | | |
+  | `too-large` (source, document, moved texts) | 413 | | | | | bytes / limit |
+
 * **`CONTRACT_VERSION`** is `texts 0.1 (draft)` (the schema header says DRAFT 0.1).
 
 Questions for the owner (all provisional, easy to reverse):
@@ -201,7 +235,7 @@ Not done / limits:
 * **Deleting a text** leaves links to it in other texts (dangling, like in any wiki); they are shown as links to a path with no text.
 * `LinkValue.target` (UUID of the target) is not filled; links resolve by path.
 * `find` is substring only (no tokens, no ranking) and also searches code blocks.
-* `subscribe` (`text.subscribe`) is not built; the capnp-rpc server is not written.
+* `TextFeed::subscribe` returns `Result<Subscription, Unsupported>`: a provider whose report lacks `text.subscribe` says so (tested with a fake feed).
 * Offset paging (`Paging`) costs O(offset) in the store; the wire `Cursor` will wrap the offset.
 
 ## Markdown round trip

@@ -63,7 +63,10 @@ impl texts::Server for TextsServer {
         let mut out = results.get().init_report();
         report.write(CONTRACT_VERSION, out.reborrow());
         // The store's id, as the store says it: empty where the provider has no store.
-        write_uuid(out.init_instance(), self.texts.identity().map(|id| id.as_uuid()));
+        write_uuid(
+            out.init_instance(),
+            self.texts.identity().map(|id| id.as_uuid()),
+        );
         Ok(())
     }
 
@@ -165,7 +168,7 @@ impl texts::Server for TextsServer {
         mut results: texts::SubscribeResults,
     ) -> Done {
         let listener = params.get()?.get_listener()?;
-        let subscription = subscribe(&self.feed, self.texts.clone(), listener);
+        let subscription = subscribe(&self.feed, self.texts.clone(), listener)?;
         results.get().set_subscription(subscription);
         Ok(())
     }

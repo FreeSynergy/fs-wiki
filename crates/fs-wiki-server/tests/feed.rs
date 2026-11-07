@@ -4,43 +4,8 @@
 
 mod common;
 
-use std::cell::RefCell;
-use std::rc::Rc;
-
-use capnp_rpc::new_client;
+use common::seen::{watch, Seen};
 use common::{create, set_id, with_server};
-use fs_interfaces::common_capnp::{change, change_listener};
-use fs_interfaces::rpc::read_envelope;
-use fs_interfaces::texts_capnp::texts;
-
-#[derive(Clone, Default)]
-struct Seen(Rc<RefCell<Vec<String>>>);
-
-impl change_listener::Server for Seen {
-    async fn change(
-        self: Rc<Self>,
-        params: change_listener::ChangeParams,
-    ) -> Result<(), capnp::Error> {
-        let kind = match params.get()?.get_change()?.which()? {
-            change::Which::Created(e) => format!("created {}", read_envelope(e?)?.name),
-            change::Which::Updated(e) => format!("updated {}", read_envelope(e?)?.name),
-            change::Which::Deleted(_) => "deleted".to_string(),
-        };
-        self.0.borrow_mut().push(kind);
-        Ok(())
-    }
-}
-
-async fn settle() {
-    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-}
-
-async fn watch(root: &texts::Client, seen: &Seen) -> impl Sized {
-    let listener: change_listener::Client = new_client(seen.clone());
-    let mut sub = root.subscribe_request();
-    sub.get().set_listener(listener);
-    sub.send().promise.await.unwrap()
-}
 
 #[tokio::test(flavor = "current_thread")]
 async fn subscribers_see_changes_until_they_drop_the_capability() {
@@ -56,16 +21,18 @@ async fn subscribers_see_changes_until_they_drop_the_capability() {
         let mut delete = root.delete_request();
         set_id(delete.get().init_id(), a.id);
         delete.send().promise.await.unwrap();
-        settle().await;
+        seen.wait_for(3).await;
         assert_eq!(
             *seen.0.borrow(),
             ["created Watched", "updated Watched", "deleted"]
         );
 
         drop(answer);
-        settle().await;
+        // A second listener that stays is the clock: once it has heard of "b", the dropped one would have too.
+        let witness = Seen::default();
+        let _kept = watch(&root, &witness).await;
         create(&root, "b", "x\n").await;
-        settle().await;
+        witness.wait_for(1).await;
         assert_eq!(seen.0.borrow().len(), 3, "still told after the drop");
     })
     .await;
@@ -82,7 +49,7 @@ async fn a_move_tells_the_texts_whose_links_followed() {
         set_id(req.get().init_id(), a.id);
         req.get().set_path("z");
         req.send().promise.await.unwrap();
-        settle().await;
+        seen.wait_for(2).await;
         assert_eq!(*seen.0.borrow(), ["updated Linker", "updated Moved"]);
     })
     .await;

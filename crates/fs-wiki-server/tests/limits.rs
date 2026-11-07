@@ -6,7 +6,7 @@ mod common;
 
 use std::sync::Arc;
 
-use common::{create, get, kind, list_paths, read_text, set_id, try_create, with_provider, ME};
+use common::{create, list_paths, read_text, set_id, try_create, with_provider, with_server, ME};
 use fs_interfaces::rpc::{MAX_INTAKE_BYTES, MAX_PAGE_BYTES};
 use fs_store::{Store, TursoStore};
 use fs_wiki_core::{Texts, WikiRepo};
@@ -21,7 +21,7 @@ fn is_too_large(error: &capnp::Error) {
 
 #[tokio::test(flavor = "current_thread")]
 async fn a_request_above_the_intake_limit_is_refused_and_the_connection_stays() {
-    with_server_ok(|root| async move {
+    with_server(|root| async move {
         let source = "x".repeat(MAX_SOURCE_BYTES + 1);
         is_too_large(&try_create(&root, "big", &source).await.err().unwrap());
         let big = "x".repeat(MAX_INTAKE_BYTES + 1);
@@ -36,7 +36,7 @@ async fn a_request_above_the_intake_limit_is_refused_and_the_connection_stays() 
 
 #[tokio::test(flavor = "current_thread")]
 async fn markdown_whose_document_would_not_fit_an_answer_is_refused_before_it_is_stored() {
-    with_server_ok(|root| async move {
+    with_server(|root| async move {
         // Short paragraphs: the document is about 100 times larger than the text.
         let blown = "a\n\n".repeat(MAX_SOURCE_BYTES / 6);
         is_too_large(&try_create(&root, "blown", &blown).await.err().unwrap());
@@ -78,9 +78,6 @@ async fn a_list_that_would_not_fit_one_message_is_cut_into_pages_by_weight() {
         assert!(pages > 1, "the page was cut by weight");
         let want: Vec<String> = (0..3).map(|i| format!("big/{i}")).collect();
         assert_eq!(seen, want, "and every text came exactly once");
-        let _ = (get, kind);
     })
     .await;
 }
-
-use common::with_server as with_server_ok;

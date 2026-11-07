@@ -87,7 +87,10 @@ impl WikiRepo {
     async fn check_places(&self) -> Result<()> {
         let all = Query::new().of_type(TEXT_TYPE).in_context(CONTEXT);
         let placed = all.clone().index_op(PATH_KEY, Op::Ge, "");
-        let (all, placed) = (self.reads.count(&all).await?, self.reads.count(&placed).await?);
+        let (all, placed) = (
+            self.reads.count(&all).await?,
+            self.reads.count(&placed).await?,
+        );
         if placed < all {
             return Err(Error::Stored(format!(
                 "{} of {all} texts have no place in the order (written before 0.3.0 or not repairable); run upgrade_index and read its report",

@@ -50,7 +50,14 @@ pub(crate) async fn list(
     let prefix = text_arg(p.get_prefix()?)?.to_string();
     let cursor = p.get_cursor()?.get_opaque()?;
     let query = TextQuery::Prefix(prefix);
-    write_page(texts.as_ref(), &query, cursor, size, results.get().init_page()).await
+    write_page(
+        texts.as_ref(),
+        &query,
+        cursor,
+        size,
+        results.get().init_page(),
+    )
+    .await
 }
 
 pub(crate) async fn find(
@@ -63,7 +70,14 @@ pub(crate) async fn find(
     let term = required(p.get_term()?, "term")?.to_string();
     let cursor = p.get_cursor()?.get_opaque()?;
     let query = TextQuery::Term(term);
-    write_page(texts.as_ref(), &query, cursor, size, results.get().init_page()).await
+    write_page(
+        texts.as_ref(),
+        &query,
+        cursor,
+        size,
+        results.get().init_page(),
+    )
+    .await
 }
 
 pub(crate) async fn links(

@@ -32,7 +32,10 @@ async fn links_lists_every_link_as_written_with_its_title_and_where_it_points() 
                 )
             })
             .collect();
-        let rows: Vec<_> = got.iter().map(|g| (g.1.as_str(), g.3.as_str(), g.4)).collect();
+        let rows: Vec<_> = got
+            .iter()
+            .map(|g| (g.1.as_str(), g.3.as_str(), g.4))
+            .collect();
         assert_eq!(
             rows,
             [

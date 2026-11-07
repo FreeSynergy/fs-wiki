@@ -11,8 +11,8 @@ use fs_text::Document;
 use super::handle::WikiRepo;
 use crate::error::{Error, Result};
 use crate::media::TextFormat;
-use crate::path::TextPath;
 use crate::page::{Place, TextPage, TextQuery};
+use crate::path::TextPath;
 use crate::texts::{LinkEntry, Paging, TextEntry, Texts};
 
 #[async_trait]

@@ -3,6 +3,7 @@
 #![allow(dead_code)] // each test file uses a different subset
 
 pub mod counting;
+pub mod seen;
 
 use std::future::Future;
 use std::sync::Arc;

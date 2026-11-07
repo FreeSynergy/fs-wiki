@@ -53,7 +53,10 @@ async fn a_missing_method_says_not_possible() {
     let p: Arc<dyn Texts> = Arc::new(ReadOnly);
     let id = ObjectId::new();
     assert!(p.list("", Paging::default()).await.unwrap().is_empty());
-    assert!(p.identity().is_none(), "a provider without a store has no identity");
+    assert!(
+        p.identity().is_none(),
+        "a provider without a store has no identity"
+    );
     assert_eq!(capability(p.create("a", "x").await), "text.create");
     assert_eq!(capability(p.edit(id, Document::new()).await), "text.edit");
     assert_eq!(capability(p.move_to(id, "b").await), "text.move");

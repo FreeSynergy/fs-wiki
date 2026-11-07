@@ -18,7 +18,11 @@ where
 {
     let store: Arc<dyn Store> = Arc::new(TursoStore::open_in_memory().await.unwrap());
     let repo = Arc::new(WikiRepo::new(store, ME));
-    with_page_size(TextsServer::new(repo.clone(), repo).with_page_size(size), test).await;
+    with_page_size(
+        TextsServer::new(repo.clone(), repo).with_page_size(size),
+        test,
+    )
+    .await;
 }
 
 /// One page of `list` after `cursor`: its paths and the cursor behind it.
@@ -28,8 +32,16 @@ async fn page(root: &texts::Client, prefix: &str, cursor: &[u8]) -> (Vec<String>
     req.get().init_cursor().set_opaque(cursor);
     let answer = req.send().promise.await.unwrap();
     let page = answer.get().unwrap().get_page().unwrap();
-    let paths = page.get_items().unwrap().iter().map(|t| read_text(t).path).collect();
-    (paths, page.get_next().unwrap().get_opaque().unwrap().to_vec())
+    let paths = page
+        .get_items()
+        .unwrap()
+        .iter()
+        .map(|t| read_text(t).path)
+        .collect();
+    (
+        paths,
+        page.get_next().unwrap().get_opaque().unwrap().to_vec(),
+    )
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -71,7 +83,11 @@ async fn paths_that_differ_only_in_case_come_once_each_whatever_the_page_size() 
                 }
             }
             all.sort();
-            assert_eq!(all, ["ALPHA", "Alpha", "Beta", "alpha", "beta"], "size {size}");
+            assert_eq!(
+                all,
+                ["ALPHA", "Alpha", "Beta", "alpha", "beta"],
+                "size {size}"
+            );
         })
         .await;
     }
@@ -83,7 +99,9 @@ async fn a_cursor_of_the_old_form_is_refused_and_the_connection_stays() {
         create(&root, "a", "x\n").await;
         // The first byte 1 was a position in the whole list.
         let mut req = root.list_request();
-        req.get().init_cursor().set_opaque(&[1, 3, 0, 0, 0, 0, 0, 0, 0]);
+        req.get()
+            .init_cursor()
+            .set_opaque(&[1, 3, 0, 0, 0, 0, 0, 0, 0]);
         let error = req.send().promise.await.err().unwrap();
         assert_eq!(kind(&error), ("invalid-request".into(), 422));
         assert_eq!(page(&root, "", &[]).await.0, ["a"]);

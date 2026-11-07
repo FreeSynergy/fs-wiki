@@ -55,7 +55,11 @@ async fn a_taken_path_and_a_refused_move_name_the_path_in_the_way() {
         let refused = p(&req.send().promise.await.err().unwrap());
         assert!(refused.problem_type.ends_with("texts/move-refused"));
         assert_eq!(refused.ext("kind"), Some("folder"));
-        assert_eq!(refused.ext("path"), Some("e"), "the target that is in the way");
+        assert_eq!(
+            refused.ext("path"),
+            Some("e"),
+            "the target that is in the way"
+        );
     })
     .await;
 }

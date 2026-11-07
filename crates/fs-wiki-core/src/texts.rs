@@ -91,13 +91,8 @@ pub trait Texts: Send + Sync {
     /// from the start), in path order. A provider with a store cuts the page in the store: it reads
     /// neither the texts before the place nor the ones after the page. A `Term` query is `text.find`:
     /// a provider without it answers [`Unsupported`].
-    async fn page(
-        &self,
-        query: &TextQuery,
-        after: Option<&Place>,
-        size: usize,
-    ) -> Result<TextPage>;
-
+    async fn page(&self, query: &TextQuery, after: Option<&Place>, size: usize)
+        -> Result<TextPage>;
 
     /// `text.create`: a new text at `path` from Markdown. A taken path is an error.
     async fn create(&self, _path: &str, _markdown: &str) -> Result<TextEntry> {

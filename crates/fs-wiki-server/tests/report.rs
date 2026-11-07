@@ -14,7 +14,8 @@ use fs_interfaces::texts_capnp::texts;
 use fs_store::{ObjectId, Store, TursoStore};
 use fs_text::Document;
 use fs_wiki_core::{
-    Capabilities, Paging, Place, Result, TextEntry, TextPage, TextQuery, Texts, Unsupported, WikiRepo,
+    Capabilities, Paging, Place, Result, TextEntry, TextPage, TextQuery, Texts, Unsupported,
+    WikiRepo,
 };
 use fs_wiki_server::CONTRACT_VERSION;
 
@@ -88,10 +89,17 @@ impl Texts for ReadOnly {
     async fn list(&self, prefix: &str, page: Paging) -> Result<Vec<TextEntry>> {
         self.0.list(prefix, page).await
     }
-    async fn page(&self, query: &TextQuery, after: Option<&Place>, size: usize) -> Result<TextPage> {
+    async fn page(
+        &self,
+        query: &TextQuery,
+        after: Option<&Place>,
+        size: usize,
+    ) -> Result<TextPage> {
         match query {
             TextQuery::Prefix(_) => self.0.page(query, after, size).await,
-            TextQuery::Term(_) => Err(Unsupported::new("text.find", "this library is not searched").into()),
+            TextQuery::Term(_) => {
+                Err(Unsupported::new("text.find", "this library is not searched").into())
+            }
         }
     }
 }
@@ -140,7 +148,11 @@ async fn a_provider_without_a_method_answers_not_possible_with_its_capability() 
         let mut req = root.find_request();
         req.get().set_term("shipped");
         not_possible(req.send().promise.await.err().unwrap(), "text.find");
-        assert_eq!(common::list_paths(&root, "").await, ["lib/a"], "listing works");
+        assert_eq!(
+            common::list_paths(&root, "").await,
+            ["lib/a"],
+            "listing works"
+        );
         assert_eq!(
             common::get(&root, id.as_uuid()).await.unwrap().path,
             "lib/a",
