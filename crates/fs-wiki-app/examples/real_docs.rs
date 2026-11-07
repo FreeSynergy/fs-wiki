@@ -12,7 +12,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use fs_components_workbenches::LinkTarget;
-use fs_store::{Store, TursoStore};
+use fs_objects::{Store, TursoStore};
 use fs_wiki_app::{import_folder, resolve_with_folders};
 use fs_wiki_core::{Paging, Texts, WikiRepo};
 

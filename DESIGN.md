@@ -11,7 +11,7 @@ four crates; the GUI lives only in `fs-wiki-app`, on [`fs-components`](https://g
   blocks of `fs-components`, and offers the wiki to the reader workbench as its data source. No Blinc type appears in it.
 * `crates/fs-wiki-server`: the **Cap'n Proto server**: the contract `texts.capnp` (fs-interfaces v0.44.0) over a Unix socket, in front of `Texts` + `TextFeed`. It only translates; no text logic.
 * `crates/fs-wiki-core`: the **program core**. The trait `Texts` (Rust form of `Texts` in `texts.capnp`) and `WikiRepo`, its
-  implementation over `fs-store`.
+  implementation over `fs-objects`.
 
 ## Interface status
 
@@ -20,7 +20,7 @@ consumers have tested it, then 1.0, then only version jumps.) Nothing here is de
 
 ## State
 
-Version 0.3.0 (workspace, branch `bump-044`; the tag is set by the owner). Built on `fs-store` v0.4.0, `fs-interfaces` v0.44.0 and `fs-components` v0.2.0 (git tags). New in 0.3.0: pages cut in the store at a place, no quadratic import, `LinkRow.title` / `internal`, store identity in the report, typed problem extensions, `TextFeed::subscribe` may say `Unsupported`.
+Version 0.3.0 (workspace, branch `bump-044`; the tag is set by the owner). Built on `fs-objects` v0.4.0, `fs-interfaces` v0.44.0 and `fs-components` v0.2.0 (git tags). New in 0.3.0: pages cut in the store at a place, no quadratic import, `LinkRow.title` / `internal`, store identity in the report, typed problem extensions, `TextFeed::subscribe` may say `Unsupported`.
 
 | Area | State |
 |---|---|
@@ -149,7 +149,7 @@ What is known to be rough: emoji that Blinc has no glyph for show as boxes; the 
 
 ## Crates
 
-* `fs-store` (git tag v0.4.0), `fs-interfaces` (git tag v0.44.0; the server with feature `rpc`), `fs-text` (same workspace, path).
+* `fs-objects` (git tag v0.4.0), `fs-interfaces` (git tag v0.44.0; the server with feature `rpc`), `fs-text` (same workspace, path).
 * `serde`, `serde_json`, `thiserror`, `async-trait`, `tokio` (sync only); server: `capnp`, `capnp-rpc`; app: `sha2`, `rustix` (no-follow file access).
 
 ## Open points
@@ -158,7 +158,7 @@ Open points of 0.3.0 (honest list):
 
 * `moveFolder` still answers `too-large` after the move was done when the moved texts together exceed one message (the text says how to read them). The cursor-less answer is the contract's.
 * `fits` no longer builds the JSON string, but Markdown is still parsed twice per import (once to measure, once in the core): about 0.4 ms per page, small against the store.
-* `fs-store`: an exact index lookup is O(n), and `order_by_index` sorts every candidate before it cuts. Pages stay linear in rows read, but each page query costs the store O(texts left). Reported, not changed.
+* `fs-objects`: an exact index lookup is O(n), and `order_by_index` sorts every candidate before it cuts. Pages stay linear in rows read, but each page query costs the store O(texts left). Reported, not changed.
 * `upgrade_index` moves `updated` of a repaired text (it is a write); `revision` and the document stay.
 * The cursor module is a copy of the one in `fs-tasks-server`; one shared implementation belongs in `fs-interfaces`.
 * `fs-wiki-app` and `fs-text` were not changed. The app is built on `fs-components` v0.2.0 (the tag v0.4.0 that thread 1 may use does not exist on GitHub yet).
@@ -172,7 +172,7 @@ Server decisions (provisional, easy to reverse):
 * **`links` / `backlinks` answer every link** (contract 0.39): `LinkRow.title` is the link text as written, `internal` is true for a target that is a text of this wiki (it may not exist yet) and false for an outside address (URL, mail). The target stays as written, with `#fragment`. Before 0.3.0 outside links had no row. The lists have no cursor: an answer above one message is `too-large`. `TextEntry.revision` is only compared for equality (`editIf`); it is no counter and no time.
 * **`find` with an empty term is refused** (422), not "everything".
 * **`list` / `find` pages are cut in the store** (0.3.0). The cursor is a place (form byte 2 + sort key, name, id), not a position: a text added or removed elsewhere changes neither what was read nor what comes next. A cursor of the old form (byte 1) is refused as `invalid-request`. The query is ordered by `path_key`, because the store's conditions compare the raw value and its order uses the folded value; with the folded value stored as the value both agree. Two paths that fold to the same key (`Alpha`, `alpha`) are told apart by name, then id. The page also stops by weight (`fitting`); an item above one message is `too-large` with the cursor past it.
-* **Why the import of 1398 files did not finish (found 2026-11-07).** `text_at` (path lookup before every create / import) and `aux_get` (the file record) were queries with `order_by_index`: the store computes the sort key of every text for each lookup, so a lookup costs O(n) and an import O(n^2) (debug build, whole documentation: minutes). A path or a key names one object, so both lookups are now unordered with `limit(1)`. Measured on 50..400 real files of `fs-documentation` (debug, loaded machine): import 50 -> 1.7 s, 100 -> 4.1 s, 200 -> 11.4 s, 400 -> 37.8 s before; 100 -> 2.0 s, 200 -> 3.6 s, 400 -> 8.4 s after (parse alone: 0.18 s for 400). What remains is the store: an exact index lookup is still O(n) there (about 2.6 ms at 100 texts, 5.5 ms at 400), reported for `fs-store`, not changed here. `moveFolder` and `backlinks` use ordered index queries too (one per move, not per text).
+* **Why the import of 1398 files did not finish (found 2026-11-07).** `text_at` (path lookup before every create / import) and `aux_get` (the file record) were queries with `order_by_index`: the store computes the sort key of every text for each lookup, so a lookup costs O(n) and an import O(n^2) (debug build, whole documentation: minutes). A path or a key names one object, so both lookups are now unordered with `limit(1)`. Measured on 50..400 real files of `fs-documentation` (debug, loaded machine): import 50 -> 1.7 s, 100 -> 4.1 s, 200 -> 11.4 s, 400 -> 37.8 s before; 100 -> 2.0 s, 200 -> 3.6 s, 400 -> 8.4 s after (parse alone: 0.18 s for 400). What remains is the store: an exact index lookup is still O(n) there (about 2.6 ms at 100 texts, 5.5 ms at 400), reported for `fs-objects`, not changed here. `moveFolder` and `backlinks` use ordered index queries too (one per move, not per text).
 * **The server parses on the thread that serves all connections.** Hence the 4 MiB limit on Markdown. A document is large (one-letter paragraphs: 105 times the Markdown), which `fs-text`'s serde form could shrink (thread 1).
 * **`moveFolder` is answered with all moved texts**, as the contract says; above one message it answers `too-large` after the move was done.
 * **`media_type`**: only `text/markdown` is known; any other is `Unsupported` of that method, though the report lists the capability as offered.
@@ -212,8 +212,8 @@ Questions for the owner (all provisional, easy to reverse):
 Not done / limits:
 
 * **Uniqueness of `path`** holds inside one process (write lock). Two programs writing the same store at once can still race; the
-  store has no unique index (a wish for fs-store).
-* **A move is several writes** (other texts, then the moved text); `fs-store` 0.2 has no transaction over several objects. Repeating
+  store has no unique index (a wish for fs-objects).
+* **A move is several writes** (other texts, then the moved text); `fs-objects` 0.2 has no transaction over several objects. Repeating
   an interrupted move finishes it. Each write is one undo step.
 * **A folder move** (`move_folder`) is `n` writes, in this order: (1) every text outside the folder that links into it, found by the
   `link` index (equal to the folder or in the range `folder/`), (2) the texts of the folder, shallow ones first, each once with its
@@ -231,7 +231,7 @@ Not done / limits:
 * **Undo of a folder move:** the store undoes one write per step (`undo(actor, n)`), not one move. Undoing all `n` writes (the outside
   texts and the moved texts) restores paths and documents; undoing fewer leaves a half moved folder, the same state as an interrupted
   move, and repeating `move_folder` finishes it again. Tested both ways. A single "undo the folder move" needs a group of activities
-  in fs-store (a wish).
+  in fs-objects (a wish).
 * **Deleting a text** leaves links to it in other texts (dangling, like in any wiki); they are shown as links to a path with no text.
 * `LinkValue.target` (UUID of the target) is not filled; links resolve by path.
 * `find` is substring only (no tokens, no ranking) and also searches code blocks.

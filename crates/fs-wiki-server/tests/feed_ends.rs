@@ -13,7 +13,7 @@ use common::seen::{watch, Seen};
 use common::with_provider;
 use fs_interfaces::common_capnp::change_listener;
 use fs_interfaces::rpc::Problem;
-use fs_store::{ObjectId, Store, TursoStore};
+use fs_objects::{ObjectId, Store, TursoStore};
 use fs_wiki_core::{
     Capabilities, Paging, Place, Subscription, TextEntry, TextFeed, TextListener, TextPage,
     TextQuery, Texts, Unsupported, WikiRepo,

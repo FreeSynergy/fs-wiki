@@ -4,7 +4,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use fs_store::{Store, TursoStore};
+use fs_objects::{Store, TursoStore};
 use fs_wiki_core::{Error, Paging, TextQuery, Texts, WikiRepo};
 
 /// A copy of the database written by `fs-wiki-core` 0.2.0 (five texts), opened by this version.

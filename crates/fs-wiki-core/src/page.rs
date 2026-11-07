@@ -4,7 +4,7 @@
 //! stands in the order of a listing (the sort key of its path, its name, its id), not how many texts
 //! come before it: the position of a text moves when another is added or removed, a place does not.
 
-use fs_store::ObjectId;
+use fs_objects::ObjectId;
 
 use crate::texts::TextEntry;
 
@@ -21,7 +21,7 @@ pub enum TextQuery {
 /// then its name, then its id. Two texts never have the same place.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Place {
-    /// The sort key of the path (`fs_store::sort_key`).
+    /// The sort key of the path (`fs_objects::sort_key`).
     pub key: String,
     /// The envelope name of the text.
     pub name: String,

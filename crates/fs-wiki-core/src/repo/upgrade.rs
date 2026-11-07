@@ -6,7 +6,7 @@
 //! stay as they are, and the document is not read. The flow is idempotent, and one text that cannot be
 //! repaired is named in the report and does not stop the rest.
 
-use fs_store::{sort_key, ObjectId, Order, Query, StoredObject};
+use fs_objects::{sort_key, ObjectId, Order, Query, StoredObject};
 
 use super::handle::{WikiRepo, CONTEXT, TEXT_TYPE};
 use super::keys::{ID_KEY, PATH, PATH_KEY};

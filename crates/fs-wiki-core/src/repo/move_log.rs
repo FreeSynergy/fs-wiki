@@ -5,7 +5,7 @@
 //! an interrupted move (finish it), repeating a completed move (nothing to do), and starting a
 //! different move while one is unfinished (refused, or the folder would split).
 
-use fs_store::ObjectId;
+use fs_objects::ObjectId;
 use serde::{Deserialize, Serialize};
 
 use super::handle::WikiRepo;

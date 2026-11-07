@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use common::{create, kind, read_text, with_page_size, ME};
 use fs_interfaces::texts_capnp::texts;
-use fs_store::{Store, TursoStore};
+use fs_objects::{Store, TursoStore};
 use fs_wiki_core::WikiRepo;
 use fs_wiki_server::TextsServer;
 

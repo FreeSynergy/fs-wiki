@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use common::wiki;
-use fs_store::ObjectId;
+use fs_objects::ObjectId;
 use fs_text::Document;
 use fs_wiki_core::{
     Capabilities, Error, Paging, Place, Result, TextEntry, TextPage, TextQuery, Texts,

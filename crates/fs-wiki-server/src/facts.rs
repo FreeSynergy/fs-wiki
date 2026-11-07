@@ -5,7 +5,7 @@
 //! text stays as it was. The table is in `DESIGN.md`.
 
 use fs_interfaces::rpc::{problem_keys as keys, Problem};
-use fs_store::Error as StoreError;
+use fs_objects::Error as StoreError;
 use fs_wiki_core::Error;
 
 /// `kind` of a text.

@@ -4,7 +4,7 @@
 //! move where, which clash), then it is executed in two phases. Nothing is written while a plan
 //! is refused.
 //!
-//! Order of writes, chosen so that repeating an interrupted call finishes it (`fs-store` 0.2 has
+//! Order of writes, chosen so that repeating an interrupted call finishes it (`fs-objects` 0.2 has
 //! no transaction over several objects):
 //! 0. the move is recorded (`move_log.rs`; "unfinished");
 //! 1. every text outside the folder that links into it is rewritten (found by the `link` index,
@@ -20,7 +20,7 @@
 
 use std::collections::HashSet;
 
-use fs_store::ObjectId;
+use fs_objects::ObjectId;
 
 use super::handle::WikiRepo;
 use super::move_log::MoveRecord;
