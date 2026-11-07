@@ -103,6 +103,5 @@ fn capabilities() -> Capabilities {
     ] {
         caps.supported(id);
     }
-    caps.supported("text.subscribe");
     caps
 }

@@ -17,3 +17,4 @@ mod texts_service;
 mod wire;
 
 pub use texts_service::{TextsServer, CONTRACT_VERSION};
+pub use wire::MAX_SOURCE_BYTES;

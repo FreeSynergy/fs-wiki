@@ -6,8 +6,8 @@
 //! what could not come back.
 
 use fs_interfaces::rpc::{
-    check_answer, check_intake, envelope_weight, write_envelope, Page,
-    DEFAULT_PAGE_SIZE, MAX_INTAKE_BYTES, MAX_PAGE_BYTES,
+    check_answer, check_intake, envelope_weight, write_envelope, Page, DEFAULT_PAGE_SIZE,
+    MAX_INTAKE_BYTES, MAX_PAGE_BYTES,
 };
 use fs_interfaces::texts_capnp::{text_entry, text_page};
 use fs_text::Document;
@@ -93,6 +93,23 @@ pub(crate) fn write_page(
 pub(crate) fn text_arg(text: capnp::text::Reader<'_>) -> capnp::Result<&str> {
     let text = text.to_str()?;
     check_intake(text.len())?;
+    Ok(text)
+}
+
+/// Largest Markdown (or other source text) a request may carry. Smaller than the intake limit of a
+/// document: the server parses it on the thread that serves every connection, and a document is far
+/// larger than its Markdown (about 100 times for one-letter paragraphs).
+pub const MAX_SOURCE_BYTES: usize = 4 * 1024 * 1024;
+
+/// The source text of a request (Markdown for `create`, the file for `importText`): bounded.
+pub(crate) fn source_arg(text: capnp::text::Reader<'_>) -> capnp::Result<&str> {
+    let text = text.to_str()?;
+    if text.len() > MAX_SOURCE_BYTES {
+        return Err(fs_interfaces::rpc::too_large(format!(
+            "{} bytes of text, at most {MAX_SOURCE_BYTES} are taken",
+            text.len()
+        )));
+    }
     Ok(text)
 }
 

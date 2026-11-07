@@ -37,7 +37,12 @@ async fn find_matches_name_path_and_text_and_pages_like_list() {
         req.get().init_cursor();
         let answer = req.send().promise.await.unwrap();
         let page = answer.get().unwrap().get_page().unwrap();
-        let mut paths: Vec<_> = page.get_items().unwrap().iter().map(|t| read_text(t).path).collect();
+        let mut paths: Vec<_> = page
+            .get_items()
+            .unwrap()
+            .iter()
+            .map(|t| read_text(t).path)
+            .collect();
         paths.sort();
         assert_eq!(paths, ["guide/a", "guide/b", "kanban/c"]);
         assert!(page.get_next().unwrap().get_opaque().unwrap().is_empty());

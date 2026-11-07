@@ -33,7 +33,11 @@ async fn links_lists_the_links_into_the_wiki_as_written_and_not_urls() {
         let targets: Vec<_> = got.iter().map(|g| g.1.as_str()).collect();
         assert_eq!(targets, ["b#part", "c.md"], "the URL is no row");
         assert!(got.iter().all(|g| g.0 == a.id));
-        assert!(got[0].2.contains(':') && got[0].2.contains('-'), "block:start-end: {}", got[0].2);
+        assert!(
+            got[0].2.contains(':') && got[0].2.contains('-'),
+            "block:start-end: {}",
+            got[0].2
+        );
     })
     .await;
 }
@@ -50,7 +54,12 @@ async fn backlinks_finds_the_texts_that_point_at_a_path() {
         let rows = answer.get().unwrap().get_items().unwrap();
         let mut got: Vec<_> = rows
             .iter()
-            .map(|r| (read_uuid(r.get_source().unwrap()).unwrap(), r.get_target().unwrap().to_string().unwrap()))
+            .map(|r| {
+                (
+                    read_uuid(r.get_source().unwrap()).unwrap(),
+                    r.get_target().unwrap().to_string().unwrap(),
+                )
+            })
             .collect();
         got.sort();
         let mut want = vec![(x.id, "target".to_string()), (y.id, "target#h".to_string())];

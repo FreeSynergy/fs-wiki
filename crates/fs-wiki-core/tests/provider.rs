@@ -85,4 +85,9 @@ async fn the_store_backed_provider_reports_what_it_can() {
     ] {
         assert!(caps.is_supported(id), "{id}");
     }
+    assert_eq!(
+        caps.entries().len(),
+        10,
+        "one entry per capability, none twice"
+    );
 }

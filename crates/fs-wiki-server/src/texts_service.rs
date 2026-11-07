@@ -9,7 +9,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use capnp_rpc::new_client;
-use fs_interfaces::rpc::{check_answer, run_to_end, read_object_id};
+use fs_interfaces::rpc::{check_answer, read_object_id, run_to_end};
 use fs_interfaces::texts_capnp::texts;
 use fs_wiki_core::{Paging, TextEntry, TextFeed, TextFormat, Texts};
 
@@ -17,7 +17,8 @@ use crate::errors::{rpc_error, rpc_error_for_format};
 use crate::feed::subscribe;
 use crate::links::{internal, write_links};
 use crate::wire::{
-    count, fits, read_document, required, text_arg, write_all, write_entry, write_page, Sent,
+    count, fits, read_document, required, source_arg, text_arg, write_all, write_entry, write_page,
+    Sent,
 };
 
 /// The contract version a report names.
@@ -45,10 +46,7 @@ impl TextsServer {
 type Done = Result<(), capnp::Error>;
 
 /// One text as an answer.
-fn answer(
-    out: fs_interfaces::texts_capnp::text_entry::Builder<'_>,
-    entry: TextEntry,
-) -> Done {
+fn answer(out: fs_interfaces::texts_capnp::text_entry::Builder<'_>, entry: TextEntry) -> Done {
     write_entry(out, &Sent::new(entry)?)
 }
 
@@ -69,7 +67,10 @@ impl texts::Server for TextsServer {
         mut results: texts::CreateResults,
     ) -> Done {
         let p = params.get()?;
-        let (path, markdown) = (required(p.get_path()?, "path")?, text_arg(p.get_markdown()?)?);
+        let (path, markdown) = (
+            required(p.get_path()?, "path")?,
+            source_arg(p.get_markdown()?)?,
+        );
         fits(&TextFormat::Markdown.import(markdown))?;
         let (texts, path, markdown) = (self.texts.clone(), path.to_string(), markdown.to_string());
         let entry = run_to_end(async move { texts.create(&path, &markdown).await })
@@ -230,7 +231,7 @@ impl texts::Server for TextsServer {
         let p = params.get()?;
         let path = required(p.get_path()?, "path")?.to_string();
         let media = text_arg(p.get_media_type()?)?.to_string();
-        let text = text_arg(p.get_text()?)?;
+        let text = source_arg(p.get_text()?)?;
         if let Ok(format) = TextFormat::from_media_type(&media) {
             fits(&format.import(text))?;
         }

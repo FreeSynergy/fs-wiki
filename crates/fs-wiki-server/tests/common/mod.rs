@@ -5,9 +5,7 @@
 use std::future::Future;
 use std::sync::Arc;
 
-use fs_interfaces::rpc::{
-    bind_socket, connect, read_envelope, serve, write_uuid, Problem,
-};
+use fs_interfaces::rpc::{bind_socket, connect, read_envelope, serve, write_uuid, Problem};
 use fs_interfaces::texts_capnp::{text_entry, texts};
 use fs_store::{Store, TursoStore};
 use fs_wiki_core::{TextFeed, Texts, WikiRepo};
@@ -115,7 +113,13 @@ pub async fn export(root: &texts::Client, id: Uuid) -> String {
     set_id(req.get().init_id(), id);
     req.get().set_media_type("text/markdown");
     let answer = req.send().promise.await.unwrap();
-    answer.get().unwrap().get_text().unwrap().to_string().unwrap()
+    answer
+        .get()
+        .unwrap()
+        .get_text()
+        .unwrap()
+        .to_string()
+        .unwrap()
 }
 
 /// All paths below `prefix`, following the cursors.

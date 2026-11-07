@@ -10,7 +10,12 @@ use fs_text::Document;
 #[tokio::test(flavor = "current_thread")]
 async fn a_created_text_reads_back_by_id_and_by_path_with_its_envelope() {
     with_server(|root| async move {
-        let made = create(&root, "manual/start", "# Start here\n\nHello [[manual/next]].\n").await;
+        let made = create(
+            &root,
+            "manual/start",
+            "# Start here\n\nHello [[manual/next]].\n",
+        )
+        .await;
         assert_eq!(made.name, "Start here", "the name is derived (ADR 0032)");
         assert_eq!(made.context.as_deref(), Some("texts"));
         assert!(made.iri.unwrap().ends_with(&format!("/texts/{}", made.id)));
@@ -24,7 +29,10 @@ async fn a_created_text_reads_back_by_id_and_by_path_with_its_envelope() {
         let answer = req.send().promise.await.unwrap();
         let by_path = read_text(answer.get().unwrap().get_text().unwrap());
         assert_eq!(by_path.id, made.id);
-        assert_eq!(export(&root, made.id).await, "# Start here\n\nHello [[manual/next]].\n");
+        assert_eq!(
+            export(&root, made.id).await,
+            "# Start here\n\nHello [[manual/next]].\n"
+        );
 
         let mut missing = root.get_by_path_request();
         missing.get().set_path("manual/nothing");
@@ -68,10 +76,21 @@ async fn edit_if_writes_on_the_revision_read_and_refuses_a_stale_one_with_confli
             req.get().set_document(other.document.as_str());
             req.send().promise
         };
-        let second = read_text(edit_if(a.revision).await.unwrap().get().unwrap().get_text().unwrap());
+        let second = read_text(
+            edit_if(a.revision)
+                .await
+                .unwrap()
+                .get()
+                .unwrap()
+                .get_text()
+                .unwrap(),
+        );
         assert_ne!(second.revision, a.revision);
 
-        let stale = edit_if(a.revision).await.err().expect("a stale writer is refused");
+        let stale = edit_if(a.revision)
+            .await
+            .err()
+            .expect("a stale writer is refused");
         let (kind, status, detail) = problem(&stale);
         assert_eq!((kind.as_str(), status), ("texts/conflict", 409));
         assert!(detail.starts_with("conflict:"), "{detail}");
