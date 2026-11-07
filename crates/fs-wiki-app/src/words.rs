@@ -1,4 +1,8 @@
 //! The sentences the app says to a person, each one whole, with named places for what changes.
+//! **The sentences that have moved here so far**: those of the server connection, the records of
+//! imported files and the check of the records against the server. The older ones are still in
+//! `source/problems.rs`, `sync.rs`, `import.rs`, `drafts.rs`, `export*.rs` and `wiki.rs` and are to
+//! follow (`DESIGN.md` lists them as open).
 //!
 //! Pattern: none — constants and one small function. A sentence is never built from pieces, and no
 //! code decides by comparing these texts: the kinds of error are types (`origins::OriginsError`).
@@ -53,11 +57,42 @@ pub const MISSING_NOTE: &str = "These files were imported once, but the server d
 their texts now (deleted, or a server restored from an older copy). They are not imported again; \
 import them by hand if you want them back.";
 
-/// Fill the `{name}` places of `sentence` with `values`.
+/// `{error}`: what the server said.
+pub const CHECK_FAILED: &str = "cannot list the texts of the server to compare them with the \
+records of imported files: {error}; nothing was imported";
+
+/// `{seconds}`: the limit.
+pub const CHECK_TIMEOUT: &str = "the server did not list its texts within {seconds} s, so the \
+imported files cannot be compared with it; nothing was imported (is the server stuck?)";
+
+/// `{count}`: how many files.
+pub const MISSING_SUMMARY: &str = "{count} imported files have no text on the server any more; \
+they are listed on the problems page and not imported again";
+
+/// Fill the `{name}` places of `sentence` with `values`, in one pass: what a value contains is never
+/// looked at again, so a value that itself holds `{name}` stays as it is. A name with no value
+/// stays in the sentence.
 pub fn say(sentence: &str, values: &[(&str, &dyn Display)]) -> String {
-    let mut out = sentence.to_string();
-    for (name, value) in values {
-        out = out.replace(&format!("{{{name}}}"), &value.to_string());
+    let mut out = String::with_capacity(sentence.len());
+    let mut rest = sentence;
+    while let Some(open) = rest.find('{') {
+        out.push_str(&rest[..open]);
+        let after = &rest[open + 1..];
+        let named = after.find('}').and_then(|close| {
+            let name = &after[..close];
+            values
+                .iter()
+                .find(|(n, _)| *n == name)
+                .map(|(_, v)| (close, v.to_string()))
+        });
+        if let Some((close, value)) = named {
+            out.push_str(&value);
+            rest = &after[close + 1..];
+        } else {
+            out.push('{');
+            rest = after;
+        }
     }
+    out.push_str(rest);
     out
 }

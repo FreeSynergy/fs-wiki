@@ -26,6 +26,10 @@ pub struct FileOrigin {
     pub text: ObjectId,
     /// Hash of the Markdown of that text right after the import or export.
     pub text_hash: String,
+    /// The text was deleted on purpose and the person knows: the file is no longer reported as
+    /// missing from the wiki. Records from before this field read as `false`.
+    #[serde(default)]
+    pub deleted: bool,
 }
 
 /// The file records of a wiki.

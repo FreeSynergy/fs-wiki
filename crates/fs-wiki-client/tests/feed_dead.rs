@@ -68,8 +68,59 @@ async fn a_listener_that_subscribes_again_in_ended_does_not_loop_on_a_dead_conne
     assert!(early >= 1, "it was told");
     assert_eq!(early, late, "and it stopped being told");
     assert!(late < 10, "{late}");
-    // A new listener on the dead connection hears it once, at once.
+    // A new listener on the dead connection hears it once, not inside `subscribe` but soon after.
     let newcomer = Arc::new(Seen::default());
     let _n = texts.subscribe(newcomer.clone());
+    assert!(
+        newcomer.ended.lock().unwrap().is_empty(),
+        "not synchronously"
+    );
+    tokio::time::sleep(Duration::from_millis(500)).await;
     assert_eq!(newcomer.ended.lock().unwrap().len(), 1);
+}
+
+/// Subscribes a NEW object each time it is told, as an adapter made afresh would.
+struct Fresh {
+    texts: Arc<RpcTexts>,
+    calls: Arc<AtomicUsize>,
+    kept: Arc<Mutex<Vec<fs_wiki_core::Subscription>>>,
+}
+
+impl TextListener for Fresh {
+    fn changed(&self, _: &TextChange) {}
+    fn ended(&self, _: &str) {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        let next = Arc::new(Fresh {
+            texts: self.texts.clone(),
+            calls: self.calls.clone(),
+            kept: self.kept.clone(),
+        });
+        let again = self.texts.subscribe(next);
+        self.kept.lock().unwrap().push(again);
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn fresh_listener_objects_on_a_dead_connection_neither_overflow_the_stack_nor_spin() {
+    let mut served = Served::in_memory().await;
+    let texts = Arc::new(served.client());
+    served.stop();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let (t, c) = (texts.clone(), calls.clone());
+    // A small stack: a recursion through `subscribe` and `ended` would not survive it.
+    let small = std::thread::Builder::new()
+        .stack_size(256 * 1024)
+        .spawn(move || {
+            let first = Arc::new(Fresh {
+                texts: t.clone(),
+                calls: c,
+                kept: Arc::default(),
+            });
+            t.subscribe(first)
+        })
+        .unwrap();
+    let _kept = small.join().unwrap();
+    tokio::time::sleep(Duration::from_millis(1500)).await;
+    let n = calls.load(Ordering::SeqCst);
+    assert!((1..=30).contains(&n), "told {n} times in 1.5 s");
 }

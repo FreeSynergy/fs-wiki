@@ -1527,6 +1527,7 @@ dependencies = [
  "fs-wiki-client",
  "fs-wiki-core",
  "fs-wiki-testserver",
+ "futures",
  "rustix 1.1.6",
  "serde",
  "serde_json",

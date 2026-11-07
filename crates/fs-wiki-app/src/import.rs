@@ -6,17 +6,33 @@
 //! A file that fails is recorded with its reason and the rest goes on; entries that are not
 //! looked at (symbolic links, `.MD`, unreadable ones) are listed with the reason.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
-use fs_wiki_core::{FileOrigin, Origins, Texts};
+use fs_store::ObjectId;
+use fs_wiki_core::{FileOrigin, Origins, Paging, Texts};
 
 use crate::report::Report;
 use crate::source::Failure;
 use crate::sync::sync_file;
+use crate::words::{self, say};
+
+/// How long the comparison of the records with the server's texts may take.
+pub const CHECK_LIMIT: Duration = Duration::from_secs(60);
 
 /// Bring the wiki in step with the Markdown files under `root` (see `sync.rs` for the rules).
 pub async fn import_folder<W: Texts + Origins + ?Sized>(wiki: &W, root: &Path) -> Report {
+    import_folder_within(wiki, root, CHECK_LIMIT).await
+}
+
+/// [`import_folder`] with another limit for the comparison of the records with the server. A server
+/// that does not answer in time ends the import with a failure that says so: nothing is imported.
+pub async fn import_folder_within<W: Texts + Origins + ?Sized>(
+    wiki: &W,
+    root: &Path,
+    limit: Duration,
+) -> Report {
     let mut report = Report::default();
     let mut files = Vec::new();
     collect(root, root, &mut files, &mut report);
@@ -34,8 +50,20 @@ pub async fn import_folder<W: Texts + Origins + ?Sized>(wiki: &W, root: &Path) -
             return report;
         }
     };
-    if belong_elsewhere(wiki, &known).await {
-        // The records are of another wiki (another server): they say nothing about this one.
+    let present = match present_ids(wiki, &known, limit).await {
+        Ok(ids) => ids,
+        Err(reason) => {
+            report.failures.push(Failure {
+                path: String::new(),
+                reason,
+            });
+            return report;
+        }
+    };
+    let mut live = known.values().filter(|o| !o.deleted).peekable();
+    if live.peek().is_some() && !live.any(|o| present.contains(&o.text)) {
+        // The server holds none of the texts the records name (those deleted here on purpose do not
+        // count): they are of another wiki, and say nothing about this one.
         report.records_ignored = known.len();
         known.clear();
     }
@@ -43,7 +71,7 @@ pub async fn import_folder<W: Texts + Origins + ?Sized>(wiki: &W, root: &Path) -
     for relative in files {
         let path = relative.join("/");
         let file = root.join(relative.iter().collect::<PathBuf>());
-        sync_file(wiki, &path, &file, known.get(&path), &mut report).await;
+        sync_file(wiki, &path, &file, known.get(&path), &present, &mut report).await;
         seen.insert(path);
     }
     for (file, origin) in known {
@@ -61,23 +89,22 @@ pub async fn import_folder<W: Texts + Origins + ?Sized>(wiki: &W, root: &Path) -
     report
 }
 
-/// Whether the server holds none of the texts the records name. One text that is there is enough to
-/// say the records fit, so a start on the same wiki costs one read; a text that is missing among
-/// others was deleted on purpose (`sync.rs`), and only a server that has none of them is another
-/// one. Costs one read per record when it is, which is rare. A failed read counts as "there".
-async fn belong_elsewhere<W: Texts + ?Sized>(
+/// The ids of the texts the server has: one listing, no read per record. Nothing is asked when no
+/// record exists (a first start). The answer is bounded by `limit`.
+async fn present_ids<W: Texts + ?Sized>(
     wiki: &W,
     known: &HashMap<String, FileOrigin>,
-) -> bool {
+    limit: Duration,
+) -> Result<HashSet<ObjectId>, String> {
     if known.is_empty() {
-        return false;
+        return Ok(HashSet::new());
     }
-    for origin in known.values() {
-        if !matches!(wiki.get(origin.text).await, Ok(None)) {
-            return false;
-        }
+    let listing = tokio::time::timeout(limit, wiki.list("", Paging::default())).await;
+    match listing {
+        Ok(Ok(all)) => Ok(all.into_iter().map(|t| t.id).collect()),
+        Ok(Err(e)) => Err(say(words::CHECK_FAILED, &[("error", &e)])),
+        Err(_) => Err(say(words::CHECK_TIMEOUT, &[("seconds", &limit.as_secs())])),
     }
-    true
 }
 
 /// Relative paths (as parts) of all Markdown files below `dir`; what is not looked at is listed.

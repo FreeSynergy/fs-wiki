@@ -37,7 +37,7 @@ fn a_fresh_server_with_old_records_gets_every_file_again() {
 }
 
 #[test]
-fn a_text_deleted_on_purpose_stays_deleted_on_the_same_server() {
+fn a_text_deleted_in_the_app_stays_deleted_and_is_not_reported() {
     let dir = temp_dir("sw-deleted");
     let (docs, store) = (dir.join("docs"), dir.join("store.db"));
     write_files(&docs, &[("a.md", "# A\n"), ("b.md", "# B\n")]);
@@ -47,15 +47,43 @@ fn a_text_deleted_on_purpose_stays_deleted_on_the_same_server() {
         let b = rt.block_on(w.get_by_path("b.md")).unwrap().unwrap();
         rt.block_on(w.delete(b.id)).unwrap();
     }
-    let (rt, w) = wiki_in_file(&store);
-    let report = rt.block_on(import_folder(&**w, &docs));
-    assert_eq!(
-        (report.imported, report.unchanged, report.records_ignored),
-        (0, 1, 0)
-    );
-    let missing: Vec<_> = report.missing.iter().map(|m| m.path.as_str()).collect();
-    assert_eq!(missing, ["b.md"], "listed, not counted as unchanged");
-    assert!(rt.block_on(w.get_by_path("b.md")).unwrap().is_none());
+    for _ in 0..2 {
+        let (rt, w) = wiki_in_file(&store);
+        let report = rt.block_on(import_folder(&**w, &docs));
+        assert_eq!(
+            (report.imported, report.unchanged, report.records_ignored),
+            (0, 2, 0)
+        );
+        assert!(
+            report.missing.is_empty(),
+            "the person knows: {:?}",
+            report.missing
+        );
+        assert!(rt.block_on(w.get_by_path("b.md")).unwrap().is_none());
+    }
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn a_text_deleted_outside_the_app_is_listed_every_start_and_not_brought_back() {
+    let dir = temp_dir("sw-outside");
+    let (docs, store) = (dir.join("docs"), dir.join("store.db"));
+    write_files(&docs, &[("a.md", "# A\n"), ("b.md", "# B\n")]);
+    {
+        let (rt, w) = wiki_in_file(&store);
+        rt.block_on(import_folder(&**w, &docs));
+        let b = rt.block_on(w.get_by_path("b.md")).unwrap().unwrap();
+        // Another program deletes it on the server: not through the app's `Wiki`.
+        rt.block_on(w.texts().delete(b.id)).unwrap();
+    }
+    for _ in 0..2 {
+        let (rt, w) = wiki_in_file(&store);
+        let report = rt.block_on(import_folder(&**w, &docs));
+        assert_eq!((report.imported, report.unchanged), (0, 1));
+        let missing: Vec<_> = report.missing.iter().map(|m| m.path.as_str()).collect();
+        assert_eq!(missing, ["b.md"], "listed, not counted as unchanged");
+        assert!(rt.block_on(w.get_by_path("b.md")).unwrap().is_none());
+    }
     std::fs::remove_dir_all(dir).unwrap();
 }
 
@@ -110,10 +138,28 @@ fn a_server_restored_from_an_older_copy_lists_what_it_lacks_and_does_not_import_
 }
 
 #[test]
-fn when_every_text_of_a_folder_was_deleted_they_come_back_as_for_another_server() {
+fn when_every_text_of_a_folder_was_deleted_outside_they_come_back_as_for_another_server() {
     // The known consequence of the provisional rule (DESIGN.md): the server holds none of the texts
     // the records name, which is also what another server looks like.
     let dir = temp_dir("sw-all");
+    let (docs, store) = (dir.join("docs"), dir.join("store.db"));
+    write_files(&docs, &[("a.md", "# A\n")]);
+    {
+        let (rt, w) = wiki_in_file(&store);
+        rt.block_on(import_folder(&**w, &docs));
+        let a = rt.block_on(w.get_by_path("a.md")).unwrap().unwrap();
+        rt.block_on(w.texts().delete(a.id)).unwrap();
+    }
+    let (rt, w) = wiki_in_file(&store);
+    let report = rt.block_on(import_folder(&**w, &docs));
+    assert_eq!((report.imported, report.records_ignored), (1, 1));
+    assert!(rt.block_on(w.get_by_path("a.md")).unwrap().is_some());
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn when_every_text_of_a_folder_was_deleted_in_the_app_they_stay_deleted() {
+    let dir = temp_dir("sw-all-app");
     let (docs, store) = (dir.join("docs"), dir.join("store.db"));
     write_files(&docs, &[("a.md", "# A\n")]);
     {
@@ -124,7 +170,10 @@ fn when_every_text_of_a_folder_was_deleted_they_come_back_as_for_another_server(
     }
     let (rt, w) = wiki_in_file(&store);
     let report = rt.block_on(import_folder(&**w, &docs));
-    assert_eq!((report.imported, report.records_ignored), (1, 1));
-    assert!(rt.block_on(w.get_by_path("a.md")).unwrap().is_some());
+    assert_eq!(
+        (report.imported, report.unchanged, report.records_ignored),
+        (0, 1, 0)
+    );
+    assert!(rt.block_on(w.get_by_path("a.md")).unwrap().is_none());
     std::fs::remove_dir_all(dir).unwrap();
 }

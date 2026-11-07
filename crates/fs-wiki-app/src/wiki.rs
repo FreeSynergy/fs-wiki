@@ -86,8 +86,20 @@ impl Texts for Wiki {
         self.texts.move_folder(prefix, path).await
     }
 
+    /// Deleting a text here is on purpose: the records that name it are marked, so the file is
+    /// not listed as missing at the next start.
     async fn delete(&self, id: ObjectId) -> Result<()> {
-        self.texts.delete(id).await
+        self.texts.delete(id).await?;
+        for record in self.origins.origins().await? {
+            if record.text == id && !record.deleted {
+                let marked = FileOrigin {
+                    deleted: true,
+                    ..record
+                };
+                self.origins.set_origin(&marked).await?;
+            }
+        }
+        Ok(())
     }
 
     async fn find(&self, term: &str, page: Paging) -> Result<Vec<TextEntry>> {

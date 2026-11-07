@@ -113,6 +113,7 @@ impl WikiSource {
             hash: hash.clone(),
             text: entry.id,
             text_hash: hash,
+            deleted: false,
         };
         let _ = self.runtime().block_on(origins.set_origin(&record));
         for old in all.iter().filter(|o| o.text == entry.id && o.file != path) {

@@ -65,6 +65,13 @@ fn run() -> Result<(), String> {
             words::say(words::RECORDS_IGNORED, &[("count", &count)])
         );
     }
+    if !report.missing.is_empty() {
+        let count = report.missing.len();
+        eprintln!(
+            "{}",
+            words::say(words::MISSING_SUMMARY, &[("count", &count)])
+        );
+    }
     let drafts = args
         .drafts
         .clone()

@@ -6,7 +6,8 @@
 //! | file | text | does |
 //! |---|---|---|
 //! | as recorded | there (changed or moved) | nothing, and the file is not parsed |
-//! | as recorded | deleted | nothing is imported again; the file is listed as missing on the server |
+//! | as recorded | deleted outside this app | nothing is imported again; the file is listed as missing on the server |
+//! | as recorded | deleted in this app | nothing, and the file counts as unchanged |
 //! | changed | as recorded | the change is a normal edit (ADR 0042 §5), the record is renewed |
 //! | changed | changed or deleted | the text stays; the file's version is a conflict |
 //! | new, no text there | | import, record |
@@ -15,7 +16,10 @@
 //!
 //! A file that is gone is reported by the caller; its text is kept.
 
+use std::collections::HashSet;
 use std::path::Path;
+
+use fs_store::ObjectId;
 
 use fs_wiki_core::{FileOrigin, MARKDOWN, Origins, TextEntry, TextFormat, Texts};
 
@@ -35,6 +39,7 @@ pub async fn sync_file<W: Texts + Origins + ?Sized>(
     path: &str,
     file: &Path,
     known: Option<&FileOrigin>,
+    present: &HashSet<ObjectId>,
     report: &mut Report,
 ) {
     let fail = |report: &mut Report, reason: String| {
@@ -49,15 +54,16 @@ pub async fn sync_file<W: Texts + Origins + ?Sized>(
     };
     let hash = digest(&bytes);
     if let Some(o) = known.filter(|o| o.hash == hash) {
-        // As recorded: nothing to do, if the server still has the text. If it does not, the file is
-        // not imported again (a deleted text stays deleted), but it is not "unchanged" either.
-        match wiki.get(o.text).await {
-            Ok(Some(_)) => report.unchanged += 1,
-            Ok(None) => report.missing.push(Failure {
+        // As recorded: nothing to do if the server still has the text. If it does not, the file is
+        // not imported again (a deleted text stays deleted). It is "unchanged" only when the person
+        // deleted the text in this app (`Wiki::delete` marks the record); otherwise it is listed.
+        if present.contains(&o.text) || o.deleted {
+            report.unchanged += 1;
+        } else {
+            report.missing.push(Failure {
                 path: path.into(),
                 reason: words::TEXT_MISSING.into(),
-            }),
-            Err(e) => fail(report, e.to_string()),
+            });
         }
         return;
     }
@@ -100,6 +106,7 @@ async fn record<W: Texts + Origins + ?Sized>(
         hash: hash.into(),
         text: entry.id,
         text_hash: text_hash(entry),
+        deleted: false,
     };
     wiki.set_origin(&origin).await
 }

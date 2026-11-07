@@ -27,7 +27,7 @@ pub mod wiki;
 pub mod words;
 
 pub use drafts::FileDraftStore;
-pub use import::import_folder;
+pub use import::{import_folder, import_folder_within};
 pub use map::to_document;
 pub use origins::{FileOrigins, OriginsError};
 pub use report::{Conflict, Report};
