@@ -5,7 +5,7 @@ mod common;
 use common::{setup, wiki, ME};
 use fs_wiki_core::{Error, Texts, MARKDOWN};
 
-async fn md(w: &fs_wiki_core::WikiRepo, id: fs_store::ObjectId) -> String {
+async fn md(w: &fs_wiki_core::WikiRepo, id: fs_objects::ObjectId) -> String {
     w.export_text(id, MARKDOWN).await.unwrap()
 }
 
@@ -88,7 +88,7 @@ async fn a_taken_or_invalid_path_changes_nothing() {
         Err(Error::InvalidPath { .. })
     ));
     assert!(matches!(
-        w.move_to(fs_store::ObjectId::new(), "z").await,
+        w.move_to(fs_objects::ObjectId::new(), "z").await,
         Err(Error::NotFound(_))
     ));
     assert_eq!(w.get(a.id).await.unwrap().unwrap(), a);

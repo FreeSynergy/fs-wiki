@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use fs_store::{Store, TursoStore};
+use fs_objects::{Store, TursoStore};
 use fs_wiki_core::{TextEntry, WikiRepo};
 
 pub const ME: &str = "https://example.org/actors/a";

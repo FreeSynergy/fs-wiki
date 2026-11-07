@@ -3,7 +3,7 @@
 //! Pattern: none (plain error enum via `thiserror`) — one `Error` for every public operation,
 //! with `From` conversions for the store and JSON layers.
 
-use fs_store::ObjectId;
+use fs_objects::ObjectId;
 
 /// Result of every fallible operation of this crate.
 pub type Result<T> = std::result::Result<T, Error>;
@@ -13,7 +13,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub enum Error {
     /// The object store failed.
     #[error("object store: {0}")]
-    Store(#[from] fs_store::Error),
+    Store(#[from] fs_objects::Error),
     /// No text with this id.
     #[error("text {0} not found")]
     NotFound(ObjectId),
