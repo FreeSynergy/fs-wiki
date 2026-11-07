@@ -18,7 +18,7 @@ fn an_inexact_page_asks_first_and_writes_only_after_the_answer() {
     let n = doc.blocks[at].text.len();
     doc.blocks[at].splice(0, n, " leading blank");
     rt.block_on(w.edit(entry.id, doc)).unwrap();
-    let src = WikiSource::new(w, rt.handle().clone(), vec![]);
+    let src = WikiSource::new(w.wiki(), rt.handle().clone(), vec![]);
     let dir = temp_dir("er-inexact");
     let target = dir.display().to_string();
 
@@ -49,7 +49,7 @@ fn an_inexact_page_asks_first_and_writes_only_after_the_answer() {
 fn an_exact_page_is_written_at_once() {
     let (rt, w) = wiki();
     rt.block_on(w.create("p.md", "clean text\n")).unwrap();
-    let src = WikiSource::new(w, rt.handle().clone(), vec![]);
+    let src = WikiSource::new(w.wiki(), rt.handle().clone(), vec![]);
     let dir = temp_dir("er-exact");
     src.export("p.md", &dir.display().to_string(), false)
         .unwrap();
@@ -68,7 +68,7 @@ fn one_question_names_both_the_inexactness_and_the_file_that_would_be_replaced()
     let n = doc.blocks[at].text.len();
     doc.blocks[at].splice(0, n, " leading blank");
     rt.block_on(w.edit(entry.id, doc)).unwrap();
-    let src = WikiSource::new(w, rt.handle().clone(), vec![]);
+    let src = WikiSource::new(w.wiki(), rt.handle().clone(), vec![]);
     let dir = temp_dir("er-both");
     std::fs::write(dir.join("p.md"), "somebody else's file\n").unwrap();
     let target = dir.display().to_string();

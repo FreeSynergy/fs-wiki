@@ -6,20 +6,27 @@ mod common;
 
 use std::sync::Arc;
 
-use common::{fingerprint, temp_dir, wiki, write_files};
+use common::{Fixture, fingerprint, temp_dir, wiki, write_files};
 use fs_components_workbenches::{DocumentSource, ErrorKind, Labels, LinkTarget, Reader};
 use fs_wiki_app::{PROBLEMS_PATH, WikiSource, import_folder};
 
-fn source(
-    files: &[(&str, &str)],
-    name: &str,
-) -> (tokio::runtime::Runtime, std::path::PathBuf, WikiSource) {
+/// The runtime, and the wiki (with its server) that must outlive the source.
+struct Kept(tokio::runtime::Runtime, #[allow(dead_code)] Arc<Fixture>);
+
+impl std::ops::Deref for Kept {
+    type Target = tokio::runtime::Runtime;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+fn source(files: &[(&str, &str)], name: &str) -> (Kept, std::path::PathBuf, WikiSource) {
     let (rt, wiki) = wiki();
     let dir = temp_dir(name);
     write_files(&dir, files);
-    let report = rt.block_on(import_folder(wiki.as_ref(), &dir));
-    let src = WikiSource::new(wiki, rt.handle().clone(), report.failures);
-    (rt, dir, src)
+    let report = rt.block_on(import_folder(&**wiki, &dir));
+    let src = WikiSource::new(wiki.wiki(), rt.handle().clone(), report.failures);
+    (Kept(rt, wiki), dir, src)
 }
 
 #[test]

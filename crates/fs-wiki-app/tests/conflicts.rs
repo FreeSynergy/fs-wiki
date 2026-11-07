@@ -15,13 +15,13 @@ fn both_changed_is_a_conflict_with_the_file_version_and_it_stays_one() {
     write_files(&docs, &[("p.md", "old text\n")]);
     {
         let (rt, w) = wiki_in_file(&store);
-        rt.block_on(import_folder(w.as_ref(), &docs));
+        rt.block_on(import_folder(&**w, &docs));
         save(&rt, &w, "p.md", "SAVED text");
     }
     write_files(&docs, &[("p.md", "outside text\n")]);
     for _ in 0..2 {
         let (rt, w) = wiki_in_file(&store);
-        let report = rt.block_on(import_folder(w.as_ref(), &docs));
+        let report = rt.block_on(import_folder(&**w, &docs));
         assert_eq!(report.conflicts.len(), 1);
         let c = &report.conflicts[0];
         assert_eq!(
@@ -44,7 +44,7 @@ fn an_outside_change_reaches_a_text_that_moved_and_a_deleted_text_is_a_conflict(
     write_files(&docs, &[("a/x.md", "x\n"), ("a/y.md", "y\n")]);
     {
         let (rt, w) = wiki_in_file(&store);
-        rt.block_on(import_folder(w.as_ref(), &docs));
+        rt.block_on(import_folder(&**w, &docs));
         rt.block_on(w.move_folder("a", "moved")).unwrap();
         let y = rt.block_on(w.get_by_path("moved/y.md")).unwrap().unwrap();
         rt.block_on(w.delete(y.id)).unwrap();
@@ -54,7 +54,7 @@ fn an_outside_change_reaches_a_text_that_moved_and_a_deleted_text_is_a_conflict(
         &[("a/x.md", "x changed\n"), ("a/y.md", "y changed\n")],
     );
     let (rt, w) = wiki_in_file(&store);
-    let report = rt.block_on(import_folder(w.as_ref(), &docs));
+    let report = rt.block_on(import_folder(&**w, &docs));
     assert_eq!(report.updated, 1);
     assert_eq!(
         markdown_at(&rt, &w, "moved/x.md").unwrap().trim(),
@@ -78,11 +78,11 @@ fn a_gone_file_is_reported_and_its_text_kept() {
     write_files(&docs, &[("p.md", "p\n"), ("q.md", "q\n")]);
     {
         let (rt, w) = wiki_in_file(&store);
-        rt.block_on(import_folder(w.as_ref(), &docs));
+        rt.block_on(import_folder(&**w, &docs));
     }
     std::fs::remove_file(docs.join("q.md")).unwrap();
     let (rt, w) = wiki_in_file(&store);
-    let report = rt.block_on(import_folder(w.as_ref(), &docs));
+    let report = rt.block_on(import_folder(&**w, &docs));
     assert_eq!(report.gone.len(), 1);
     assert_eq!(report.gone[0].path, "q.md");
     assert_eq!(report.unchanged, 1);
@@ -102,7 +102,7 @@ fn a_text_without_a_record_that_differs_from_the_file_is_never_overwritten() {
     write_files(&docs, &[("p.md", "file text\n")]);
     let (rt, w) = wiki_in_file(&store);
     rt.block_on(w.create("p.md", "db text\n")).unwrap();
-    let report = rt.block_on(import_folder(w.as_ref(), &docs));
+    let report = rt.block_on(import_folder(&**w, &docs));
     assert_eq!(report.conflicts.len(), 1);
     assert_eq!(markdown_at(&rt, &w, "p.md").unwrap().trim(), "db text");
     std::fs::remove_dir_all(dir).unwrap();
@@ -119,14 +119,14 @@ fn nothing_unchanged_is_parsed_again_and_what_is_not_looked_at_is_listed() {
     std::os::unix::fs::symlink(docs.join("real.md"), docs.join("link.md")).unwrap();
     std::os::unix::fs::symlink(&docs, docs.join("loop")).unwrap();
     let (rt, w) = wiki_in_file(&store);
-    let first = rt.block_on(import_folder(w.as_ref(), &docs));
+    let first = rt.block_on(import_folder(&**w, &docs));
     let mut skipped: Vec<_> = first.skipped.iter().map(|s| s.path.as_str()).collect();
     skipped.sort_unstable();
     assert_eq!(skipped, ["UPPER.MD", "link.md", "loop"]);
     let before = rt
         .block_on(w.list("", fs_wiki_core::Paging::default()))
         .unwrap();
-    let second = rt.block_on(import_folder(w.as_ref(), &docs));
+    let second = rt.block_on(import_folder(&**w, &docs));
     assert_eq!(
         (second.imported, second.updated, second.unchanged),
         (0, 0, 2)
@@ -145,11 +145,11 @@ fn a_file_emptied_outside_is_a_conflict_not_an_edit_that_empties_the_text() {
     write_files(&docs, &[("p.md", "important text\n")]);
     {
         let (rt, w) = wiki_in_file(&store);
-        rt.block_on(import_folder(w.as_ref(), &docs));
+        rt.block_on(import_folder(&**w, &docs));
     }
     write_files(&docs, &[("p.md", "")]);
     let (rt, w) = wiki_in_file(&store);
-    let report = rt.block_on(import_folder(w.as_ref(), &docs));
+    let report = rt.block_on(import_folder(&**w, &docs));
     assert_eq!((report.updated, report.conflicts.len()), (0, 1));
     assert_eq!(
         markdown_at(&rt, &w, "p.md").unwrap().trim(),
@@ -164,11 +164,11 @@ fn a_file_with_only_a_byte_order_mark_counts_as_empty() {
     write_files(&docs, &[("p.md", "important text\n")]);
     {
         let (rt, w) = wiki_in_file(&store);
-        rt.block_on(import_folder(w.as_ref(), &docs));
+        rt.block_on(import_folder(&**w, &docs));
     }
     write_files(&docs, &[("p.md", "\u{feff}\n")]);
     let (rt, w) = wiki_in_file(&store);
-    let report = rt.block_on(import_folder(w.as_ref(), &docs));
+    let report = rt.block_on(import_folder(&**w, &docs));
     assert_eq!((report.updated, report.conflicts.len()), (0, 1));
     assert_eq!(
         markdown_at(&rt, &w, "p.md").unwrap().trim(),

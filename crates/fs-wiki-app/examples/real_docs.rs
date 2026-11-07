@@ -1,10 +1,11 @@
 //! Start time and link health on a COPY of the real documentation.
 //!
-//! Pattern: Facade consumer — syncs a folder into a store file twice (first start, second start),
-//! counts the links that lead nowhere, moves a folder, counts again, and starts once more.
-//! Never point it at the live documentation: it only reads the folder, but give it a copy.
+//! Pattern: Facade consumer — syncs a folder into the wiki of a running server twice (first start,
+//! second start: a new connection and the records read again), counts the links that lead nowhere,
+//! moves a folder, counts again, and starts once more. Give it a server on an empty data folder and a
+//! COPY of the documentation: it writes into that server's wiki.
 //!
-//! `cargo run --release -p fs-wiki-app --example real_docs <docs-copy> <folder-to-move> <new-path>`
+//! `cargo run --release -p fs-wiki-app --example real_docs <socket> <docs-copy> <folder-to-move> <new-path>`
 
 use std::collections::BTreeSet;
 use std::path::Path;
@@ -12,18 +13,19 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use fs_components_workbenches::LinkTarget;
-use fs_store::{Store, TursoStore};
-use fs_wiki_app::{import_folder, resolve_with_folders};
-use fs_wiki_core::{Paging, Texts, WikiRepo};
+use fs_wiki_app::server::connect;
+use fs_wiki_app::{FileOrigins, Wiki, import_folder, resolve_with_folders};
+use fs_wiki_core::{Paging, Texts};
 
-async fn open(file: &Path) -> Arc<WikiRepo> {
-    let store: Arc<dyn Store> = Arc::new(TursoStore::open(file).await.expect("store"));
-    Arc::new(WikiRepo::new(store, "https://localhost/actors/real-docs"))
+fn open(socket: &Path, records: &Path) -> Arc<Wiki> {
+    let texts = connect(socket).unwrap_or_else(|e| panic!("{e}"));
+    let origins = FileOrigins::open(records).expect("records");
+    Arc::new(Wiki::new(Arc::new(texts), Arc::new(origins)))
 }
 
-async fn start(label: &str, store: &Path, docs: &Path) -> Arc<WikiRepo> {
+async fn start(label: &str, socket: &Path, records: &Path, docs: &Path) -> Arc<Wiki> {
     let t = Instant::now();
-    let wiki = open(store).await;
+    let wiki = open(socket, records);
     let r = import_folder(wiki.as_ref(), docs).await;
     println!(
         "{label}: {:.1?}  new {} updated {} unchanged {} failed {} conflicts {} gone {} skipped {}",
@@ -43,7 +45,7 @@ async fn start(label: &str, store: &Path, docs: &Path) -> Arc<WikiRepo> {
 }
 
 /// (links, links that resolve to nothing) over all texts, resolved as the reader does.
-async fn broken(wiki: &WikiRepo) -> (usize, usize) {
+async fn broken(wiki: &Wiki) -> (usize, usize) {
     let mut all = vec![];
     while let Ok(page) = wiki.list("", Paging::new(500, all.len())).await {
         if page.is_empty() {
@@ -80,16 +82,17 @@ async fn broken(wiki: &WikiRepo) -> (usize, usize) {
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let [docs, folder, new] = &args[..] else {
-        eprintln!("usage: real_docs <docs-copy> <folder-to-move> <new-path>");
+    let [socket, docs, folder, new] = &args[..] else {
+        eprintln!("usage: real_docs <socket> <docs-copy> <folder-to-move> <new-path>");
         return;
     };
-    let docs = Path::new(docs);
-    let store = std::env::temp_dir().join(format!("fs-wiki-real-docs-{}.db", std::process::id()));
+    let (socket, docs) = (Path::new(socket), Path::new(docs));
+    let records =
+        std::env::temp_dir().join(format!("fs-wiki-real-docs-{}.origins", std::process::id()));
     let rt = tokio::runtime::Runtime::new().unwrap();
     rt.block_on(async {
-        drop(start("first start ", &store, docs).await);
-        let wiki = start("second start", &store, docs).await;
+        drop(start("first start ", socket, &records, docs).await);
+        let wiki = start("second start", socket, &records, docs).await;
         let (total, before) = broken(&wiki).await;
         println!("links {total}, leading nowhere before the move: {before}");
         let t = Instant::now();
@@ -98,7 +101,7 @@ fn main() {
         let (_, after) = broken(&wiki).await;
         println!("leading nowhere after the move: {after}");
         drop(wiki);
-        let wiki = start("start after the move", &store, docs).await;
+        let wiki = start("start after the move", socket, &records, docs).await;
         println!(
             "texts below the old folder after restart: {}",
             wiki.list(&format!("{folder}/"), Paging::default())
@@ -109,7 +112,5 @@ fn main() {
         let (_, again) = broken(&wiki).await;
         println!("leading nowhere after restart: {again}");
     });
-    let size = std::fs::metadata(&store).map_or(0, |m| m.len());
-    println!("store file: {} MB", size / 1_000_000);
-    let _ = std::fs::remove_file(&store);
+    let _ = std::fs::remove_file(&records);
 }

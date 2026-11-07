@@ -38,7 +38,7 @@ fn a_wiki_link_opens_the_page_the_core_means_from_any_folder() {
         .await
         .unwrap();
     });
-    let src = WikiSource::new(w, rt.handle().clone(), vec![]);
+    let src = WikiSource::new(w.wiki(), rt.handle().clone(), vec![]);
     let found = hrefs(&src.read("x/y/page.md").unwrap());
     assert_eq!(found.len(), 2);
     for href in found {

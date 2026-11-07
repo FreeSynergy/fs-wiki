@@ -1,17 +1,17 @@
 //! The binary: wiring only.
 //!
-//! Pattern: Facade consumer — parse arguments, open the store, import, hand the wiki to the reader.
+//! Pattern: Facade consumer — parse arguments, connect to the server, import, hand the wiki to the
+//! reader.
 
 use std::sync::Arc;
 use std::time::Instant;
 
 use fs_components_workbenches::{DraftStore, Labels, Options, Picture, Step, launch, snapshot};
-use fs_store::{Store, TursoStore};
-use fs_wiki_app::args::{HELP, StoreChoice, parse};
-use fs_wiki_app::store_path::{data_dir, store_file};
-use fs_wiki_app::{Conflict, FileDraftStore, WikiSource, import_folder};
+use fs_wiki_app::args::{HELP, parse};
+use fs_wiki_app::server::{connect, socket_path};
+use fs_wiki_app::store_path::{data_dir, origins_file};
+use fs_wiki_app::{Conflict, FileDraftStore, FileOrigins, Wiki, WikiSource, import_folder};
 use fs_wiki_core::Texts;
-use fs_wiki_core::WikiRepo;
 
 fn main() {
     if let Err(message) = run() {
@@ -29,33 +29,23 @@ fn run() -> Result<(), String> {
     }
     let runtime = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
     let started = Instant::now();
-    let file = match &args.store {
-        StoreChoice::Memory => None,
-        StoreChoice::File(file) => Some(file.clone()),
-        StoreChoice::Default => {
+    let socket = socket_path(args.socket.as_deref())?;
+    let texts = connect(&socket)?;
+    let records = match &args.origins {
+        Some(file) => file.clone(),
+        None => {
             let data = data_dir()
-                .ok_or("no data directory (set HOME or XDG_DATA_HOME, or use --store)")?;
-            Some(store_file(&data, &args.docs))
+                .ok_or("no data directory (set HOME or XDG_DATA_HOME, or use --origins)")?;
+            origins_file(&data, &args.docs)
         }
     };
-    if let Some(dir) = file.as_ref().and_then(|f| f.parent()) {
-        std::fs::create_dir_all(dir)
-            .map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
-    }
-    match &file {
-        Some(f) => eprintln!("store: {}", f.display()),
-        None => eprintln!("store: in memory, nothing is kept after exit"),
-    }
-    let store: Arc<dyn Store> = runtime
-        .block_on(async {
-            match &file {
-                Some(file) => TursoStore::open(file).await,
-                None => TursoStore::open_in_memory().await,
-            }
-        })
-        .map(|s| Arc::new(s) as Arc<dyn Store>)
-        .map_err(|e| format!("cannot open the store: {e}"))?;
-    let wiki = Arc::new(WikiRepo::new(store, "https://localhost/actors/reader"));
+    eprintln!(
+        "server: {}, records: {}",
+        socket.display(),
+        records.display()
+    );
+    let origins = FileOrigins::open(&records).map_err(|e| e.to_string())?;
+    let wiki = Arc::new(Wiki::new(Arc::new(texts), Arc::new(origins)));
     let report = runtime.block_on(import_folder(wiki.as_ref(), &args.docs));
     eprintln!(
         "{} new, {} updated, {} unchanged, {} failed, {} conflict(s), {} gone, {} skipped, in {:.1?}",
@@ -93,8 +83,8 @@ fn run() -> Result<(), String> {
     }
     let drafts = drafts.map(|s| Arc::new(s) as Arc<dyn DraftStore>);
     let source = Arc::new(
-        WikiSource::from_report(wiki.clone(), runtime.handle().clone(), report)
-            .with_origins(wiki, args.docs.clone()),
+        WikiSource::from_report(wiki.texts(), runtime.handle().clone(), report)
+            .with_origins(wiki.origins_store(), args.docs.clone()),
     );
     let export_target = args.export.as_ref().map(|p| p.display().to_string());
     let mut labels = Labels::default();

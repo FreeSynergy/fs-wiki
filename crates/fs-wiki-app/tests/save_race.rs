@@ -15,7 +15,7 @@ use fs_wiki_core::Texts;
 fn every_accepted_save_is_in_the_final_text() {
     let (rt, w) = wiki();
     rt.block_on(w.create("p.md", "start\n")).unwrap();
-    let src = Arc::new(WikiSource::new(w.clone(), rt.handle().clone(), vec![]));
+    let src = Arc::new(WikiSource::new(w.wiki(), rt.handle().clone(), vec![]));
     let threads: Vec<_> = (0..4)
         .map(|n| {
             let src = src.clone();

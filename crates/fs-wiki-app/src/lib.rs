@@ -16,16 +16,21 @@ mod drafts_orphans;
 pub mod hash;
 pub mod import;
 pub mod map;
+pub mod origins;
 pub mod report;
+pub mod server;
 pub mod source;
 pub mod store_path;
 pub mod sync;
+pub mod wiki;
 
 pub use drafts::FileDraftStore;
 pub use import::import_folder;
 pub use map::to_document;
+pub use origins::FileOrigins;
 pub use report::{Conflict, Report};
 pub use source::export;
 pub use source::{
     Failure, PROBLEMS_PATH, WikiSource, export_markdown_to, resolve, resolve_with_folders,
 };
+pub use wiki::Wiki;

@@ -1519,15 +1519,20 @@ dependencies = [
 name = "fs-wiki-app"
 version = "0.2.0"
 dependencies = [
+ "async-trait",
  "fs-components-widgets",
  "fs-components-workbenches",
+ "fs-interfaces",
  "fs-store",
  "fs-text",
+ "fs-wiki-client",
  "fs-wiki-core",
+ "fs-wiki-server",
  "rustix 1.1.6",
  "serde",
  "serde_json",
  "sha2",
+ "tempfile",
  "tokio",
 ]
 

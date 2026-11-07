@@ -1,31 +1,22 @@
 //! The command line.
 //!
-//! Pattern: Builder-like parser — plain `std::env::args`, no extra crate for six options.
+//! Pattern: Builder-like parser — plain `std::env::args`, no extra crate for the few options.
 
 use std::path::PathBuf;
 
 /// The default folder: the English documentation next to this repo.
 pub const DEFAULT_DOCS: &str = "../fs-documentation/docs/en";
 
-/// Where the wiki is kept.
-#[derive(Debug, Default, PartialEq, Eq)]
-pub enum StoreChoice {
-    /// One file per docs folder in the user's data directory (see `store_path`).
-    #[default]
-    Default,
-    /// In memory: every save is lost at exit (`--store memory`).
-    Memory,
-    /// This store file.
-    File(PathBuf),
-}
-
 /// What was asked for on the command line.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct Args {
     /// Folder of Markdown files to import.
     pub docs: PathBuf,
-    /// Where the wiki is kept.
-    pub store: StoreChoice,
+    /// The socket of the running `fs-wiki-server`; none = the default place of the server.
+    pub socket: Option<PathBuf>,
+    /// The file of the records of imported files; none = one file per docs folder in the data
+    /// directory (see `store_path`).
+    pub origins: Option<PathBuf>,
     /// Draw a picture to this file instead of opening a window.
     pub snapshot: Option<PathBuf>,
     /// Steps for the picture: `open:<path>`, `follow:<href>`, `back`, `search:<term>`.
@@ -59,11 +50,14 @@ pub fn parse(args: &[String]) -> Result<Args, String> {
         };
         match arg.as_str() {
             "--docs" => out.docs = PathBuf::from(value("--docs")?),
+            "--socket" => out.socket = Some(PathBuf::from(value("--socket")?)),
+            "--origins" => out.origins = Some(PathBuf::from(value("--origins")?)),
             "--store" => {
-                out.store = match value("--store")?.as_str() {
-                    "memory" => StoreChoice::Memory,
-                    file => StoreChoice::File(PathBuf::from(file)),
-                }
+                return Err(
+                    "--store belongs to the server now: start fs-wiki-server with \
+                            --data DIR, and give this app its --socket"
+                        .into(),
+                );
             }
             "--snapshot" => out.snapshot = Some(PathBuf::from(value("--snapshot")?)),
             "--drafts" => out.drafts = Some(PathBuf::from(value("--drafts")?)),
@@ -86,13 +80,15 @@ fn size(text: &str) -> Result<(u32, u32), String> {
 /// The help text.
 pub const HELP: &str = "fs-wiki-app: read the documentation in a window
 
+  --socket <path>     socket of the running fs-wiki-server (default $XDG_RUNTIME_DIR/freesynergy/wiki.sock);
+                      start it first: fs-wiki-server [--socket <path>] [--data <dir>]
   --docs <folder>     Markdown folder to import (default ../fs-documentation/docs/en)
-  --store <file>      keep the wiki in this store file (default: one file per docs folder in
-                      the data directory, ~/.local/share/freesynergy/fs-wiki); `--store memory`
-                      keeps nothing after exit
+  --origins <file>    keep the records of imported files here (default: one file per docs folder in
+                      the data directory, ~/.local/share/freesynergy/fs-wiki)
   --snapshot <png>    draw a picture instead of opening a window
   --step <step>       with --snapshot, repeatable: open:<path> follow:<href> back search:<term>
   --drafts <folder>   where unsaved drafts are backed up (default ~/.local/share/fs-wiki/drafts)
   --export <folder>   enable the Export button, writing pages there (e.g. the docs folder)
   --size <WxH>        picture size (default 1200x800)
-The folder is only read, never written.";
+The folder is only read, never written. The wiki itself (the texts) lives in the server; one server
+is one wiki, so use one server (its own --data) per documentation source.";

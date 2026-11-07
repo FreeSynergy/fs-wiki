@@ -16,10 +16,10 @@ fn an_export_after_a_move_names_the_old_file_and_keeps_the_next_start_quiet() {
     write_files(&docs, &[("a/x.md", "# X\n")]);
     {
         let (rt, w) = wiki_in_file(&store);
-        rt.block_on(import_folder(w.as_ref(), &docs));
+        rt.block_on(import_folder(&**w, &docs));
         rt.block_on(w.move_folder("a", "moved")).unwrap();
-        let src = WikiSource::new(w.clone(), rt.handle().clone(), vec![])
-            .with_origins(w.clone(), docs.clone());
+        let src = WikiSource::new(w.wiki(), rt.handle().clone(), vec![])
+            .with_origins(w.wiki(), docs.clone());
         let msg = src
             .export("moved/x.md", &docs.display().to_string(), false)
             .unwrap();
@@ -28,7 +28,7 @@ fn an_export_after_a_move_names_the_old_file_and_keeps_the_next_start_quiet() {
         assert!(docs.join("moved/x.md").exists());
     }
     let (rt, w) = wiki_in_file(&store);
-    let report = rt.block_on(import_folder(w.as_ref(), &docs));
+    let report = rt.block_on(import_folder(&**w, &docs));
     assert_eq!(
         (report.imported, report.updated, report.unchanged),
         (0, 0, 2)
@@ -48,7 +48,7 @@ fn the_second_press_overwrites_only_the_content_the_person_saw() {
     write_files(&docs, &[("p.md", "disk v1\n")]);
     let (rt, w) = common::wiki();
     rt.block_on(w.create("p.md", "wiki text")).unwrap();
-    let src = WikiSource::new(w, rt.handle().clone(), vec![]);
+    let src = WikiSource::new(w.wiki(), rt.handle().clone(), vec![]);
     let target = docs.display().to_string();
     let disk = || std::fs::read_to_string(docs.join("p.md")).unwrap();
 

@@ -24,7 +24,7 @@ fn imports_with_relative_paths_and_lists_failures_and_leaves_the_folder_alone() 
     );
     std::fs::write(dir.join("a/latin.md"), [0xff, 0xfe, 0x41]).unwrap();
     let before = fingerprint(&dir);
-    let report = rt.block_on(import_folder(wiki.as_ref(), &dir));
+    let report = rt.block_on(import_folder(&**wiki, &dir));
     assert_eq!(fingerprint(&dir), before, "the docs folder must not change");
     assert_eq!(report.imported, 2);
     let failed: Vec<&str> = report.failures.iter().map(|f| f.path.as_str()).collect();
@@ -50,8 +50,8 @@ fn importing_again_is_a_no_op() {
     let (rt, wiki) = wiki();
     let dir = temp_dir("again");
     write_files(&dir, &[("p.md", "# P\n\ntext\n")]);
-    assert_eq!(rt.block_on(import_folder(wiki.as_ref(), &dir)).imported, 1);
-    let second = rt.block_on(import_folder(wiki.as_ref(), &dir));
+    assert_eq!(rt.block_on(import_folder(&**wiki, &dir)).imported, 1);
+    let second = rt.block_on(import_folder(&**wiki, &dir));
     assert_eq!(
         (second.imported, second.updated, second.unchanged),
         (0, 0, 1)

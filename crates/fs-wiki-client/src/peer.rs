@@ -7,7 +7,7 @@
 
 use std::future::Future;
 use std::io;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
@@ -59,6 +59,13 @@ impl RpcTexts {
             registry: Arc::new(Registry::default()),
             started: Arc::new(AtomicBool::new(false)),
         })
+    }
+
+    /// Where `fs-wiki-server` listens when it is given no `--socket`:
+    /// `$XDG_RUNTIME_DIR/freesynergy/wiki.sock`. `None` when the environment names no runtime folder.
+    #[must_use]
+    pub fn default_socket() -> Option<PathBuf> {
+        fs_interfaces::rpc::default_socket(SERVER)
     }
 
     /// What the server reported when this connection was made. A snapshot: the server is not asked

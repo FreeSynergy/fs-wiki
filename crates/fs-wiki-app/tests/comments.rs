@@ -15,7 +15,7 @@ const PAGE: &str = "Shown words.\n\n[comment]: # (hush-one)\n\n<!-- hush-two -->
 fn not_displayed_in_the_reader_nor_found_but_present_in_the_editor() {
     let (rt, w) = wiki();
     rt.block_on(w.create("p.md", PAGE)).unwrap();
-    let src = WikiSource::new(w, rt.handle().clone(), vec![]);
+    let src = WikiSource::new(w.wiki(), rt.handle().clone(), vec![]);
     let shown = format!("{:?}", src.read("p.md").unwrap().blocks);
     assert!(shown.contains("Shown words") && shown.contains("More shown"));
     for word in ["hush-one", "hush-two", "hush-three"] {

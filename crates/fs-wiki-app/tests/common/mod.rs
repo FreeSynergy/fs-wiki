@@ -2,22 +2,67 @@
 
 #![allow(dead_code)] // each test file uses a different subset
 
+mod served;
+
+use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use fs_store::{Store, TursoStore};
-use fs_wiki_core::WikiRepo;
+use fs_wiki_app::{FileOrigins, Wiki};
+use fs_wiki_client::RpcTexts;
+use served::Served;
 use tokio::runtime::Runtime;
 
-/// A wiki over a fresh in-memory store, and the runtime that drives it.
-pub fn wiki() -> (Runtime, Arc<WikiRepo>) {
+/// The wiki of a test: the app's `Wiki` (texts over a real socket, records in a real file) and the
+/// real server it talks to, which stays up as long as this lives.
+pub struct Fixture {
+    // Dropped first: the connection closes before the server stops.
+    wiki: Arc<Wiki>,
+    _served: Served,
+    /// The folder of the records of a wiki that has no store file of its own (see `wiki`).
+    _records: Option<tempfile::TempDir>,
+}
+
+impl Fixture {
+    /// The wiki to hand to the app's code (`import_folder`, `WikiSource`).
+    pub fn wiki(&self) -> Arc<Wiki> {
+        self.wiki.clone()
+    }
+}
+
+impl Deref for Fixture {
+    type Target = Wiki;
+    fn deref(&self) -> &Wiki {
+        &self.wiki
+    }
+}
+
+fn fixture(
+    store: Arc<dyn Store>,
+    records: &Path,
+    folder: Option<tempfile::TempDir>,
+) -> Arc<Fixture> {
+    let served = Served::over(store);
+    let texts = RpcTexts::connect(&served.socket).unwrap();
+    let origins = FileOrigins::open(records).unwrap();
+    let wiki = Arc::new(Wiki::new(Arc::new(texts), Arc::new(origins)));
+    Arc::new(Fixture {
+        wiki,
+        _served: served,
+        _records: folder,
+    })
+}
+
+/// A wiki over a fresh in-memory store, and the runtime that drives it. The records of imported
+/// files are in a folder of their own, removed with the test.
+pub fn wiki() -> (Runtime, Arc<Fixture>) {
     let rt = Runtime::new().unwrap();
     let store: Arc<dyn Store> =
         rt.block_on(async { Arc::new(TursoStore::open_in_memory().await.unwrap()) });
-    (
-        rt,
-        Arc::new(WikiRepo::new(store, "https://example.org/actors/t")),
-    )
+    let folder = tempfile::tempdir().unwrap();
+    let records = folder.path().join("wiki.origins");
+    (rt, fixture(store, &records, Some(folder)))
 }
 
 /// The folders a test made; removed when the test's thread ends, also when it panics.
@@ -76,19 +121,17 @@ pub fn fingerprint(root: &Path) -> Vec<(String, Vec<u8>, std::time::SystemTime)>
     out
 }
 
-/// A wiki over a store file (the file survives `drop`; open it again to "restart").
-pub fn wiki_in_file(file: &Path) -> (Runtime, Arc<WikiRepo>) {
+/// A wiki over a store file and a records file next to it (both survive `drop`; open them again
+/// to "restart": the server is stopped, a new one is started over the same files).
+pub fn wiki_in_file(file: &Path) -> (Runtime, Arc<Fixture>) {
     let rt = Runtime::new().unwrap();
     let store: Arc<dyn Store> =
         rt.block_on(async { Arc::new(TursoStore::open(file).await.unwrap()) });
-    (
-        rt,
-        Arc::new(WikiRepo::new(store, "https://example.org/actors/t")),
-    )
+    (rt, fixture(store, &file.with_extension("origins"), None))
 }
 
 /// The Markdown of the text at `path`, if there is one.
-pub fn markdown_at(rt: &Runtime, wiki: &WikiRepo, path: &str) -> Option<String> {
+pub fn markdown_at(rt: &Runtime, wiki: &Wiki, path: &str) -> Option<String> {
     use fs_wiki_core::{MARKDOWN, Texts};
     rt.block_on(async {
         let entry = wiki.get_by_path(path).await.unwrap()?;
@@ -97,9 +140,9 @@ pub fn markdown_at(rt: &Runtime, wiki: &WikiRepo, path: &str) -> Option<String> 
 }
 
 /// Save `text` as a person would in the reader.
-pub fn save(rt: &Runtime, wiki: &Arc<WikiRepo>, path: &str, text: &str) {
+pub fn save(rt: &Runtime, wiki: &Fixture, path: &str, text: &str) {
     use fs_components_workbenches::DocumentSource;
-    let src = fs_wiki_app::WikiSource::new(wiki.clone(), rt.handle().clone(), vec![]);
+    let src = fs_wiki_app::WikiSource::new(wiki.wiki(), rt.handle().clone(), vec![]);
     let rev = src.source_text(path).unwrap().revision;
     src.save(path, text, rev.as_deref()).unwrap();
 }
