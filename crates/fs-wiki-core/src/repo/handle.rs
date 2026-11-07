@@ -7,8 +7,8 @@
 
 use std::sync::Arc;
 
-use fs_store::traits::{ObjectQuery, ObjectRepository};
-use fs_store::Store;
+use fs_objects::traits::{ObjectQuery, ObjectRepository};
+use fs_objects::Store;
 use tokio::sync::Mutex;
 
 use super::backend::StoreAdapter;
@@ -22,7 +22,7 @@ pub const TEXT_TYPE: &str = "Article";
 /// name for the block specification.
 pub const CONTENT_TYPE: &str = "application/vnd.freesynergy.text+json";
 
-/// Texts over `fs-store`.
+/// Texts over `fs-objects`.
 pub struct WikiRepo {
     pub(super) objects: Arc<dyn ObjectRepository>,
     pub(super) reads: Arc<dyn ObjectQuery>,

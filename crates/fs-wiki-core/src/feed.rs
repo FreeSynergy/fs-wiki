@@ -7,7 +7,7 @@
 
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
-use fs_store::ObjectId;
+use fs_objects::ObjectId;
 
 /// What happened to a text. A move is an `Updated` of the moved text and of every text whose links
 /// followed it.

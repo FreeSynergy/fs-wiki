@@ -1,6 +1,6 @@
 [package]
 name = "fs-wiki-core"
-description = "Program core of the FreeSynergy wiki: texts (fs-text documents) over fs-store behind the Texts interface, link table, moves that rewrite links, Markdown import/export"
+description = "Program core of the FreeSynergy wiki: texts (fs-text documents) over fs-objects behind the Texts interface, link table, moves that rewrite links, Markdown import/export"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
@@ -8,7 +8,7 @@ version.workspace = true
 [dependencies]
 # Text + layers, Markdown, links, outside changes; no storage (same workspace).
 fs-text = { path = "../fs-text" }
-fs-store = { git = "https://github.com/FreeSynergy/fs-store", tag = "v0.2.0" }
+fs-objects = { git = "https://github.com/FreeSynergy/fs-objects", tag = "v0.5.0" }
 # The contract and the provider rule (ADR 0045).
 fs-interfaces = { git = "https://github.com/FreeSynergy/fs-interfaces", tag = "v0.33.0" }
 serde = { version = "1", features = ["derive"] }

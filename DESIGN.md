@@ -11,7 +11,7 @@ four crates; the GUI lives only in `fs-wiki-app`, on [`fs-components`](https://g
   blocks of `fs-components`, and offers the wiki to the reader workbench as its data source. No Blinc type appears in it.
 * `crates/fs-wiki-server`: the **Cap'n Proto server**: the contract `texts.capnp` (fs-interfaces v0.33.0) over a Unix socket, in front of `Texts` + `TextFeed`. It only translates; no text logic.
 * `crates/fs-wiki-core`: the **program core**. The trait `Texts` (Rust form of `Texts` in `texts.capnp`) and `WikiRepo`, its
-  implementation over `fs-store`.
+  implementation over `fs-objects`.
 
 ## Interface status
 
@@ -20,7 +20,7 @@ consumers have tested it, then 1.0, then only version jumps.) Nothing here is de
 
 ## State
 
-Version 0.2.0 (workspace; the tag v0.2.0 is set by the owner). Built on `fs-store` v0.2.0, `fs-interfaces` v0.33.0 and `fs-components` v0.1.0 (git tags).
+Version 0.2.0 (workspace; the tag v0.2.0 is set by the owner). Built on `fs-objects` v0.2.0, `fs-interfaces` v0.33.0 and `fs-components` v0.1.0 (git tags).
 
 | Area | State |
 |---|---|
@@ -139,7 +139,7 @@ What is known to be rough: emoji that Blinc has no glyph for show as boxes; the 
 
 ## Crates
 
-* `fs-store` (git tag v0.2.0), `fs-interfaces` (git tag v0.33.0; the server with feature `rpc`), `fs-text` (same workspace, path).
+* `fs-objects` (git tag v0.2.0), `fs-interfaces` (git tag v0.33.0; the server with feature `rpc`), `fs-text` (same workspace, path).
 * `serde`, `serde_json`, `thiserror`, `async-trait`, `tokio` (sync only); server: `capnp`, `capnp-rpc`; app: `sha2`, `rustix` (no-follow file access).
 
 ## Open points
@@ -178,8 +178,8 @@ Questions for the owner (all provisional, easy to reverse):
 Not done / limits:
 
 * **Uniqueness of `path`** holds inside one process (write lock). Two programs writing the same store at once can still race; the
-  store has no unique index (a wish for fs-store).
-* **A move is several writes** (other texts, then the moved text); `fs-store` 0.2 has no transaction over several objects. Repeating
+  store has no unique index (a wish for fs-objects).
+* **A move is several writes** (other texts, then the moved text); `fs-objects` 0.2 has no transaction over several objects. Repeating
   an interrupted move finishes it. Each write is one undo step.
 * **A folder move** (`move_folder`) is `n` writes, in this order: (1) every text outside the folder that links into it, found by the
   `link` index (equal to the folder or in the range `folder/`), (2) the texts of the folder, shallow ones first, each once with its
@@ -197,7 +197,7 @@ Not done / limits:
 * **Undo of a folder move:** the store undoes one write per step (`undo(actor, n)`), not one move. Undoing all `n` writes (the outside
   texts and the moved texts) restores paths and documents; undoing fewer leaves a half moved folder, the same state as an interrupted
   move, and repeating `move_folder` finishes it again. Tested both ways. A single "undo the folder move" needs a group of activities
-  in fs-store (a wish).
+  in fs-objects (a wish).
 * **Deleting a text** leaves links to it in other texts (dangling, like in any wiki); they are shown as links to a path with no text.
 * `LinkValue.target` (UUID of the target) is not filled; links resolve by path.
 * `find` is substring only (no tokens, no ranking) and also searches code blocks.

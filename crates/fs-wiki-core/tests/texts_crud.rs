@@ -3,7 +3,7 @@
 mod common;
 
 use common::{setup, wiki, ME};
-use fs_store::ObjectId;
+use fs_objects::ObjectId;
 use fs_text::{Block, Mark, MarkKind, MarkValue};
 use fs_wiki_core::{Error, Paging, TextPath, Texts};
 

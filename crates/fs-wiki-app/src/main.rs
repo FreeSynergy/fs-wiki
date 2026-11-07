@@ -6,7 +6,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use fs_components_workbenches::{DraftStore, Labels, Options, Picture, Step, launch, snapshot};
-use fs_store::{Store, TursoStore};
+use fs_objects::{Store, TursoStore};
 use fs_wiki_app::args::{HELP, StoreChoice, parse};
 use fs_wiki_app::store_path::{data_dir, store_file};
 use fs_wiki_app::{Conflict, FileDraftStore, WikiSource, import_folder};

@@ -7,7 +7,7 @@ mod common;
 use std::sync::{Arc, Mutex};
 
 use common::{failing, setup, wiki};
-use fs_store::TursoStore;
+use fs_objects::TursoStore;
 use fs_text::Document;
 use fs_wiki_core::{TextChange, TextFeed, TextListener, Texts, MARKDOWN};
 
@@ -63,7 +63,7 @@ async fn what_is_refused_is_not_told() {
         .await
         .is_err());
     assert!(w.move_to(t.id, "bad//path").await.is_err());
-    assert!(w.delete(fs_store::ObjectId::new()).await.is_err());
+    assert!(w.delete(fs_objects::ObjectId::new()).await.is_err());
     assert_eq!(log.take(), [], "nothing was written");
 }
 

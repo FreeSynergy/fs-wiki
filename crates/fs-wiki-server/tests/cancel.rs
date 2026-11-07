@@ -9,8 +9,8 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use common::{list_paths, with_provider, ME};
-use fs_store::traits::{ObjectQuery, ObjectRepository};
-use fs_store::{Activity, LogEntry, ObjectId, Query, Result, Store, StoredObject, TursoStore};
+use fs_objects::traits::{ObjectQuery, ObjectRepository};
+use fs_objects::{Activity, LogEntry, ObjectId, Query, Result, Store, StoredObject, TursoStore};
 use fs_wiki_core::{Texts, WikiRepo};
 use tokio::sync::{watch, Notify};
 

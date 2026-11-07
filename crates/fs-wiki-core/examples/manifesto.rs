@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 
-use fs_store::{Store, TursoStore};
+use fs_objects::{Store, TursoStore};
 use fs_wiki_core::{Texts, WikiRepo, MARKDOWN};
 
 const DEFAULT: &str = "/srv/FreeSynergy/fs-documentation/docs/en/manifesto.md";
