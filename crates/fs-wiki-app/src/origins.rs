@@ -1,6 +1,6 @@
 //! What a file looked like when it was last imported or exported: the records, in a file of this app.
 //!
-//! Pattern: Repository over a log file (Memento store) — `Origins` of the core, which is not part of
+//! Pattern: Repository over a log file — `Origins` of the core, which is not part of
 //! the contract: the records belong to the app and its docs folder, not to the wiki server. The file
 //! holds one JSON record per line; a later line for the same file replaces the earlier one, so a save
 //! is one short append (synced) and not a rewrite of the whole file. A torn last line (the power went

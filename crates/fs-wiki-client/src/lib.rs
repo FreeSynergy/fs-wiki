@@ -21,6 +21,7 @@
 
 mod calls;
 mod feed;
+mod feed_job;
 mod feed_state;
 mod peer;
 mod problems;

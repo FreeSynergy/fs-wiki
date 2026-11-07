@@ -118,7 +118,7 @@ has a `Pattern:` line. For `fs-text` see its own DESIGN.md.
 | `import.rs` | Template method | collect, import each, report; the folder is only read |
 | `map/` | Adapter (+ Composite builder in `nest.rs`) | `fs-text` document to the neutral blocks: flat blocks with containers become nested lists/quotes; unknown things become plain text |
 | `wiki.rs` | Facade | `Texts` from the server and `Origins` from the app's own file, as one value for the sync |
-| `origins.rs` | Repository over a log file (Memento store) | the records of imported files, not part of the contract |
+| `origins.rs` | Repository over a log file | the records of imported files, not part of the contract |
 | `words.rs` | none | the sentences the app says, each whole with `{named}` places, filled by `say`; code never compares them (the kinds of error are types: `OriginsError`) |
 | `origins_log.rs` | none | the file format of the records: parse, atomic rewrite, lock |
 | `server.rs` | Factory | the `Texts` of the app come from a running server and nowhere else; the message when there is none |

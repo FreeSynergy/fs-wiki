@@ -34,6 +34,7 @@ pub fn text_hash(entry: &TextEntry) -> String {
 }
 
 /// Sync the file `file` (the text path is `path`) against what is `known` about it.
+#[allow(clippy::implicit_hasher)] // the set is built by the caller with the default hasher
 pub async fn sync_file<W: Texts + Origins + ?Sized>(
     wiki: &W,
     path: &str,
