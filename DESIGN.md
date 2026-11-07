@@ -264,3 +264,9 @@ The property `markdown_model_is_stable` (import, export, import gives the same c
 `tests/real_docs.rs` (`--ignored`) imports and exports every file of the documentation tree and
 checks that no word is lost and a second round is stable. Link reference definitions
 (`[x]: /url`) are not part of the model and are still not written back.
+
+## After the sprint (strategy list, 2026-11-07)
+
+* `cursor.rs` is a copy of `fs-tasks-server`'s: move it to `fs-interfaces` (`rpc`).
+* `issue` values from `Store(Invalid(reason))` are free store text, a sentence instead of an identifier (§2a): map them to identifiers.
+* Exact index search in `fs-store` is still O(n) (see `fs-store` DESIGN.md): the import is faster (400 files 37,8 s to 8,4 s in the debug build) but not linear.
