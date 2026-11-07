@@ -63,9 +63,9 @@ pub(crate) async fn write_page(
         .map(|p| Sent::new(p.entry).map(|sent| (sent, p.place)))
         .collect::<capnp::Result<Vec<_>>>()?;
     let taken = fitting(&items, more)?;
-    let mut list = out.reborrow().init_items(count(taken)?);
+    let mut written = out.reborrow().init_items(count(taken)?);
     for (i, (sent, _)) in (0u32..).zip(&items[..taken]) {
-        fill(&mut list.reborrow().get(i), sent);
+        fill(&mut written.reborrow().get(i), sent);
     }
     let next = match items[..taken].last() {
         Some((_, last)) if taken < items.len() || more => encode(last),
