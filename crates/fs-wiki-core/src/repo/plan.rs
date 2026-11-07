@@ -2,7 +2,7 @@
 //!
 //! Pattern: Command producer (plan part) — made from reads only; nothing is written here.
 
-use fs_store::ObjectId;
+use fs_objects::ObjectId;
 
 use super::handle::WikiRepo;
 use crate::error::Result;

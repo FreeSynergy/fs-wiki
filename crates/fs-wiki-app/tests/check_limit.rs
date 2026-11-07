@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use common::{temp_dir, write_files};
-use fs_store::ObjectId;
+use fs_objects::ObjectId;
 use fs_wiki_app::{FileOrigins, Wiki, import_folder_within};
 use fs_wiki_client::RpcTexts;
 use fs_wiki_core::{Capabilities, FileOrigin, Origins, Paging, Result, TextEntry, Texts, WikiRepo};

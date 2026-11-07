@@ -3,7 +3,7 @@
 //! Pattern: Builder consumer — each read assembles one store `Query` (type, context, conditions,
 //! order, page) that the store runs, so only the requested page is read into memory.
 
-use fs_store::{Cond, ObjectId, Op, Query};
+use fs_objects::{Cond, ObjectId, Op, Query};
 
 use super::handle::{WikiRepo, CONTEXT, TEXT_TYPE};
 use super::record::entry_of;

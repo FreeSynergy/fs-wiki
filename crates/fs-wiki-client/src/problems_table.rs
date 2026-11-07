@@ -6,7 +6,7 @@
 
 use fs_interfaces::rpc::client::problems::PROBLEM_BASE as BASE;
 use fs_interfaces::rpc::Problem;
-use fs_store::{Error as StoreError, ObjectId};
+use fs_objects::{Error as StoreError, ObjectId};
 use fs_wiki_core::Error;
 
 use crate::problems::{error_of, Subject};

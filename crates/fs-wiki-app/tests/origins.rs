@@ -8,7 +8,7 @@ mod common;
 use std::os::unix::fs::PermissionsExt;
 
 use common::temp_dir;
-use fs_store::ObjectId;
+use fs_objects::ObjectId;
 use fs_wiki_app::{FileOrigins, OriginsError};
 use fs_wiki_core::{FileOrigin, Origins};
 

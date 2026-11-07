@@ -19,7 +19,7 @@
 use std::collections::HashSet;
 use std::path::Path;
 
-use fs_store::ObjectId;
+use fs_objects::ObjectId;
 
 use fs_wiki_core::{FileOrigin, MARKDOWN, Origins, TextEntry, TextFormat, Texts};
 

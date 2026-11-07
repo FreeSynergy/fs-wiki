@@ -10,7 +10,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use fs_store::ObjectId;
+use fs_objects::ObjectId;
 use fs_wiki_core::{FileOrigin, Origins, Paging, Texts};
 
 use crate::report::Report;

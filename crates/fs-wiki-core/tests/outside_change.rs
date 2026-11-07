@@ -184,7 +184,7 @@ async fn an_unknown_media_type_is_an_error_and_stores_nothing() {
         Err(Error::InvalidPath { .. })
     ));
     assert!(matches!(
-        w.export_text(fs_store::ObjectId::new(), MARKDOWN).await,
+        w.export_text(fs_objects::ObjectId::new(), MARKDOWN).await,
         Err(Error::NotFound(_))
     ));
 }

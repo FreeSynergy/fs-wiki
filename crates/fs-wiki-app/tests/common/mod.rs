@@ -6,7 +6,7 @@ use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use fs_store::{Store, TursoStore};
+use fs_objects::{Store, TursoStore};
 use fs_wiki_app::{FileOrigins, Wiki};
 use fs_wiki_client::RpcTexts;
 use fs_wiki_testserver::Served;

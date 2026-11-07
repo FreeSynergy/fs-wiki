@@ -23,7 +23,7 @@ async fn a_text_is_created_read_by_id_and_by_path_and_listed_in_path_order() {
     assert_eq!(by_path.id, a.id);
     assert!(texts.get_by_path("nothing").await.unwrap().is_none());
     assert!(texts
-        .get(fs_store::ObjectId::new())
+        .get(fs_objects::ObjectId::new())
         .await
         .unwrap()
         .is_none());

@@ -4,7 +4,7 @@
 
 use fs_interfaces::rpc::write_object_id;
 use fs_interfaces::texts_capnp::texts::Client;
-use fs_store::ObjectId;
+use fs_objects::ObjectId;
 use fs_wiki_core::{LinkEntry, Result, TextEntry};
 
 use super::pages::read_page;

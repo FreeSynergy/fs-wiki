@@ -8,7 +8,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use fs_store::ObjectId;
+use fs_objects::ObjectId;
 use fs_text::Document;
 use fs_wiki_core::{
     Capabilities, FileOrigin, LinkEntry, Origins, Paging, Result, TextEntry, Texts,

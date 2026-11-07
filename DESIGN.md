@@ -14,7 +14,7 @@ six crates (one of them only for tests); the GUI lives only in `fs-wiki-app`, on
 * `crates/fs-wiki-testserver`: the real `fs-wiki-server` on a real socket for the tests of the client and the app (dev-dependency, not published; used by the tests of the client and the app. `fs-wiki-server`'s own tests start their server in-process on a `LocalSet`, which needs no thread, and keep their own helper).
 * `crates/fs-wiki-server`: the **Cap'n Proto server**: the contract `texts.capnp` (fs-interfaces v0.34.0) over a Unix socket, in front of `Texts` + `TextFeed`. It only translates; no text logic.
 * `crates/fs-wiki-core`: the **program core**. The trait `Texts` (Rust form of `Texts` in `texts.capnp`) and `WikiRepo`, its
-  implementation over `fs-store`.
+  implementation over `fs-objects`.
 
 ## Interface status
 
@@ -23,7 +23,7 @@ consumers have tested it, then 1.0, then only version jumps.) Nothing here is de
 
 ## State
 
-Version 0.2.0 (workspace; the tag v0.2.0 is set by the owner). Built on `fs-store` v0.2.0, `fs-interfaces` v0.34.0 and `fs-components` v0.2.0 (git tags).
+Version 0.2.0 (workspace; the tag v0.2.0 is set by the owner). Built on `fs-objects` v0.2.0, `fs-interfaces` v0.34.0 and `fs-components` v0.2.0 (git tags).
 
 | Area | State |
 |---|---|
@@ -166,7 +166,7 @@ What is known to be rough: emoji that Blinc has no glyph for show as boxes; the 
 
 ## Crates
 
-* `fs-store` (git tag v0.2.0), `fs-interfaces` (git tag v0.34.0; server and client with feature `rpc`), `fs-text` (same workspace, path).
+* `fs-objects` (git tag v0.2.0), `fs-interfaces` (git tag v0.34.0; server and client with feature `rpc`), `fs-text` (same workspace, path).
 * `serde`, `serde_json`, `thiserror`, `async-trait`, `tokio` (sync only); server and client: `capnp`, `capnp-rpc` (the client also `futures`, for the first `subscribe`); app: `sha2`, `rustix` (no-follow file access).
 
 ## Open points
@@ -188,7 +188,7 @@ Server decisions (provisional, easy to reverse):
 Questions for the owner (all provisional, easy to reverse):
 
 * **One server is one wiki.** The app has no store of its own any more, so two documentation folders in one server would share one text namespace. Use one server (own `--data` and `--socket`) per documentation source, or tell me if the app should prefix paths per folder.
-* **Records and servers (provisional, thread 1 decided; a server id in the contract is wished for).** Later `SupportReport.instance :Uuid` in `common.capnp` (from an identity in `fs-store`) will say which wiki a server is. It will solve "all texts of a folder were deleted on purpose, so they come back at the next start" (below, the `records_ignored` case), but **not** "a server restored from a backup with only some of the texts": that has the same id, and stays open. What is done now:
+* **Records and servers (provisional, thread 1 decided; a server id in the contract is wished for).** Later `SupportReport.instance :Uuid` in `common.capnp` (from an identity in `fs-objects`) will say which wiki a server is. It will solve "all texts of a folder were deleted on purpose, so they come back at the next start" (below, the `records_ignored` case), but **not** "a server restored from a backup with only some of the texts": that has the same id, and stays open. What is done now:
 * **Records and servers, the rule.** The records file is not tied to a server. A start where the server holds **none** of the texts the records name is another wiki (a fresh or different server): the records are ignored (`Report::records_ignored`, said on the terminal) and every file is imported again. A text that is missing while others are there was deleted on purpose and stays deleted, as before: a check per record (`get` for each of 1398 files) would bring a deleted text back at every start, so one text that is there is enough to say the records fit. **Consequence: if every text of a docs folder was deleted on purpose (a folder with one page, say), the next start takes it for another server and imports the files again** (`records_ignored`, said on the terminal; tested). Limit: a server that has some of the old texts but not all (a restored copy) is taken for the same wiki. Its missing texts are **not** counted as unchanged and **not** imported again: each such file is listed in `Report::missing` and on the problems page ("Missing on the server"), also when the text was deleted on purpose; the person decides (tested with a restored copy). That costs one `get` per recorded file at every start. Measured on a copy of the documentation (1398 pages, release build, unloaded): first start 73.1 s, second start on the same server 15.7 ms, start on a different, empty server with the old records 71.7 s (the check for 1398 records is inside that; it is one `get` when the records fit; the per-file `get` of the missing check is added to every start, see below).
 * **Dead connection and the feed.** When a remote subscription cannot be made (the connection is gone), the connection is marked dead: `subscribe` on it tells the new listener `ended` once and then leaves it alone, so a listener that subscribes in `ended` (as the doc of `TextListener::ended` allows) hears a few `ended` and then nothing, instead of looping on the connection thread. Test `a_listener_that_subscribes_again_in_ended_does_not_loop_on_a_dead_connection`; without the fix it ran about 550 000 times in 3 s. A dead connection never revives: make a new `RpcTexts`.
 * **Records lock.** `FileOrigins::open` takes an exclusive `flock` on `<records>.lock`: a second app on the same docs folder is refused at its start (`OriginsError::Busy`, a type of its own; the lock is held until the last write of the file has ended, also after the value was dropped). The helper files (`.tmp`, `.lock`) are named after the whole file name, so `a.origins` and `a.json` do not share them. Two apps on different docs folders use different files, but if they use the same server their texts share one namespace. The write and sync of a record run on a blocking thread (`spawn_blocking`).
@@ -212,8 +212,8 @@ Questions for the owner (all provisional, easy to reverse):
 Not done / limits:
 
 * **Uniqueness of `path`** holds inside one process (write lock). Two programs writing the same store at once can still race; the
-  store has no unique index (a wish for fs-store).
-* **A move is several writes** (other texts, then the moved text); `fs-store` 0.2 has no transaction over several objects. Repeating
+  store has no unique index (a wish for fs-objects).
+* **A move is several writes** (other texts, then the moved text); `fs-objects` 0.2 has no transaction over several objects. Repeating
   an interrupted move finishes it. Each write is one undo step.
 * **A folder move** (`move_folder`) is `n` writes, in this order: (1) every text outside the folder that links into it, found by the
   `link` index (equal to the folder or in the range `folder/`), (2) the texts of the folder, shallow ones first, each once with its
@@ -231,7 +231,7 @@ Not done / limits:
 * **Undo of a folder move:** the store undoes one write per step (`undo(actor, n)`), not one move. Undoing all `n` writes (the outside
   texts and the moved texts) restores paths and documents; undoing fewer leaves a half moved folder, the same state as an interrupted
   move, and repeating `move_folder` finishes it again. Tested both ways. A single "undo the folder move" needs a group of activities
-  in fs-store (a wish).
+  in fs-objects (a wish).
 * **Deleting a text** leaves links to it in other texts (dangling, like in any wiki); they are shown as links to a path with no text.
 * `LinkValue.target` (UUID of the target) is not filled; links resolve by path.
 * `find` is substring only (no tokens, no ranking) and also searches code blocks.

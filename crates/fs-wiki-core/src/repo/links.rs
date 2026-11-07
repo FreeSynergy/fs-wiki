@@ -4,7 +4,7 @@
 //! truth). Back references are one store query on the index `link` (the page part of every
 //! internal link), then the rows of the texts found.
 
-use fs_store::ObjectId;
+use fs_objects::ObjectId;
 use fs_text::extract_links;
 
 use super::handle::WikiRepo;

@@ -5,7 +5,7 @@
 mod common;
 
 use common::{make, paths, ClientOf, Served};
-use fs_store::ObjectId;
+use fs_objects::ObjectId;
 use fs_wiki_core::{Error, Paging, TextFormat, Texts};
 use fs_wiki_server::MAX_SOURCE_BYTES;
 
@@ -95,13 +95,13 @@ async fn a_request_the_server_refuses_as_invalid_or_too_large_is_an_error_not_a_
     let texts = served.client();
     let e = texts.find("", Paging::default()).await.unwrap_err();
     assert!(
-        matches!(&e, Error::Store(fs_store::Error::Invalid(t)) if t.contains("term")),
+        matches!(&e, Error::Store(fs_objects::Error::Invalid(t)) if t.contains("term")),
         "{e:?}"
     );
     let big = "x".repeat(MAX_SOURCE_BYTES + 1);
     let e = texts.create("big", &big).await.unwrap_err();
     assert!(
-        matches!(&e, Error::Store(fs_store::Error::Invalid(t)) if t.contains("too large")),
+        matches!(&e, Error::Store(fs_objects::Error::Invalid(t)) if t.contains("too large")),
         "{e:?}"
     );
     assert!(

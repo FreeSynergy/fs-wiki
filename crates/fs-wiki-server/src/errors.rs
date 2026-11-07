@@ -18,7 +18,7 @@ const INVALID: &str = "https://freesynergy.net/problems/texts/invalid";
 /// no longer reads or the store failed: not the caller's fault. What a client sends is read before
 /// the core sees it (`wire`).
 pub(crate) fn rpc_error(e: Error) -> capnp::Error {
-    use fs_store::Error as Store;
+    use fs_objects::Error as Store;
     let text = e.to_string();
     match e {
         Error::Unsupported(not_possible) => unsupported(&not_possible),

@@ -88,7 +88,7 @@ impl RpcTexts {
         F: FnOnce(Remote) -> Fut + Send + 'static,
         Fut: Future<Output = Result<T>> + 'static,
     {
-        let fault = |f: Fault| Error::Store(fs_store::Error::Backend(f.to_string()));
+        let fault = |f: Fault| Error::Store(fs_objects::Error::Backend(f.to_string()));
         self.worker.call(work).await.map_err(fault)?
     }
 }

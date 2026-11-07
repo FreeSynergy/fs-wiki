@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 use async_trait::async_trait;
 use common::{ClientOf, Served};
 use fs_interfaces::Capabilities;
-use fs_store::ObjectId;
+use fs_objects::ObjectId;
 use fs_wiki_client::RpcTexts;
 use fs_wiki_core::{
     Paging, Result, TextChange, TextEntry, TextFeed, TextListener, Texts, WikiRepo,
@@ -33,7 +33,7 @@ impl Texts for Flaky {
     }
     async fn get(&self, id: ObjectId) -> Result<Option<TextEntry>> {
         if self.fail.load(Ordering::SeqCst) {
-            return Err(fs_store::Error::Backend("the read failed".into()).into());
+            return Err(fs_objects::Error::Backend("the read failed".into()).into());
         }
         self.repo.get(id).await
     }

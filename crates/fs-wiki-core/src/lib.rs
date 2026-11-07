@@ -1,7 +1,7 @@
 //! `fs-wiki-core`: program core of the FreeSynergy wiki (no GUI).
 //!
 //! Every text is a wiki entry (ADR 0031): a [`fs_text::Document`] (text + layers) in an AS2
-//! `Article` envelope, stored through `fs-store`, which is the truth; files are exports (ADR
+//! `Article` envelope, stored through `fs-objects`, which is the truth; files are exports (ADR
 //! 0042). Start with the [`Texts`] trait; [`WikiRepo`] is its store-backed implementation.
 //! See `DESIGN.md` for the pattern map.
 //!
