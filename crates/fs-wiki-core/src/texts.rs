@@ -11,6 +11,7 @@ use fs_store::{Envelope, ObjectId};
 use fs_text::Document;
 
 use crate::error::Result;
+use crate::page::{Place, TextPage, TextQuery};
 
 /// The explicit "not possible" of a method a provider does not override.
 pub(crate) fn not_possible<T>(capability: &str) -> Result<T> {
@@ -81,6 +82,18 @@ pub trait Texts: Send + Sync {
     async fn get_by_path(&self, path: &str) -> Result<Option<TextEntry>>;
     /// `text.read`: texts whose path starts with `prefix` (empty = all), in path order, paged.
     async fn list(&self, prefix: &str, page: Paging) -> Result<Vec<TextEntry>>;
+
+    /// `text.read` / `text.find`: at most `size` texts of `query` that come after `after` (`None` =
+    /// from the start), in path order. A provider with a store cuts the page in the store: it reads
+    /// neither the texts before the place nor the ones after the page.
+    async fn page(
+        &self,
+        _query: &TextQuery,
+        _after: Option<&Place>,
+        _size: usize,
+    ) -> Result<TextPage> {
+        not_possible("text.read")
+    }
 
     /// `text.create`: a new text at `path` from Markdown. A taken path is an error.
     async fn create(&self, _path: &str, _markdown: &str) -> Result<TextEntry> {

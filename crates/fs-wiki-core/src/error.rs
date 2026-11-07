@@ -76,6 +76,9 @@ pub enum Error {
     /// A stored object is not a text of this wiki.
     #[error("object {0} is not a wiki text")]
     NotAText(ObjectId),
+    /// A stored text lacks what a page needs (written by an older version): run `upgrade_index`.
+    #[error("stored data is incomplete: {0}")]
+    Stored(String),
     /// The explicit "not possible" of a provider (ADR 0045).
     #[error(transparent)]
     Unsupported(#[from] fs_interfaces::Unsupported),

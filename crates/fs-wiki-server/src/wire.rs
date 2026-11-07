@@ -6,10 +6,9 @@
 //! what could not come back.
 
 use fs_interfaces::rpc::{
-    check_answer, check_intake, envelope_weight, write_envelope, Page, DEFAULT_PAGE_SIZE,
-    MAX_INTAKE_BYTES, MAX_PAGE_BYTES,
+    check_answer, check_intake, envelope_weight, write_envelope, MAX_INTAKE_BYTES, MAX_PAGE_BYTES,
 };
-use fs_interfaces::texts_capnp::{text_entry, text_page};
+use fs_interfaces::texts_capnp::text_entry;
 use fs_text::Document;
 use fs_wiki_core::TextEntry;
 
@@ -29,7 +28,7 @@ impl Sent {
     }
 
     /// What this text weighs in an answer.
-    fn weight(&self) -> usize {
+    pub(crate) fn weight(&self) -> usize {
         self.json.len() + self.entry.path.len() + envelope_weight(&self.entry.envelope)
     }
 }
@@ -45,7 +44,7 @@ pub(crate) fn write_entry(mut out: text_entry::Builder<'_>, sent: &Sent) -> capn
     Ok(())
 }
 
-fn fill(out: &mut text_entry::Builder<'_>, sent: &Sent) {
+pub(crate) fn fill(out: &mut text_entry::Builder<'_>, sent: &Sent) {
     write_envelope(out.reborrow().init_envelope(), &sent.entry.envelope);
     out.set_path(sent.entry.path.as_str());
     out.set_document(sent.json.as_str());
@@ -69,23 +68,6 @@ pub(crate) fn write_all(
     for (i, s) in (0u32..).zip(&sent) {
         fill(&mut out.reborrow().get(i), s);
     }
-    Ok(())
-}
-
-/// Cut the page at `cursor` and write it.
-pub(crate) fn write_page(
-    mut out: text_page::Builder<'_>,
-    all: Vec<TextEntry>,
-    cursor: capnp::Result<fs_interfaces::common_capnp::cursor::Reader<'_>>,
-) -> capnp::Result<()> {
-    let opaque = cursor?.get_opaque()?;
-    let sent: Vec<Sent> = all.into_iter().map(Sent::new).collect::<Result<_, _>>()?;
-    let page = Page::of_weighted(sent, opaque, DEFAULT_PAGE_SIZE, Sent::weight)?;
-    let mut items = out.reborrow().init_items(count(page.items.len())?);
-    for (i, s) in (0u32..).zip(&page.items) {
-        fill(&mut items.reborrow().get(i), s);
-    }
-    out.init_next().set_opaque(&page.next);
     Ok(())
 }
 

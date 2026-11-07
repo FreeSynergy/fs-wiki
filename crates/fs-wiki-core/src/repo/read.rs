@@ -6,6 +6,7 @@
 use fs_store::{Cond, ObjectId, Op, Query};
 
 use super::handle::{WikiRepo, CONTEXT, TEXT_TYPE};
+use super::keys::{BLOCK, PATH};
 use super::record::entry_of;
 use crate::error::Result;
 use crate::texts::{Paging, TextEntry};
@@ -15,7 +16,7 @@ pub(super) fn all_texts(page: Paging) -> Query {
     let mut q = Query::new()
         .of_type(TEXT_TYPE)
         .in_context(CONTEXT)
-        .order_by_index("path")
+        .order_by_index(PATH)
         .offset(page.offset);
     q.limit = page.limit;
     q
@@ -30,7 +31,12 @@ impl WikiRepo {
     }
 
     pub(super) async fn text_at(&self, path: &str) -> Result<Option<TextEntry>> {
-        let q = all_texts(Paging::default()).with_index("path", path);
+        // A path names one text: no order (ordering would sort every text for one row).
+        let q = Query::new()
+            .of_type(TEXT_TYPE)
+            .in_context(CONTEXT)
+            .with_index(PATH, path)
+            .limit(1);
         self.reads
             .query(&q)
             .await?
@@ -44,7 +50,7 @@ impl WikiRepo {
         let mut q = all_texts(page);
         if !prefix.is_empty() {
             // Binary text order: every string starting with `prefix` lies in [prefix, prefix + U+10FFFF).
-            q = q.index_between("path", prefix, format!("{prefix}\u{10FFFF}"));
+            q = q.index_between(PATH, prefix, format!("{prefix}\u{10FFFF}"));
         }
         self.reads
             .query(&q)
@@ -65,8 +71,8 @@ impl WikiRepo {
             op: Op::Contains,
             value: term.into(),
         });
-        q.any.push(contains("path"));
-        q.any.push(contains("block"));
+        q.any.push(contains(PATH));
+        q.any.push(contains(BLOCK));
         self.reads
             .query(&q)
             .await?

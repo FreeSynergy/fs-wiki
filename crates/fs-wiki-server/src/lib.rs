@@ -10,9 +10,11 @@
 // The generated `Server` trait is async for every method, also those that never wait.
 #![allow(clippy::missing_errors_doc, clippy::unused_async_trait_impl)]
 
+mod cursor;
 mod errors;
 mod feed;
 mod links;
+mod paging;
 mod reads;
 mod texts_service;
 mod wire;

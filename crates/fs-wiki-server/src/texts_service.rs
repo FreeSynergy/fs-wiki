@@ -9,6 +9,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use capnp_rpc::new_client;
+use fs_interfaces::rpc::DEFAULT_PAGE_SIZE;
 use fs_interfaces::texts_capnp::texts;
 use fs_wiki_core::{TextFeed, Texts};
 
@@ -22,12 +23,25 @@ pub const CONTRACT_VERSION: &str = "texts 0.1 (draft)";
 pub struct TextsServer {
     texts: Arc<dyn Texts>,
     feed: Arc<dyn TextFeed>,
+    pub(crate) page_size: usize,
 }
 
 impl TextsServer {
     /// Serve this provider.
     pub fn new(texts: Arc<dyn Texts>, feed: Arc<dyn TextFeed>) -> Self {
-        Self { texts, feed }
+        Self {
+            texts,
+            feed,
+            page_size: DEFAULT_PAGE_SIZE,
+        }
+    }
+
+    /// Texts per page (default [`DEFAULT_PAGE_SIZE`]); a page also stops where an answer would not fit
+    /// one message.
+    #[must_use]
+    pub fn with_page_size(mut self, size: usize) -> Self {
+        self.page_size = size.max(1);
+        self
     }
 
     /// The capability to hand to `fs_interfaces::rpc::serve`.
@@ -63,11 +77,11 @@ impl texts::Server for TextsServer {
     }
 
     async fn list(self: Rc<Self>, params: texts::ListParams, results: texts::ListResults) -> Done {
-        reads::list(&self.texts, params, results).await
+        reads::list(&self.texts, self.page_size, params, results).await
     }
 
     async fn find(self: Rc<Self>, params: texts::FindParams, results: texts::FindResults) -> Done {
-        reads::find(&self.texts, params, results).await
+        reads::find(&self.texts, self.page_size, params, results).await
     }
 
     async fn links(

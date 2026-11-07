@@ -35,10 +35,13 @@ impl WikiRepo {
         kind: &str,
         key: &str,
     ) -> Result<Option<(ObjectId, T)>> {
-        let found = self
-            .reads
-            .query(&query(kind).with_index("key", key))
-            .await?;
+        // One key names one record: no order (it would sort every record of the kind for one row).
+        let one = Query::new()
+            .of_type(kind)
+            .in_context(AUX_CONTEXT)
+            .with_index("key", key)
+            .limit(1);
+        let found = self.reads.query(&one).await?;
         found.into_iter().next().map(decode).transpose()
     }
 

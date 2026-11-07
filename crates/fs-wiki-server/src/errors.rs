@@ -36,7 +36,7 @@ pub(crate) fn rpc_error(e: Error) -> capnp::Error {
         | Error::InvalidMove { .. }
         | Error::MediaType(_)
         | Error::Store(Store::Invalid(_)) => invalid(text),
-        Error::Json(_) | Error::NotAText(_) | Error::Store(_) => failed(text),
+        Error::Json(_) | Error::NotAText(_) | Error::Stored(_) | Error::Store(_) => failed(text),
     }
 }
 

@@ -2,6 +2,8 @@
 
 #![allow(dead_code)] // each test file uses a different subset
 
+pub mod counting;
+
 use std::future::Future;
 use std::sync::Arc;
 
@@ -57,12 +59,21 @@ where
     F: FnOnce(texts::Client) -> Fut,
     Fut: Future<Output = ()>,
 {
+    with_page_size(TextsServer::new(texts, feed), test).await;
+}
+
+/// A real server, as configured (a small page size, for example).
+pub async fn with_page_size<F, Fut>(server: TextsServer, test: F)
+where
+    F: FnOnce(texts::Client) -> Fut,
+    Fut: Future<Output = ()>,
+{
     let local = tokio::task::LocalSet::new();
     local
         .run_until(async {
             let dir = tempfile::tempdir().unwrap();
             let path = dir.path().join("wiki.sock");
-            let root = TextsServer::new(texts, feed).into_client();
+            let root = server.into_client();
             let bound = bind_socket(&path).await.unwrap();
             let (stop, stopped) = tokio::sync::oneshot::channel::<()>();
             let serving = tokio::task::spawn_local(serve(bound, root.client, async {
