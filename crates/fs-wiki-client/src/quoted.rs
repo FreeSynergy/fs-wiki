@@ -69,8 +69,8 @@ mod tests {
     fn literals_come_back_with_their_escapes() {
         let text = format!("cannot move {:?} to {:?}: x", "a\"b\\c", "ü\n\u{1}");
         assert_eq!(quoted(&text), ["a\"b\\c", "ü\n\u{1}"]);
-        assert!(quoted("no quotes").is_empty());
-        assert!(quoted("open \"never closed").is_empty());
+        assert_eq!(quoted("no quotes").len(), 0);
+        assert_eq!(quoted("open \"never closed").len(), 0);
     }
 
     #[test]

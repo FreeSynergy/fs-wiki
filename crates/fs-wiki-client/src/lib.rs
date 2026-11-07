@@ -14,7 +14,9 @@
 // A closure reads better than the full path of a generated reader type.
 #![allow(
     clippy::module_name_repetitions,
-    clippy::redundant_closure_for_method_calls
+    clippy::redundant_closure_for_method_calls,
+    // The generated `ChangeListener` trait is async for every method, also those that never wait.
+    clippy::unused_async_trait_impl
 )]
 
 mod calls;

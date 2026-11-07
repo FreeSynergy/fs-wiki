@@ -131,3 +131,28 @@ async fn dropping_the_subscription_ends_it_and_listeners_are_independent() {
         [TextChange::Created(t.id), TextChange::Deleted(t.id)]
     );
 }
+
+#[derive(Default)]
+struct Ends(Mutex<Vec<String>>);
+
+impl TextListener for Ends {
+    fn changed(&self, _: &TextChange) {}
+    fn ended(&self, reason: &str) {
+        self.0.lock().unwrap().push(reason.to_string());
+    }
+}
+
+#[test]
+fn ending_the_feed_tells_each_listener_once_and_forgets_it() {
+    let registry = Arc::new(fs_wiki_core::Registry::default());
+    let (a, b) = (Arc::new(Ends::default()), Arc::new(Ends::default()));
+    let (_kept, dropped) = (registry.add(a.clone()), registry.add(b.clone()));
+    drop(dropped);
+    registry.end("gone");
+    registry.end("again");
+    assert_eq!(*a.0.lock().unwrap(), ["gone"]);
+    assert_eq!(b.0.lock().unwrap().len(), 0, "it had left already");
+    // A listener that does not care keeps the default: nothing happens.
+    let _plain = registry.add(Arc::new(Log::default()));
+    registry.end("ignored");
+}
