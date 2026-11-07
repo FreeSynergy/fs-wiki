@@ -1,6 +1,6 @@
 //! Reading a list page by page.
 //!
-//! Pattern: none — a loop. The contract pages with an opaque cursor, the core with `limit` and `offset`. Pages are read until the cursor is empty or
+//! Pattern: Iterator — paging by hand (the pages are fetched by async calls). The contract pages with an opaque cursor, the core with `limit` and `offset`. Pages are read until the cursor is empty or
 //! until enough is there for `offset + limit`; the texts before `offset` are read as well, as the
 //! cursor is a position the client cannot make.
 

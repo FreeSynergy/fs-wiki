@@ -124,3 +124,35 @@ async fn fresh_listener_objects_on_a_dead_connection_neither_overflow_the_stack_
     let n = calls.load(Ordering::SeqCst);
     assert!((1..=30).contains(&n), "told {n} times in 1.5 s");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn dropping_the_client_while_notices_are_queued_still_tells_each_listener_once() {
+    let mut served = Served::in_memory().await;
+    let texts = RpcTexts::connect(&served.socket).unwrap();
+    served.stop();
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    let first = Arc::new(Seen::default());
+    let (texts, _first_sub) = tokio::task::spawn_blocking({
+        let first = first.clone();
+        move || {
+            let sub = texts.subscribe(first);
+            (texts, sub)
+        }
+    })
+    .await
+    .unwrap();
+    let many: Vec<Arc<Seen>> = (0..20).map(|_| Arc::new(Seen::default())).collect();
+    let subs: Vec<_> = many.iter().map(|l| texts.subscribe(l.clone())).collect();
+    drop(texts);
+    let started = std::time::Instant::now();
+    while many.iter().any(|l| l.ended.lock().unwrap().is_empty()) {
+        assert!(
+            started.elapsed() < Duration::from_secs(15),
+            "not all were told"
+        );
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert!(many.iter().all(|l| l.ended.lock().unwrap().len() == 1));
+    drop(subs);
+}

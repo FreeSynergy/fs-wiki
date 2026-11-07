@@ -61,6 +61,14 @@ import them by hand if you want them back.";
 pub const CHECK_FAILED: &str =
     "cannot ask the server for the texts of the imported files: {error}; nothing was imported";
 
+/// `{error}`: what the server said about one text. The file is imported as the records say.
+pub const CHECK_ONE_FAILED: &str = "could not ask the server whether the text of this file is \
+there ({error}); it is taken to be there, as recorded";
+
+/// `{error}`: why the record could not be updated.
+pub const DELETED_RECORD_STALE: &str = "the text was deleted on the server, but the record of its \
+imported file could not be updated ({error}); the file will be listed as missing at the next start";
+
 /// `{seconds}`: the limit.
 pub const CHECK_TIMEOUT: &str = "the server did not answer within {seconds} s when asked for the texts of the \
 imported files; nothing was imported (is the server stuck?)";

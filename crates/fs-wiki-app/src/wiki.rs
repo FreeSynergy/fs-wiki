@@ -8,10 +8,12 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+
+use crate::words::{self, say};
 use fs_store::ObjectId;
 use fs_text::Document;
 use fs_wiki_core::{
-    Capabilities, FileOrigin, LinkEntry, Origins, Paging, Result, TextEntry, Texts,
+    Capabilities, Error, FileOrigin, LinkEntry, Origins, Paging, Result, TextEntry, Texts,
 };
 
 /// `Texts` of one provider and `Origins` of another.
@@ -21,6 +23,20 @@ pub struct Wiki {
 }
 
 impl Wiki {
+    /// Mark the records that name `id` as deleted on purpose.
+    async fn mark_deleted(&self, id: ObjectId) -> Result<()> {
+        for record in self.origins.origins().await? {
+            if record.text == id && !record.deleted {
+                let marked = FileOrigin {
+                    deleted: true,
+                    ..record
+                };
+                self.origins.set_origin(&marked).await?;
+            }
+        }
+        Ok(())
+    }
+
     /// The texts of `texts`, the file records of `origins`.
     pub fn new(texts: Arc<dyn Texts>, origins: Arc<dyn Origins>) -> Self {
         Self { texts, origins }
@@ -87,19 +103,14 @@ impl Texts for Wiki {
     }
 
     /// Deleting a text here is on purpose: the records that name it are marked, so the file is
-    /// not listed as missing at the next start.
+    /// not listed as missing at the next start. If the text is deleted and a record cannot be
+    /// updated, the error says exactly that: the text is gone.
     async fn delete(&self, id: ObjectId) -> Result<()> {
         self.texts.delete(id).await?;
-        for record in self.origins.origins().await? {
-            if record.text == id && !record.deleted {
-                let marked = FileOrigin {
-                    deleted: true,
-                    ..record
-                };
-                self.origins.set_origin(&marked).await?;
-            }
-        }
-        Ok(())
+        self.mark_deleted(id).await.map_err(|e| {
+            let sentence = say(words::DELETED_RECORD_STALE, &[("error", &e)]);
+            Error::Store(fs_store::Error::Backend(sentence))
+        })
     }
 
     async fn find(&self, term: &str, page: Paging) -> Result<Vec<TextEntry>> {

@@ -11,6 +11,7 @@
 #![allow(clippy::must_use_candidate, clippy::module_name_repetitions)]
 
 pub mod args;
+mod check;
 pub mod drafts;
 mod drafts_orphans;
 pub mod hash;

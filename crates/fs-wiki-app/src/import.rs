@@ -6,18 +6,16 @@
 //! A file that fails is recorded with its reason and the rest goes on; entries that are not
 //! looked at (symbolic links, `.MD`, unreadable ones) are listed with the reason.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use fs_store::ObjectId;
 use fs_wiki_core::{FileOrigin, Origins, Texts};
-use futures::StreamExt;
 
+use crate::check::present_ids;
 use crate::report::Report;
 use crate::source::Failure;
 use crate::sync::sync_file;
-use crate::words::{self, say};
 
 /// How long the comparison of the records with the server's texts may take.
 pub const CHECK_LIMIT: Duration = Duration::from_secs(60);
@@ -52,7 +50,10 @@ pub async fn import_folder_within<W: Texts + Origins + ?Sized>(
         }
     };
     let present = match present_ids(wiki, &known, limit).await {
-        Ok(ids) => ids,
+        Ok((ids, unasked)) => {
+            report.failures.extend(unasked);
+            ids
+        }
         Err(reason) => {
             report.failures.push(Failure {
                 path: String::new(),
@@ -88,39 +89,6 @@ pub async fn import_folder_within<W: Texts + Origins + ?Sized>(
     }
     report.gone.sort_by(|a, b| a.path.cmp(&b.path));
     report
-}
-
-/// How many reads of texts are on their way at once when the records are checked.
-const CHECK_IN_FLIGHT: usize = 64;
-
-/// The ids of the records whose texts the server has. The contract has no cheap way to ask this (a
-/// listing carries every document and took 5.5 s for 1398 pages), so each record is one `get`, many
-/// at once on the one connection. Nothing is asked when no record exists (a first start). The whole
-/// check is bounded by `limit`.
-async fn present_ids<W: Texts + ?Sized>(
-    wiki: &W,
-    known: &HashMap<String, FileOrigin>,
-    limit: Duration,
-) -> Result<HashSet<ObjectId>, String> {
-    let ids: Vec<ObjectId> = known.values().map(|o| o.text).collect();
-    let reads = futures::stream::iter(ids)
-        .map(|id| async move { (id, wiki.get(id).await) })
-        .buffer_unordered(CHECK_IN_FLIGHT)
-        .collect::<Vec<_>>();
-    let Ok(answers) = tokio::time::timeout(limit, reads).await else {
-        return Err(say(words::CHECK_TIMEOUT, &[("seconds", &limit.as_secs())]));
-    };
-    let mut present = HashSet::new();
-    for (id, answer) in answers {
-        match answer {
-            Ok(Some(_)) => {
-                present.insert(id);
-            }
-            Ok(None) => {}
-            Err(e) => return Err(say(words::CHECK_FAILED, &[("error", &e)])),
-        }
-    }
-    Ok(present)
 }
 
 /// Relative paths (as parts) of all Markdown files below `dir`; what is not looked at is listed.

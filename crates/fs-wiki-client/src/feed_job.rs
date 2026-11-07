@@ -1,7 +1,9 @@
 //! The job that makes the remote subscription, and what comes of it.
 //!
-//! Pattern: none — free functions. They run on the connection's thread (`subscribe_remote`, `start`)
-//! or settle what came of the job on the caller's (`settle`, `deliver`); the rules are in `feed.rs`.
+//! Pattern: Observer (making the remote subscription and delivering the end of a feed to the
+//! listeners, one at a time from a queue) + Command (`start` is the job for the connection's thread).
+//! Free functions with effects: they mark the connection dead, end the feed and start a delivery
+//! thread; the rules are in `feed.rs`.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
