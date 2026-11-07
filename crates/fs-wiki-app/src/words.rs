@@ -58,12 +58,12 @@ their texts now (deleted, or a server restored from an older copy). They are not
 import them by hand if you want them back.";
 
 /// `{error}`: what the server said.
-pub const CHECK_FAILED: &str = "cannot list the texts of the server to compare them with the \
-records of imported files: {error}; nothing was imported";
+pub const CHECK_FAILED: &str =
+    "cannot ask the server for the texts of the imported files: {error}; nothing was imported";
 
 /// `{seconds}`: the limit.
-pub const CHECK_TIMEOUT: &str = "the server did not list its texts within {seconds} s, so the \
-imported files cannot be compared with it; nothing was imported (is the server stuck?)";
+pub const CHECK_TIMEOUT: &str = "the server did not answer within {seconds} s when asked for the texts of the \
+imported files; nothing was imported (is the server stuck?)";
 
 /// `{count}`: how many files.
 pub const MISSING_SUMMARY: &str = "{count} imported files have no text on the server any more; \

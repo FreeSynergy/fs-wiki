@@ -11,7 +11,8 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use fs_store::ObjectId;
-use fs_wiki_core::{FileOrigin, Origins, Paging, Texts};
+use fs_wiki_core::{FileOrigin, Origins, Texts};
+use futures::StreamExt;
 
 use crate::report::Report;
 use crate::source::Failure;
@@ -89,22 +90,37 @@ pub async fn import_folder_within<W: Texts + Origins + ?Sized>(
     report
 }
 
-/// The ids of the texts the server has: one listing, no read per record. Nothing is asked when no
-/// record exists (a first start). The answer is bounded by `limit`.
+/// How many reads of texts are on their way at once when the records are checked.
+const CHECK_IN_FLIGHT: usize = 64;
+
+/// The ids of the records whose texts the server has. The contract has no cheap way to ask this (a
+/// listing carries every document and took 5.5 s for 1398 pages), so each record is one `get`, many
+/// at once on the one connection. Nothing is asked when no record exists (a first start). The whole
+/// check is bounded by `limit`.
 async fn present_ids<W: Texts + ?Sized>(
     wiki: &W,
     known: &HashMap<String, FileOrigin>,
     limit: Duration,
 ) -> Result<HashSet<ObjectId>, String> {
-    if known.is_empty() {
-        return Ok(HashSet::new());
+    let ids: Vec<ObjectId> = known.values().map(|o| o.text).collect();
+    let reads = futures::stream::iter(ids)
+        .map(|id| async move { (id, wiki.get(id).await) })
+        .buffer_unordered(CHECK_IN_FLIGHT)
+        .collect::<Vec<_>>();
+    let Ok(answers) = tokio::time::timeout(limit, reads).await else {
+        return Err(say(words::CHECK_TIMEOUT, &[("seconds", &limit.as_secs())]));
+    };
+    let mut present = HashSet::new();
+    for (id, answer) in answers {
+        match answer {
+            Ok(Some(_)) => {
+                present.insert(id);
+            }
+            Ok(None) => {}
+            Err(e) => return Err(say(words::CHECK_FAILED, &[("error", &e)])),
+        }
     }
-    let listing = tokio::time::timeout(limit, wiki.list("", Paging::default())).await;
-    match listing {
-        Ok(Ok(all)) => Ok(all.into_iter().map(|t| t.id).collect()),
-        Ok(Err(e)) => Err(say(words::CHECK_FAILED, &[("error", &e)])),
-        Err(_) => Err(say(words::CHECK_TIMEOUT, &[("seconds", &limit.as_secs())])),
-    }
+    Ok(present)
 }
 
 /// Relative paths (as parts) of all Markdown files below `dir`; what is not looked at is listed.
