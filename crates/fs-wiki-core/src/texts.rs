@@ -7,7 +7,7 @@
 
 use async_trait::async_trait;
 use fs_interfaces::{Capabilities, Unsupported};
-use fs_store::{Envelope, ObjectId};
+use fs_objects::{Envelope, ObjectId};
 use fs_text::Document;
 
 use crate::error::Result;

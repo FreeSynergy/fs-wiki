@@ -8,8 +8,8 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use common::{everything, fill, md, paths, setup, ME};
-use fs_store::traits::{ObjectQuery, ObjectRepository};
-use fs_store::{
+use fs_objects::traits::{ObjectQuery, ObjectRepository};
+use fs_objects::{
     Activity, Error as StoreError, LogEntry, ObjectId, Result as StoreResult, StoredObject,
     TursoStore,
 };

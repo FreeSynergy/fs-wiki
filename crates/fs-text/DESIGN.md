@@ -1,7 +1,7 @@
 # fs-text — design
 
 Text core of the FreeSynergy wiki: **text + layers** (ADR 0042). Pure Rust library, no GUI,
-no dependency on `fs-store` (all types are `serde`-serialisable; `fs-wiki-core` in the same workspace stores them). ADRs: 0033 (one marking mechanism), 0034 (passage / page), 0039 (three editors),
+no dependency on `fs-objects` (all types are `serde`-serialisable; `fs-wiki-core` in the same workspace stores them). ADRs: 0033 (one marking mechanism), 0034 (passage / page), 0039 (three editors),
 0042 (database is the truth, files are exports), 0027 (UUIDv7), 0013 (no copying).
 
 ## Layout (ADR 0043: one concept per file, <= 200 lines, `mod.rs` only declares)

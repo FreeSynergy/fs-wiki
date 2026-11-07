@@ -4,7 +4,7 @@
 //! move where, which clash), then it is executed in two phases. Nothing is written while a plan
 //! is refused.
 //!
-//! Order of writes, chosen so that repeating an interrupted call finishes it (`fs-store` 0.2 has
+//! Order of writes, chosen so that repeating an interrupted call finishes it (`fs-objects` 0.2 has
 //! no transaction over several objects):
 //! 1. every text outside the folder that links into it is rewritten (found by the `link` index,
 //!    not by reading all texts);
@@ -18,7 +18,7 @@
 
 use std::collections::HashSet;
 
-use fs_store::ObjectId;
+use fs_objects::ObjectId;
 use fs_text::{rewrite_links_with, Document, MovePrefix};
 
 use super::handle::WikiRepo;

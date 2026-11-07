@@ -4,9 +4,9 @@
 //! ops on the other texts' documents (the Strategy is [`MovePage`]); this file stores the
 //! results. The other texts are written first and the moved text last, so a move that stops
 //! half way is finished by repeating it: texts already rewritten no longer link to the old
-//! path. (`fs-store` 0.2 has no transaction over several objects.)
+//! path. (`fs-objects` 0.2 has no transaction over several objects.)
 
-use fs_store::{ObjectId, Query};
+use fs_objects::{ObjectId, Query};
 use fs_text::{moved_path, rewrite_links_with, Document, LinkRewriter};
 
 use super::handle::WikiRepo;
@@ -69,7 +69,7 @@ impl WikiRepo {
 
     pub(super) async fn store_document(
         &self,
-        envelope: &fs_store::Envelope,
+        envelope: &fs_objects::Envelope,
         path: &str,
         doc: &Document,
     ) -> Result<()> {
