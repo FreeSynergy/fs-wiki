@@ -13,7 +13,6 @@
 
 use std::cell::Cell;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use capnp_rpc::new_client;
@@ -23,33 +22,9 @@ use fs_wiki_core::{Registry, Subscription, TextChange, TextFeed, TextListener};
 use futures::FutureExt;
 use tokio::sync::oneshot;
 
+use crate::feed_state::{FeedState, DEAD};
 use crate::remote::Remote;
 use crate::RpcTexts;
-
-/// Which remote subscription of a connection is the running one (0 = none).
-#[derive(Default)]
-pub(crate) struct FeedState {
-    next: AtomicU64,
-    current: AtomicU64,
-}
-
-impl FeedState {
-    /// Take the right to start a remote subscription, if none is running.
-    fn claim(&self) -> Option<u64> {
-        let generation = self.next.fetch_add(1, Ordering::SeqCst) + 1;
-        self.current
-            .compare_exchange(0, generation, Ordering::SeqCst, Ordering::SeqCst)
-            .ok()
-            .map(|_| generation)
-    }
-
-    /// Give up `generation`; false if it is not the running one any more.
-    fn release(&self, generation: u64) -> bool {
-        self.current
-            .compare_exchange(generation, 0, Ordering::SeqCst, Ordering::SeqCst)
-            .is_ok()
-    }
-}
 
 thread_local! {
     /// Set while a listener of the registry is being called: this thread is the connection's.
@@ -145,6 +120,7 @@ async fn subscribe_remote(
 /// The whole job: subscribe, and end the feed of this generation if that fails.
 async fn start(remote: Remote, registry: Arc<Registry>, state: Arc<FeedState>, generation: u64) {
     if let Err(why) = subscribe_remote(&remote, &registry, &state, generation).await {
+        state.bury();
         end(
             &registry,
             &state,
@@ -160,7 +136,15 @@ impl TextFeed for RpcTexts {
     /// inside a listener callback it does not wait but queues the request. If the server cannot be
     /// reached the listener is told through `TextListener::ended`.
     fn subscribe(&self, listener: Arc<dyn TextListener>) -> Subscription {
-        let subscription = self.registry.add(listener);
+        let subscription = self.registry.add(listener.clone());
+        if self.state.is_dead() {
+            // No feed can be made here (the connection is gone). Each listener hears it once, so a
+            // listener that subscribes again in `ended` does not make a loop.
+            if self.state.first_notice(&listener) {
+                in_callback(|| listener.ended(DEAD));
+            }
+            return subscription;
+        }
         let Some(generation) = self.state.claim() else {
             return subscription;
         };
@@ -174,6 +158,7 @@ impl TextFeed for RpcTexts {
             // On the connection's thread waiting would wait for ourselves: polling once queues the job.
             let _ = Box::pin(call).now_or_never();
         } else if let Err(fault) = futures::executor::block_on(call) {
+            state.bury();
             end(
                 &registry,
                 &state,

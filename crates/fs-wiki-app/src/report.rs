@@ -36,6 +36,8 @@ pub struct Report {
     pub gone: Vec<Failure>,
     /// Entries that were not looked at, with the reason (symbolic links, `.MD`, unreadable).
     pub skipped: Vec<Failure>,
+    /// Files as recorded whose text the server does not have: not imported again, listed.
+    pub missing: Vec<Failure>,
     /// Records of imported files that were ignored because the server holds none of their texts:
     /// it is another wiki than the one they were made for (0 = the records fit).
     pub records_ignored: usize,
@@ -47,6 +49,7 @@ impl Report {
         !(self.failures.is_empty()
             && self.conflicts.is_empty()
             && self.gone.is_empty()
+            && self.missing.is_empty()
             && self.skipped.is_empty())
     }
 }

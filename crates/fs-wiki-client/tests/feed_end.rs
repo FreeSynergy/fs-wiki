@@ -82,36 +82,60 @@ async fn pause() {
     tokio::time::sleep(Duration::from_millis(400)).await;
 }
 
+/// Tells a channel in `ended`, then holds the connection thread a moment, so that another thread can
+/// subscribe before the old listener object of the connection is released.
+struct Slow {
+    tx: Mutex<Option<std::sync::mpsc::Sender<()>>>,
+}
+
+impl TextListener for Slow {
+    fn changed(&self, _: &TextChange) {}
+    fn ended(&self, _: &str) {
+        if let Some(tx) = self.tx.lock().unwrap().take() {
+            tx.send(()).unwrap();
+        }
+        std::thread::sleep(Duration::from_millis(300));
+    }
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn the_end_of_an_old_feed_leaves_a_new_subscription_alone() {
     let (served, fail) = flaky().await;
-    let texts = served.client();
-    let old = Arc::new(Seen::default());
-    let _old = texts.subscribe(old.clone());
+    let texts = Arc::new(served.client());
+    let (tx, rx) = std::sync::mpsc::channel();
+    let _old = texts.subscribe(Arc::new(Slow {
+        tx: Mutex::new(Some(tx)),
+    }));
+    // Another thread subscribes while the old listener holds the connection thread in `ended`.
+    let fresh = Arc::new(Seen::default());
+    let (t2, f2) = (texts.clone(), fresh.clone());
+    let joiner = std::thread::spawn(move || {
+        rx.recv().unwrap();
+        t2.subscribe(f2)
+    });
     fail.store(true, Ordering::SeqCst);
     served.repo.create("a", "x\n").await.unwrap();
-    until(|| old.ended.lock().unwrap().len() == 1).await;
+    let _kept = tokio::task::spawn_blocking(move || joiner.join().unwrap())
+        .await
+        .unwrap();
     fail.store(false, Ordering::SeqCst);
-    // The gap: the server's end is told, the old listener object is dropped a moment later.
-    let fresh = Arc::new(Seen::default());
-    let _fresh = texts.subscribe(fresh.clone());
     pause().await;
     assert!(
         fresh.ended.lock().unwrap().is_empty(),
-        "the new one was ended"
+        "the old end ended the new one"
     );
     let b = served.repo.create("b", "y\n").await.unwrap();
-    until(|| !fresh.changes.lock().unwrap().is_empty()).await;
     pause().await;
-    assert_eq!(*fresh.changes.lock().unwrap(), [TextChange::Created(b.id)]);
-    // And a third listener joins the running one: no second remote subscription, no doubles.
+    // And a third listener joins the running feed: no second remote subscription, no doubles.
     let third = Arc::new(Seen::default());
     let _third = texts.subscribe(third.clone());
     let c = served.repo.create("c", "z\n").await.unwrap();
-    until(|| third.changes.lock().unwrap().len() == 1).await;
     pause().await;
     assert_eq!(*third.changes.lock().unwrap(), [TextChange::Created(c.id)]);
-    assert_eq!(fresh.changes.lock().unwrap().len(), 2);
+    assert_eq!(
+        *fresh.changes.lock().unwrap(),
+        [TextChange::Created(b.id), TextChange::Created(c.id)]
+    );
 }
 
 /// Subscribes again from inside `ended`, on the connection's own thread.

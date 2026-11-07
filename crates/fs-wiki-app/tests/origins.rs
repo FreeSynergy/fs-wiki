@@ -9,7 +9,7 @@ use std::os::unix::fs::PermissionsExt;
 
 use common::temp_dir;
 use fs_store::ObjectId;
-use fs_wiki_app::FileOrigins;
+use fs_wiki_app::{FileOrigins, OriginsError};
 use fs_wiki_core::{FileOrigin, Origins};
 
 fn record(file: &str, hash: &str) -> FileOrigin {
@@ -89,7 +89,7 @@ async fn a_torn_last_line_is_ignored_and_a_bad_line_elsewhere_is_an_error() {
     let damaged = format!("not json\n{good}");
     std::fs::write(&file, &damaged).unwrap();
     let e = FileOrigins::open(&file).err().expect("an error");
-    assert!(e.to_string().contains("line 1"), "{e}");
+    assert!(matches!(e, OriginsError::Damaged { line: 1, .. }), "{e}");
     assert_eq!(
         std::fs::read_to_string(&file).unwrap(),
         damaged,
@@ -124,10 +124,34 @@ async fn a_second_program_on_the_same_records_is_refused_until_the_first_lets_go
     let file = dir.join("docs.origins");
     let first = FileOrigins::open(&file).unwrap();
     let e = FileOrigins::open(&file).err().expect("refused");
-    assert!(e.to_string().contains("another program"), "{e}");
+    assert!(matches!(e, OriginsError::Busy { .. }), "{e}");
     first.set_origin(&record("a.md", "1")).await.unwrap();
     drop(first);
     let again = FileOrigins::open(&file).unwrap();
     assert_eq!(again.origins().await.unwrap().len(), 1);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[tokio::test]
+async fn records_files_that_differ_only_in_their_extension_do_not_share_helper_files() {
+    let dir = temp_dir("or-names");
+    let (a, b) = (dir.join("a.origins"), dir.join("a.json"));
+    let (first, second) = (
+        FileOrigins::open(&a).unwrap(),
+        FileOrigins::open(&b).unwrap(),
+    );
+    first.set_origin(&record("one.md", "1")).await.unwrap();
+    second.set_origin(&record("two.md", "1")).await.unwrap();
+    assert_eq!(first.origins().await.unwrap()[0].file, "one.md");
+    assert_eq!(second.origins().await.unwrap()[0].file, "two.md");
+    let mut names: Vec<_> = std::fs::read_dir(&dir)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().into_string().unwrap())
+        .collect();
+    names.sort();
+    assert_eq!(
+        names,
+        ["a.json", "a.json.lock", "a.origins", "a.origins.lock"]
+    );
     std::fs::remove_dir_all(dir).unwrap();
 }

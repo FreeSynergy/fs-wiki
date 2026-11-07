@@ -24,11 +24,12 @@ pub mod source;
 pub mod store_path;
 pub mod sync;
 pub mod wiki;
+pub mod words;
 
 pub use drafts::FileDraftStore;
 pub use import::import_folder;
 pub use map::to_document;
-pub use origins::FileOrigins;
+pub use origins::{FileOrigins, OriginsError};
 pub use report::{Conflict, Report};
 pub use source::export;
 pub use source::{

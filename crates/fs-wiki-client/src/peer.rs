@@ -14,7 +14,7 @@ use fs_interfaces::rpc::client::{Fault, Timeouts, Worker};
 use fs_interfaces::Capabilities;
 use fs_wiki_core::{Error, Registry, Result};
 
-use crate::feed::FeedState;
+use crate::feed_state::FeedState;
 use crate::remote::Remote;
 
 /// The name of the server in every error text (`wiki server: ...`).

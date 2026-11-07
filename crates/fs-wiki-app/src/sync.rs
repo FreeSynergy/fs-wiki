@@ -5,7 +5,8 @@
 //!
 //! | file | text | does |
 //! |---|---|---|
-//! | as recorded | any (changed, moved, deleted) | nothing, and the file is not parsed |
+//! | as recorded | there (changed or moved) | nothing, and the file is not parsed |
+//! | as recorded | deleted | nothing is imported again; the file is listed as missing on the server |
 //! | changed | as recorded | the change is a normal edit (ADR 0042 §5), the record is renewed |
 //! | changed | changed or deleted | the text stays; the file's version is a conflict |
 //! | new, no text there | | import, record |
@@ -21,6 +22,7 @@ use fs_wiki_core::{FileOrigin, MARKDOWN, Origins, TextEntry, TextFormat, Texts};
 use crate::hash::digest;
 use crate::report::{Conflict, Report};
 use crate::source::Failure;
+use crate::words;
 
 /// The hash of the Markdown of `entry`.
 pub fn text_hash(entry: &TextEntry) -> String {
@@ -46,8 +48,17 @@ pub async fn sync_file<W: Texts + Origins + ?Sized>(
         Err(e) => return fail(report, format!("cannot read the file: {e}")),
     };
     let hash = digest(&bytes);
-    if known.is_some_and(|o| o.hash == hash) {
-        report.unchanged += 1;
+    if let Some(o) = known.filter(|o| o.hash == hash) {
+        // As recorded: nothing to do, if the server still has the text. If it does not, the file is
+        // not imported again (a deleted text stays deleted), but it is not "unchanged" either.
+        match wiki.get(o.text).await {
+            Ok(Some(_)) => report.unchanged += 1,
+            Ok(None) => report.missing.push(Failure {
+                path: path.into(),
+                reason: words::TEXT_MISSING.into(),
+            }),
+            Err(e) => fail(report, e.to_string()),
+        }
         return;
     }
     let Ok(content) = String::from_utf8(bytes) else {

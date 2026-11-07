@@ -37,6 +37,7 @@ impl WikiSource {
             conflicts: report.conflicts,
             gone: report.gone,
             skipped: report.skipped,
+            missing: report.missing,
         };
         Self {
             texts,

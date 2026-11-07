@@ -32,7 +32,9 @@ pub trait TextListener: Send + Sync {
     /// subscribe again and read the current state, in that order. Called on the thread that
     /// delivers changes: it may call `subscribe` again, but a provider behind a connection cannot
     /// wait for the server there, so that call only queues the request and reports a failure
-    /// through `ended` again. Reading the state must wait until the callback has returned. A provider
+    /// through `ended` again. On a connection that is gone, `subscribe` cannot succeed: each listener
+    /// is told once more and then left alone, so subscribing in `ended` does not loop, but it also
+    /// never gets a feed; connect again instead. Reading the state must wait until the callback has returned. A provider
     /// in the same process never ends a feed, so the default does nothing.
     fn ended(&self, _reason: &str) {}
 }

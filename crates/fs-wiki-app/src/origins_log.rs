@@ -12,8 +12,9 @@ use fs_wiki_core::FileOrigin;
 use rustix::fs::{FlockOperation, flock};
 use rustix::io::Errno;
 
-/// The records of `text`; the last line may be torn, any other bad line is an error.
-pub(crate) fn parse(text: &str) -> io::Result<BTreeMap<String, FileOrigin>> {
+/// The records of `text`; the last line may be torn, any other bad line is an error: its number and
+/// the parser's reason.
+pub(crate) fn parse(text: &str) -> Result<BTreeMap<String, FileOrigin>, (usize, String)> {
     let lines: Vec<&str> = text.lines().filter(|l| !l.trim().is_empty()).collect();
     let mut records = BTreeMap::new();
     for (i, line) in lines.iter().enumerate() {
@@ -22,10 +23,7 @@ pub(crate) fn parse(text: &str) -> io::Result<BTreeMap<String, FileOrigin>> {
                 records.insert(r.file.clone(), r);
             }
             Err(_) if i + 1 == lines.len() && !text.ends_with('\n') => {}
-            Err(e) => {
-                let why = format!("line {} does not read: {e}", i + 1);
-                return Err(io::Error::new(io::ErrorKind::InvalidData, why));
-            }
+            Err(e) => return Err((i + 1, e.to_string())),
         }
     }
     Ok(records)
@@ -38,10 +36,18 @@ pub(crate) fn line(record: &FileOrigin) -> io::Result<Vec<u8>> {
     Ok(bytes)
 }
 
+/// A file next to `path` named after the whole name of `path` plus `suffix`, so two records files
+/// that differ only in their extension (`a.origins`, `a.json`) never share one.
+pub(crate) fn sibling(path: &Path, suffix: &str) -> PathBuf {
+    let mut name = path.as_os_str().to_owned();
+    name.push(suffix);
+    PathBuf::from(name)
+}
+
 /// Write all `records` to a temporary file, sync it, rename it over `path`, sync the folder, and
 /// open `path` for appending.
 pub(crate) fn rewrite(path: &Path, records: &BTreeMap<String, FileOrigin>) -> io::Result<File> {
-    let temporary = path.with_extension("tmp");
+    let temporary = sibling(path, ".tmp");
     let mut file = OpenOptions::new()
         .write(true)
         .create(true)
@@ -61,9 +67,7 @@ pub(crate) fn rewrite(path: &Path, records: &BTreeMap<String, FileOrigin>) -> io
 
 /// The lock file next to the records.
 pub(crate) fn lock_path(path: &Path) -> PathBuf {
-    let mut name = path.as_os_str().to_owned();
-    name.push(".lock");
-    PathBuf::from(name)
+    sibling(path, ".lock")
 }
 
 /// Take the exclusive lock of the records at `path` for as long as the returned file lives. The

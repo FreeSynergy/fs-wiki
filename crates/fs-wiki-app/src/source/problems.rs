@@ -4,6 +4,7 @@
 //! workbench shows it like any page and nothing is hidden.
 
 use crate::report::Conflict;
+use crate::words;
 use fs_components_widgets::{Block, Document, Inline, ListItem, Mark, MarkKind};
 
 /// A file that could not be imported, with the reason.
@@ -30,12 +31,18 @@ pub struct Notes {
     pub gone: Vec<Failure>,
     /// Entries not looked at.
     pub skipped: Vec<Failure>,
+    /// Files whose text the server does not have.
+    pub missing: Vec<Failure>,
 }
 
 impl Notes {
     /// How many things there are to look at.
     pub fn count(&self) -> usize {
-        self.failures.len() + self.conflicts.len() + self.gone.len() + self.skipped.len()
+        self.failures.len()
+            + self.conflicts.len()
+            + self.gone.len()
+            + self.skipped.len()
+            + self.missing.len()
     }
 }
 
@@ -105,6 +112,12 @@ pub fn problems_document(notes: &Notes) -> Document {
         "Files that are gone",
         "These files were imported once. Their texts are kept.",
         &notes.gone,
+        &mut blocks,
+    );
+    list(
+        words::MISSING_TITLE,
+        words::MISSING_NOTE,
+        &notes.missing,
         &mut blocks,
     );
     list(

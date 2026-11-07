@@ -10,7 +10,7 @@ use fs_components_workbenches::{DraftStore, Labels, Options, Picture, Step, laun
 use fs_wiki_app::args::{HELP, parse};
 use fs_wiki_app::server::{connect, socket_path};
 use fs_wiki_app::store_path::{data_dir, origins_file};
-use fs_wiki_app::{Conflict, FileDraftStore, FileOrigins, Wiki, WikiSource, import_folder};
+use fs_wiki_app::{Conflict, FileDraftStore, FileOrigins, Wiki, WikiSource, import_folder, words};
 use fs_wiki_core::Texts;
 
 fn main() {
@@ -59,10 +59,10 @@ fn run() -> Result<(), String> {
         started.elapsed()
     );
     if report.records_ignored > 0 {
+        let count = report.records_ignored;
         eprintln!(
-            "the server holds none of the {} imported files recorded here: it is another wiki, \
-             so the files are imported again",
-            report.records_ignored
+            "{}",
+            words::say(words::RECORDS_IGNORED, &[("count", &count)])
         );
     }
     let drafts = args
