@@ -1,6 +1,6 @@
 //! The wiki as the app holds it: the texts of the server and the file records of this app.
 //!
-//! Pattern: Composite (two providers presented as one) — `Texts` goes to the provider of the texts
+//! Pattern: Facade (two providers presented as one) — `Texts` goes to the provider of the texts
 //! (`RpcTexts`, the running `fs-wiki-server`), `Origins` to the provider of the records (`FileOrigins`,
 //! a file of this app, not part of the contract). The sync and the import need both and are written
 //! against `Texts + Origins`, so they do not know that the two live in different places.

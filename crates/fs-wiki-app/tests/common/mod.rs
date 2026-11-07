@@ -2,8 +2,6 @@
 
 #![allow(dead_code)] // each test file uses a different subset
 
-mod served;
-
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -11,7 +9,7 @@ use std::sync::Arc;
 use fs_store::{Store, TursoStore};
 use fs_wiki_app::{FileOrigins, Wiki};
 use fs_wiki_client::RpcTexts;
-use served::Served;
+use fs_wiki_testserver::Served;
 use tokio::runtime::Runtime;
 
 /// The wiki of a test: the app's `Wiki` (texts over a real socket, records in a real file) and the
@@ -119,6 +117,15 @@ pub fn fingerprint(root: &Path) -> Vec<(String, Vec<u8>, std::time::SystemTime)>
     }
     out.sort();
     out
+}
+
+/// A fresh in-memory wiki (a new server) whose records are in `records`: the records of another
+/// wiki, if that file is one.
+pub fn wiki_with_records(records: &Path) -> (Runtime, Arc<Fixture>) {
+    let rt = Runtime::new().unwrap();
+    let store: Arc<dyn Store> =
+        rt.block_on(async { Arc::new(TursoStore::open_in_memory().await.unwrap()) });
+    (rt, fixture(store, records, None))
 }
 
 /// A wiki over a store file and a records file next to it (both survive `drop`; open them again

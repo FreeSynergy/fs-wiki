@@ -1,6 +1,6 @@
 //! The command line.
 //!
-//! Pattern: Builder-like parser — plain `std::env::args`, no extra crate for the few options.
+//! Pattern: none — a plain parser, `std::env::args`, no extra crate for the few options.
 
 use std::path::PathBuf;
 

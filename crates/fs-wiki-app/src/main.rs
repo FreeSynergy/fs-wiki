@@ -1,7 +1,7 @@
 //! The binary: wiring only.
 //!
-//! Pattern: Facade consumer — parse arguments, connect to the server, import, hand the wiki to the
-//! reader.
+//! Pattern: Facade — the one entry point over the app: parse arguments, connect to the server,
+//! import, hand the wiki to the reader.
 
 use std::sync::Arc;
 use std::time::Instant;
@@ -58,6 +58,13 @@ fn run() -> Result<(), String> {
         report.skipped.len(),
         started.elapsed()
     );
+    if report.records_ignored > 0 {
+        eprintln!(
+            "the server holds none of the {} imported files recorded here: it is another wiki, \
+             so the files are imported again",
+            report.records_ignored
+        );
+    }
     let drafts = args
         .drafts
         .clone()

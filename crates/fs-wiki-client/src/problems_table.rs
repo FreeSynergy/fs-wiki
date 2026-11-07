@@ -1,6 +1,6 @@
 //! The table of problems, read back: every type of the server and the variant it must become.
 //!
-//! Pattern: Table of inputs and answers — for the types the real server cannot be made to send in a
+//! Pattern: none (tests only) — a table of inputs and answers for the types the real server cannot be made to send in a
 //! test (an unfinished move, a store conflict, a type of a newer server); the others are covered over
 //! the real socket in `tests/errors.rs` and `tests/moves.rs`.
 

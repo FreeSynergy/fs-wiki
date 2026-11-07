@@ -21,7 +21,7 @@ pub async fn import_folder<W: Texts + Origins + ?Sized>(wiki: &W, root: &Path) -
     let mut files = Vec::new();
     collect(root, root, &mut files, &mut report);
     files.sort();
-    let known = match wiki.origins().await {
+    let mut known = match wiki.origins().await {
         Ok(all) => all
             .into_iter()
             .map(|o| (o.file.clone(), o))
@@ -34,6 +34,11 @@ pub async fn import_folder<W: Texts + Origins + ?Sized>(wiki: &W, root: &Path) -
             return report;
         }
     };
+    if belong_elsewhere(wiki, &known).await {
+        // The records are of another wiki (another server): they say nothing about this one.
+        report.records_ignored = known.len();
+        known.clear();
+    }
     let mut seen = std::collections::HashSet::new();
     for relative in files {
         let path = relative.join("/");
@@ -54,6 +59,25 @@ pub async fn import_folder<W: Texts + Origins + ?Sized>(wiki: &W, root: &Path) -
     }
     report.gone.sort_by(|a, b| a.path.cmp(&b.path));
     report
+}
+
+/// Whether the server holds none of the texts the records name. One text that is there is enough to
+/// say the records fit, so a start on the same wiki costs one read; a text that is missing among
+/// others was deleted on purpose (`sync.rs`), and only a server that has none of them is another
+/// one. Costs one read per record when it is, which is rare. A failed read counts as "there".
+async fn belong_elsewhere<W: Texts + ?Sized>(
+    wiki: &W,
+    known: &HashMap<String, FileOrigin>,
+) -> bool {
+    if known.is_empty() {
+        return false;
+    }
+    for origin in known.values() {
+        if !matches!(wiki.get(origin.text).await, Ok(None)) {
+            return false;
+        }
+    }
+    true
 }
 
 /// Relative paths (as parts) of all Markdown files below `dir`; what is not looked at is listed.

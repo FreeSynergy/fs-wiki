@@ -17,6 +17,7 @@ pub mod hash;
 pub mod import;
 pub mod map;
 pub mod origins;
+mod origins_log;
 pub mod report;
 pub mod server;
 pub mod source;

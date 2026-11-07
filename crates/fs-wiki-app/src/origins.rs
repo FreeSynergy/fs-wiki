@@ -7,20 +7,32 @@
 //! while it was written) is ignored when the file is read. At every start, and after a failed
 //! append, the file is written anew under a temporary name and renamed over the old one, so there is
 //! always either the old or the new file and it holds each record once. One file per docs folder
-//! (`store_path::origins_file`). Two programs on one file are not covered.
+//! (`store_path::origins_file`); a second program on the same file is refused at its start by a lock
+//! (`flock` on `<file>.lock`). The file and the wiki server are independent: records of one server
+//! make no sense on another, which `import.rs` checks.
+//!
+//! The blocking write and sync run on a thread for blocking work (`spawn_blocking`), so a slow disk
+//! never holds a thread of the runtime. `Origins` therefore needs a Tokio runtime to run in.
 
 use std::collections::BTreeMap;
-use std::fs::{File, OpenOptions};
+use std::fs::File;
 use std::io::{self, Write};
-use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use async_trait::async_trait;
 use fs_wiki_core::{Error, FileOrigin, Origins, Result};
 
+use crate::origins_log::{line, lock, lock_path, parse, rewrite};
+
 /// The records of one docs folder.
 pub struct FileOrigins {
+    inner: Arc<Inner>,
+    /// Holds the lock of the file until this is dropped.
+    _lock: File,
+}
+
+struct Inner {
     path: PathBuf,
     state: Mutex<State>,
 }
@@ -42,86 +54,48 @@ impl FileOrigins {
     /// Open the records in `path`, creating the file (and its folder) if there is none.
     ///
     /// # Errors
-    /// The file cannot be read or written, or a line other than the last does not read (the file is
-    /// then left as it is).
+    /// The file cannot be read or written, a line other than the last does not read (the file is
+    /// then left as it is), or another program holds the records of this folder.
     pub fn open(path: &Path) -> Result<Self> {
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir)
                 .map_err(|e| backend("cannot create the folder of", dir, &e))?;
         }
+        let held = lock(path).map_err(|e| {
+            let busy = e.kind() == io::ErrorKind::WouldBlock;
+            let why = if busy {
+                "another program is using them (one app per documentation folder)".to_string()
+            } else {
+                e.to_string()
+            };
+            backend("cannot lock", &lock_path(path), &why)
+        })?;
         let records = match std::fs::read_to_string(path) {
             Ok(text) => parse(&text).map_err(|e| backend("cannot read", path, &e))?,
             Err(e) if e.kind() == io::ErrorKind::NotFound => BTreeMap::new(),
             Err(e) => return Err(backend("cannot read", path, &e)),
         };
         let log = rewrite(path, &records).map_err(|e| backend("cannot write", path, &e))?;
+        let state = State {
+            records,
+            log: Some(log),
+        };
         Ok(Self {
-            path: path.to_path_buf(),
-            state: Mutex::new(State {
-                records,
-                log: Some(log),
+            inner: Arc::new(Inner {
+                path: path.to_path_buf(),
+                state: Mutex::new(state),
             }),
+            _lock: held,
         })
     }
+}
 
+impl Inner {
     fn state(&self) -> MutexGuard<'_, State> {
         self.state.lock().unwrap_or_else(PoisonError::into_inner)
     }
-}
 
-/// The records of `text`; the last line may be torn, any other bad line is an error.
-fn parse(text: &str) -> io::Result<BTreeMap<String, FileOrigin>> {
-    let lines: Vec<&str> = text.lines().filter(|l| !l.trim().is_empty()).collect();
-    let mut records = BTreeMap::new();
-    for (i, line) in lines.iter().enumerate() {
-        match serde_json::from_str::<FileOrigin>(line) {
-            Ok(r) => {
-                records.insert(r.file.clone(), r);
-            }
-            Err(_) if i + 1 == lines.len() && !text.ends_with('\n') => {}
-            Err(e) => {
-                let why = format!("line {} does not read: {e}", i + 1);
-                return Err(io::Error::new(io::ErrorKind::InvalidData, why));
-            }
-        }
-    }
-    Ok(records)
-}
-
-fn line(record: &FileOrigin) -> io::Result<Vec<u8>> {
-    let mut bytes = serde_json::to_vec(record).map_err(io::Error::other)?;
-    bytes.push(b'\n');
-    Ok(bytes)
-}
-
-/// Write all `records` to a temporary file, sync it, rename it over `path`, sync the folder, and
-/// open `path` for appending.
-fn rewrite(path: &Path, records: &BTreeMap<String, FileOrigin>) -> io::Result<File> {
-    let temporary = path.with_extension("tmp");
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .mode(0o600)
-        .open(&temporary)?;
-    for record in records.values() {
-        file.write_all(&line(record)?)?;
-    }
-    file.sync_all()?;
-    std::fs::rename(&temporary, path)?;
-    if let Some(dir) = path.parent().filter(|d| !d.as_os_str().is_empty()) {
-        File::open(dir)?.sync_all()?;
-    }
-    OpenOptions::new().append(true).open(path)
-}
-
-#[async_trait]
-impl Origins for FileOrigins {
-    async fn origins(&self) -> Result<Vec<FileOrigin>> {
-        Ok(self.state().records.values().cloned().collect())
-    }
-
-    async fn set_origin(&self, origin: &FileOrigin) -> Result<()> {
+    fn set(&self, origin: &FileOrigin) -> Result<()> {
         let mut state = self.state();
         let written = match state.log.as_mut() {
             Some(log) => {
@@ -145,5 +119,25 @@ impl Origins for FileOrigins {
             }
         }
         Ok(())
+    }
+}
+
+fn joined<T>(r: std::result::Result<Result<T>, tokio::task::JoinError>) -> Result<T> {
+    r.unwrap_or_else(|e| Err(Error::Store(fs_store::Error::Backend(e.to_string()))))
+}
+
+#[async_trait]
+impl Origins for FileOrigins {
+    async fn origins(&self) -> Result<Vec<FileOrigin>> {
+        let inner = self.inner.clone();
+        let read = tokio::task::spawn_blocking(move || {
+            Ok(inner.state().records.values().cloned().collect())
+        });
+        joined(read.await)
+    }
+
+    async fn set_origin(&self, origin: &FileOrigin) -> Result<()> {
+        let (inner, origin) = (self.inner.clone(), origin.clone());
+        joined(tokio::task::spawn_blocking(move || inner.set(&origin)).await)
     }
 }

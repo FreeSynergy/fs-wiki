@@ -117,3 +117,17 @@ async fn a_whole_documentation_of_records_is_written_in_a_moment() {
     );
     std::fs::remove_dir_all(dir).unwrap();
 }
+
+#[tokio::test]
+async fn a_second_program_on_the_same_records_is_refused_until_the_first_lets_go() {
+    let dir = temp_dir("or-lock");
+    let file = dir.join("docs.origins");
+    let first = FileOrigins::open(&file).unwrap();
+    let e = FileOrigins::open(&file).err().expect("refused");
+    assert!(e.to_string().contains("another program"), "{e}");
+    first.set_origin(&record("a.md", "1")).await.unwrap();
+    drop(first);
+    let again = FileOrigins::open(&file).unwrap();
+    assert_eq!(again.origins().await.unwrap().len(), 1);
+    std::fs::remove_dir_all(dir).unwrap();
+}

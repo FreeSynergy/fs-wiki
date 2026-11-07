@@ -20,8 +20,7 @@ rustix = { version = "1", default-features = false, features = ["std", "fs"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 
 [dev-dependencies]
-# The real server, started inside the tests; the app itself never links the store behind it.
-fs-wiki-server = { path = "../fs-wiki-server" }
-fs-interfaces = { git = "https://github.com/FreeSynergy/fs-interfaces", tag = "v0.34.0", features = ["rpc"] }
+# The real server, started inside the tests; the app code itself uses no store.
+fs-wiki-testserver = { path = "../fs-wiki-testserver" }
 tempfile = "3"
 tokio = { version = "1", features = ["full"] }

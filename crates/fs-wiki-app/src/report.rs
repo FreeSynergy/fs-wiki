@@ -36,6 +36,9 @@ pub struct Report {
     pub gone: Vec<Failure>,
     /// Entries that were not looked at, with the reason (symbolic links, `.MD`, unreadable).
     pub skipped: Vec<Failure>,
+    /// Records of imported files that were ignored because the server holds none of their texts:
+    /// it is another wiki than the one they were made for (0 = the records fit).
+    pub records_ignored: usize,
 }
 
 impl Report {

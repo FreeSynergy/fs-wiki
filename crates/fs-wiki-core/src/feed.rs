@@ -29,8 +29,11 @@ pub trait TextListener: Send + Sync {
 
     /// The feed ended without the listener dropping its [`Subscription`]: a provider behind a
     /// connection that was lost or that stopped telling, so changes may have been missed. To go on,
-    /// subscribe again and read the current state, in that order. A provider in the same process
-    /// never ends a feed, so the default does nothing.
+    /// subscribe again and read the current state, in that order. Called on the thread that
+    /// delivers changes: it may call `subscribe` again, but a provider behind a connection cannot
+    /// wait for the server there, so that call only queues the request and reports a failure
+    /// through `ended` again. Reading the state must wait until the callback has returned. A provider
+    /// in the same process never ends a feed, so the default does nothing.
     fn ended(&self, _reason: &str) {}
 }
 

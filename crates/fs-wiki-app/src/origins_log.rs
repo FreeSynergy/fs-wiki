@@ -1,0 +1,86 @@
+//! The file format of the records: JSON lines, read, rewritten atomically, locked.
+//!
+//! Pattern: none — free functions on a file.
+
+use std::collections::BTreeMap;
+use std::fs::{File, OpenOptions};
+use std::io::{self, Write};
+use std::os::unix::fs::OpenOptionsExt;
+use std::path::{Path, PathBuf};
+
+use fs_wiki_core::FileOrigin;
+use rustix::fs::{FlockOperation, flock};
+use rustix::io::Errno;
+
+/// The records of `text`; the last line may be torn, any other bad line is an error.
+pub(crate) fn parse(text: &str) -> io::Result<BTreeMap<String, FileOrigin>> {
+    let lines: Vec<&str> = text.lines().filter(|l| !l.trim().is_empty()).collect();
+    let mut records = BTreeMap::new();
+    for (i, line) in lines.iter().enumerate() {
+        match serde_json::from_str::<FileOrigin>(line) {
+            Ok(r) => {
+                records.insert(r.file.clone(), r);
+            }
+            Err(_) if i + 1 == lines.len() && !text.ends_with('\n') => {}
+            Err(e) => {
+                let why = format!("line {} does not read: {e}", i + 1);
+                return Err(io::Error::new(io::ErrorKind::InvalidData, why));
+            }
+        }
+    }
+    Ok(records)
+}
+
+/// One record as a line.
+pub(crate) fn line(record: &FileOrigin) -> io::Result<Vec<u8>> {
+    let mut bytes = serde_json::to_vec(record).map_err(io::Error::other)?;
+    bytes.push(b'\n');
+    Ok(bytes)
+}
+
+/// Write all `records` to a temporary file, sync it, rename it over `path`, sync the folder, and
+/// open `path` for appending.
+pub(crate) fn rewrite(path: &Path, records: &BTreeMap<String, FileOrigin>) -> io::Result<File> {
+    let temporary = path.with_extension("tmp");
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .mode(0o600)
+        .open(&temporary)?;
+    for record in records.values() {
+        file.write_all(&line(record)?)?;
+    }
+    file.sync_all()?;
+    std::fs::rename(&temporary, path)?;
+    if let Some(dir) = path.parent().filter(|d| !d.as_os_str().is_empty()) {
+        File::open(dir)?.sync_all()?;
+    }
+    OpenOptions::new().append(true).open(path)
+}
+
+/// The lock file next to the records.
+pub(crate) fn lock_path(path: &Path) -> PathBuf {
+    let mut name = path.as_os_str().to_owned();
+    name.push(".lock");
+    PathBuf::from(name)
+}
+
+/// Take the exclusive lock of the records at `path` for as long as the returned file lives. The
+/// system lets go of it when the program ends, however it ends.
+///
+/// # Errors
+/// `WouldBlock`: another program holds it.
+pub(crate) fn lock(path: &Path) -> io::Result<File> {
+    let file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .mode(0o600)
+        .open(lock_path(path))?;
+    match flock(&file, FlockOperation::NonBlockingLockExclusive) {
+        Ok(()) => Ok(file),
+        Err(Errno::WOULDBLOCK) => Err(io::ErrorKind::WouldBlock.into()),
+        Err(e) => Err(e.into()),
+    }
+}
