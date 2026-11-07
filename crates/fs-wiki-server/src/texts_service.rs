@@ -9,7 +9,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use capnp_rpc::new_client;
-use fs_interfaces::rpc::DEFAULT_PAGE_SIZE;
+use fs_interfaces::rpc::{write_uuid, DEFAULT_PAGE_SIZE};
 use fs_interfaces::texts_capnp::texts;
 use fs_wiki_core::{TextFeed, Texts};
 
@@ -60,7 +60,10 @@ impl texts::Server for TextsServer {
         mut results: texts::SupportReportResults,
     ) -> Done {
         let report = self.texts.capabilities();
-        report.write(CONTRACT_VERSION, results.get().init_report());
+        let mut out = results.get().init_report();
+        report.write(CONTRACT_VERSION, out.reborrow());
+        // The store's id, as the store says it: empty where the provider has no store.
+        write_uuid(out.init_instance(), self.texts.identity().map(|id| id.as_uuid()));
         Ok(())
     }
 

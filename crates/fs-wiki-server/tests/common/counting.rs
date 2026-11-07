@@ -23,6 +23,15 @@ pub struct Counting {
 }
 
 impl Counting {
+    /// The decorator over this store (a backend that is not a whole `Store`).
+    pub fn over(store: Arc<dyn Store>) -> Self {
+        Self {
+            store,
+            rows: AtomicUsize::new(0),
+            touched: AtomicUsize::new(0),
+        }
+    }
+
     /// A wiki over a counting decorator of a fresh in-memory store.
     pub async fn wiki() -> (Arc<Counting>, Arc<WikiRepo>) {
         let counting = Arc::new(Counting {

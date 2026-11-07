@@ -5,7 +5,7 @@
 
 use async_trait::async_trait;
 use fs_interfaces::Capabilities;
-use fs_store::ObjectId;
+use fs_store::{ObjectId, StoreId};
 use fs_text::Document;
 
 use super::handle::WikiRepo;
@@ -19,6 +19,9 @@ use crate::texts::{LinkEntry, Paging, TextEntry, Texts};
 impl Texts for WikiRepo {
     fn capabilities(&self) -> Capabilities {
         capabilities()
+    }
+    fn identity(&self) -> Option<StoreId> {
+        self.info.as_ref().map(|info| info.identity())
     }
     async fn get(&self, id: ObjectId) -> Result<Option<TextEntry>> {
         self.text(id).await
