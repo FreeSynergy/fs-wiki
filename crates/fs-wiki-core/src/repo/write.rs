@@ -6,7 +6,7 @@
 //! An edit keeps the stored envelope (id, `published`, IRI, attribution) and takes the name from
 //! the new content (ADR 0032).
 
-use fs_store::ObjectId;
+use fs_objects::ObjectId;
 use fs_text::Document;
 
 use super::handle::WikiRepo;

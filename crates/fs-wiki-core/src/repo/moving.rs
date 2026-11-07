@@ -3,10 +3,10 @@
 //! Pattern: Command producer — `relinked` (relink.rs) turns the move into ops on the other texts'
 //! documents; this file stores the results. The other texts are written first and the moved text
 //! last, so a move that stops half way is finished by repeating it: texts already rewritten no
-//! longer link to the old path. (`fs-store` 0.2 has no transaction over several objects.) The
+//! longer link to the old path. (`fs-objects` 0.2 has no transaction over several objects.) The
 //! links of the moved text itself are written again for its new place.
 
-use fs_store::{ObjectId, Query};
+use fs_objects::{ObjectId, Query};
 use fs_text::Document;
 
 use super::handle::WikiRepo;

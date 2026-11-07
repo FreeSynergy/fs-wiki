@@ -5,7 +5,7 @@
 //! compared with the file and only the difference is applied as ordinary edit ops (layers move
 //! with the text; text that is gone takes its marks along). An unchanged file writes nothing.
 
-use fs_store::ObjectId;
+use fs_objects::ObjectId;
 
 use super::handle::WikiRepo;
 use crate::error::{Error, Result};

@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use common::{temp_dir, write_files};
-use fs_store::ObjectId;
+use fs_objects::ObjectId;
 use fs_wiki_app::{FileOrigins, Wiki, import_folder};
 use fs_wiki_client::RpcTexts;
 use fs_wiki_core::{
@@ -28,7 +28,7 @@ impl Texts for OneBad {
     }
     async fn get(&self, id: ObjectId) -> Result<Option<TextEntry>> {
         if *self.1.lock().unwrap() == Some(id) {
-            return Err(Error::Store(fs_store::Error::Backend("disk hiccup".into())));
+            return Err(Error::Store(fs_objects::Error::Backend("disk hiccup".into())));
         }
         self.0.get(id).await
     }
@@ -86,7 +86,7 @@ impl Origins for Unwritable {
         Ok(self.0.lock().unwrap().clone())
     }
     async fn set_origin(&self, _: &FileOrigin) -> Result<()> {
-        Err(Error::Store(fs_store::Error::Backend("disk full".into())))
+        Err(Error::Store(fs_objects::Error::Backend("disk full".into())))
     }
 }
 

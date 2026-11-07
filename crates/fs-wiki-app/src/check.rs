@@ -5,7 +5,7 @@
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
-use fs_store::ObjectId;
+use fs_objects::ObjectId;
 use fs_wiki_core::{FileOrigin, Texts};
 use futures::StreamExt;
 

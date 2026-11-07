@@ -11,7 +11,7 @@ use fs_interfaces::rpc::client::problems::{
 };
 use fs_interfaces::rpc::Problem;
 use fs_interfaces::Unsupported;
-use fs_store::{Error as StoreError, ObjectId};
+use fs_objects::{Error as StoreError, ObjectId};
 use fs_wiki_core::{Error, TextPath};
 
 use crate::quoted::{quoted, text_after};

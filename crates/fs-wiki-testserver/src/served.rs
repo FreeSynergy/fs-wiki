@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use fs_interfaces::rpc::{bind_socket, serve};
-use fs_store::{Store, TursoStore};
+use fs_objects::{Store, TursoStore};
 use fs_wiki_core::{TextFeed, Texts, WikiRepo};
 use fs_wiki_server::TextsServer;
 use tokio::sync::oneshot;

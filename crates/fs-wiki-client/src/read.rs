@@ -11,7 +11,7 @@ use fs_wiki_core::{Error, LinkEntry, Result, TextEntry};
 
 /// A reply that does not read.
 pub(crate) fn unreadable(e: impl std::fmt::Display) -> Error {
-    Error::Store(fs_store::Error::Backend(format!(
+    Error::Store(fs_objects::Error::Backend(format!(
         "wiki server: the reply does not read: {e}"
     )))
 }

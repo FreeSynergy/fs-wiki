@@ -66,7 +66,7 @@ impl std::error::Error for OriginsError {}
 
 impl From<OriginsError> for Error {
     fn from(e: OriginsError) -> Self {
-        Self::Store(fs_store::Error::Backend(e.to_string()))
+        Self::Store(fs_objects::Error::Backend(e.to_string()))
     }
 }
 
@@ -165,7 +165,7 @@ impl Inner {
 }
 
 fn joined<T>(r: std::result::Result<Result<T>, tokio::task::JoinError>) -> Result<T> {
-    r.unwrap_or_else(|e| Err(Error::Store(fs_store::Error::Backend(e.to_string()))))
+    r.unwrap_or_else(|e| Err(Error::Store(fs_objects::Error::Backend(e.to_string()))))
 }
 
 #[async_trait]

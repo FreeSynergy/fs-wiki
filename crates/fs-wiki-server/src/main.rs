@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use fs_interfaces::rpc::{prepare_data_dir, run_until_signal, ServerOptions};
-use fs_store::{Store, TursoStore};
+use fs_objects::{Store, TursoStore};
 use fs_wiki_core::WikiRepo;
 use fs_wiki_server::TextsServer;
 

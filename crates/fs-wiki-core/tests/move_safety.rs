@@ -7,7 +7,7 @@ mod common;
 use std::sync::Arc;
 
 use common::{everything, failing, fill, paths, setup, wiki, ME};
-use fs_store::TursoStore;
+use fs_objects::TursoStore;
 use fs_wiki_core::{Error, Texts, WikiRepo};
 
 #[tokio::test]

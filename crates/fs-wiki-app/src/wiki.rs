@@ -10,7 +10,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 
 use crate::words::{self, say};
-use fs_store::ObjectId;
+use fs_objects::ObjectId;
 use fs_text::Document;
 use fs_wiki_core::{
     Capabilities, Error, FileOrigin, LinkEntry, Origins, Paging, Result, TextEntry, Texts,
@@ -109,7 +109,7 @@ impl Texts for Wiki {
         self.texts.delete(id).await?;
         self.mark_deleted(id).await.map_err(|e| {
             let sentence = say(words::DELETED_RECORD_STALE, &[("error", &e)]);
-            Error::Store(fs_store::Error::Backend(sentence))
+            Error::Store(fs_objects::Error::Backend(sentence))
         })
     }
 

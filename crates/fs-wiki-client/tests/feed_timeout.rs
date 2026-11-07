@@ -14,7 +14,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use common::Served;
 use fs_interfaces::Capabilities;
-use fs_store::ObjectId;
+use fs_objects::ObjectId;
 use fs_wiki_client::{RpcTexts, Timeouts};
 use fs_wiki_core::{
     Paging, Result, TextChange, TextEntry, TextFeed, TextListener, Texts, WikiRepo,
