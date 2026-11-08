@@ -20,6 +20,66 @@ six crates (one of them only for tests); the GUI lives only in `fs-wiki-app`, on
 **Interface status: draft, consumers: none (0 of 2).** (ADR 0045: the interface is a target; it stays draft until two independent
 consumers have tested it, then 1.0, then only version jumps.) Nothing here is declared 1.0.
 
+## texts 0.2 (branch `texts-v2-core`)
+
+The extended contract (`texts.capnp` DRAFT 0.2, methods `@16` to `@35`, fs-interfaces DESIGN.md section "texts 0.2") is implemented in `fs-wiki-core` (trait, then tests, then provider) and `fs-wiki-server`. **fs-interfaces is pinned to `rev = "b83cbb5"` (branch `texts-v2`, version 0.50.0, not tagged) in all four crates that use it; this is temporary and becomes a tag once the contract is tagged.** fs-interfaces 0.50 needs fs-objects v0.5.0, as before. Not touched: `fs-wiki-app`; `fs-wiki-client` only reads the three new fields of `TextEntry` (it does not call the new methods: they stay `Unsupported` there).
+
+| Area | State |
+|---|---|
+| `Texts` trait | 20 new methods with `Unsupported` defaults (`edit_with`, `history`, `get_revision`, `restore_revision`, `purge_revision`, `trash`, `list_trash`, `restore_from_trash`, `purge`, `create_folder`, `rename_folder`, `delete_folder`, `get_folder`, `children`, `reorder`, `set_template`, `create_from_template`, `set_redirect`, `resolve`, `search`); `TextEntry` gains `template`, `redirect_to`, `updated_by`; value types in `history.rs`, `trash.rs`, `nodes.rs`, `redirect.rs`, `search.rs`, bounds in `limits.rs` | done |
+| Capabilities | the provider reports 17 ids (the old 10 and `text.editSummary`, `text.history`, `text.trash`, `text.space`, `text.template`, `text.redirect`, `text.search`). A `WikiRepo::with_backend` (narrow store traits, no whole store) cannot remove an object from the log: `purge` and `purgeRevision` answer `Unsupported` there, the report still lists the ids | done |
+| History | a **revision is a record of its own** (type `WikiRevision`, id derived from text id and number, written as the bookkeeping actor), not an entry of the activity log and not a counter in the text. `number` is the first one with no record, found from a hint kept in the text record, so a store undo (the hint goes back, the records stay) and a compaction / `clear_history` of the log cannot reuse a number (tested). A store undo outside this interface that brings an older text record back is noticed by `history` and recorded as a revision of its own ("state brought back outside this interface"); the text is not touched. No pruning (the contract allows keeping all) | done, tested |
+| `editWith`, `restoreRevision` | `Expect` checked under the write lock; typed conflict with the current revision; summary at most 200 bytes, empty = `edited`; restore = ordinary write, `restoredFrom`, summary `restored revision N`, path / template / redirect stay | done, tested |
+| `purgeRevision` | the revision record is deleted and replaced by a tombstone (the number stays used); the record's log entries **and the whole log of the text** are removed with `purge_object` + `clean_files`, because `fs-objects` keeps the old document as before/after image of every change and can purge a log only per object. Consequence: the text's own store undo is gone and its later writes are logged without images. Not the current revision (`invalid`, `current-revision`) | done, tested (the needle is gone from the log) |
+| Trash | `trash` = the same object with context `texts-trash` and a mark; every read of live texts asks for context `texts`, so it is out of `get`, `list`, `find`, `search`, `links`, `backlinks`, the path is free. `delete` is unchanged. `restoreFromTrash` (path taken = `path-taken`, nothing changes) writes a revision `restored from trash`; `purge` deletes the revision records, the object and their log entries. Feed: `Deleted` on trash, `Created` on restore | done, tested |
+| Spaces, folders, order | a folder is a record (`WikiFolder`) with a name and the prefix it owns; a page's / folder's parent is derived from the longest prefix, a space has none; the order is a record per parent (`WikiOrder`, ids of the placed children), unplaced children come after in creation order; `reorder` writes the whole list; a single `move` into another parent makes the page the last child there; `moveFolder` carries the folder nodes (ids and order lists stay). Creating a folder over existing texts adopts them. Name at most 255 bytes without `/`; empty slug, outside-parent, dot / empty segments are `bad-path` | done, tested |
+| Templates, redirects | flags in the text record, written as a revision with a summary; `createFromTemplate` = new id, own history `from template <path>`; redirect target validated (scheme = `external-target`, path rules, `self-redirect`); `resolve` as the contract: loop wins, at most 8 hops, `hops` as specified | done, tested |
+| Search | candidates from the store (longest ASCII word as `Contains` on name / path / block, path prefix as range), then exact checks in the provider: words are runs of letters and digits, whole, case-insensitive, the last as a prefix if asked; relevance = per word 3 (name) + 2 (path) + 1 (body); order (relevance desc, updated desc, id asc); at most 3 snippets (name, path, body: the block with the most matches), 240 bytes, 20 highlights, byte ranges on character boundaries | done, tested |
+| Server | all 20 methods; typed problems `not-found` (kind `text` / `folder` / `revision`), `conflict` (id, kind, `issue=stale-revision`, `revision`, `expected`; detail starts `conflict:`), `bad-path` (issue = the reason), `invalid` (one issue per reason), `path-taken`, `not-in-trash`, `not-empty`; cursors per method (`cursors.rs`: a form byte + place); every write through `run_to_end`; answers checked against the message size; `CONTRACT_VERSION` is `texts 0.2 (draft)` | done, tested over a real socket |
+
+New tests: `fs-wiki-core`: `history`, `history_safety` (undo, compaction, purge, rows for n and 2n), `trash`, `spaces`, `spaces_order`, `templates`, `redirects`, `search`, `search_results`; `fs-wiki-server`: `v2_history`, `v2_trash`, `v2_spaces`, `v2_flags`, `v2_search`, the unsupported answers in `report`, the cursors as unit tests. Changed old tests (expectation, not behaviour): the capability counts in `provider.rs` and `report.rs` (10 to 17); the failure injection of the core tests (`common::Failing`) does not count the revision record of a write, so "n writes" still means n writes of texts.
+
+| Module (new) | Pattern | Why |
+|---|---|---|
+| core `history.rs`, `trash.rs`, `nodes.rs`, `redirect.rs`, `search.rs` | Value object | the plain data of the new methods |
+| core `limits.rs` | none (constants) | the bounds of the contract |
+| core `entry.rs` | Value object | `TextEntry`, `LinkEntry`, `Paging` (moved out of `texts.rs`) |
+| core `repo/revise.rs` | Template method | one flow for every write: number, object, revision record |
+| core `repo/ids.rs` | none (pure functions) | ids derived from other ids, so a record is found by `get`, not by a scan |
+| core `repo/revisions.rs` | Repository (read model) + Command | history newest first by counting down, restore, purge of one revision |
+| core `repo/trashing.rs` | Command | trash by context, restore, purge |
+| core `repo/spaces.rs`, `order.rs` | Repository | folder records, order lists |
+| core `repo/tree.rs`, `reordering.rs` | Read model + Command | siblings assembled from folders and light page reads; reorder |
+| core `repo/flags.rs` | Command | template / redirect flags, copy from template, `resolve` |
+| core `repo/searching.rs`, `words.rs`, `snippets.rs` | Pipeline, Strategy, Builder | candidates, exact checks and order; words; snippets |
+| core `repo/caps.rs` | none (one function) | the capability report |
+| core `repo/backend.rs` (`LogPurge`) | Adapter | the part of `HistoryRetention` the wiki needs |
+| server `reads_v2.rs`, `writes_v2.rs` | Adapter (+ Command for writes) | one call of the provider each |
+| server `errors_v2.rs` | Adapter | core errors as the typed problems of 0.2 |
+| server `cursors.rs` | Adapter | the cursors of the new pages |
+| server `wire_history.rs`, `wire_nodes.rs`, `wire_search.rs` | Adapter | revisions / trash, nodes, search and resolution on the wire |
+
+### Contract feedback (texts 0.2; what the contract could not support, or leaves open)
+
+1. **History cannot be taken from the activity log.** The log is changed by undo (new `Undo` entries, the undone `Update` stays), compaction and `clear_history` (synced entries go) and purge (all entries of an object go), so neither numbers nor documents are stable there. The contract text ("stored with the text's history, not as a counter inside the text record") is met by separate records; the price is two store writes per text write (three with the first), and the document is also in the log as image of the revision record. Not measured on the 1398-page import.
+2. **`RevisionInfo.number` "1 = the creation"** does not hold for texts written before this version: they have no record of their creation, history starts with the first write after the upgrade (number 1 is then that write). Fix would need a clause "or the first write this provider knows".
+3. **`purgeRevision` "removes ONE old revision for good"** cannot be done in the log: `fs-objects` purges per object. The provider purges the log of the whole text (and of the revision record). Side effect above (no undo of that text). Also: `fs-objects` DESIGN says no program calls `purge_object` directly but `sync_then_purge` of `fs-hub-client`; this provider calls it directly, as ordered, and does not purge the hub (as the contract says). Needs a decision before this is used against a hub.
+4. **`kind`**: the contract says `text` for `not-found` and `conflict`; the 0.1 methods of this server say `page` (DESIGN table below, pinned by `tests/problems.rs`). The 0.2 methods say `text`; `editIf` keeps `page` but now carries `issue`, `revision`, `expected` too. One value should be chosen for both.
+5. **`badPathProblemType`: "ext `issue` = "bad-path" plus the reason"** is ambiguous. Implemented: the problem type says bad-path, `issue` is the reason (`empty-slug`, `outside-parent`, `external-target`, `empty-segment`, `dot-segment`, ...), `path` the path. The 0.1 methods still answer `invalid` for the same path errors.
+6. **Writes that add a revision**: the contract lists create, edit*, move, import, restoreRevision, setTemplate, setRedirect. This provider also writes a revision for `restoreFromTrash` (it rewrites the text, new `revision`, new `updatedBy`), for links rewritten by a move (`links updated`, as the contract's trash edge cases say), and `setTemplate` / `setRedirect` that change nothing write nothing (the current text is answered). `createFromTemplate` starts a history with `from template <path>`.
+7. **Search words** are not defined: here a word is a run of letters and digits (`co-op` is two words, `ä` counts as a letter), the limits of 8 words and 256 bytes are applied to that; relevance is provider-specific and not on the wire. `Snippet.field` `body` is the single block with the most matches (not several blocks).
+8. **Space and parent.** "Zero parent = a new space" together with "a page's parent is the folder with the longest prefix" leaves open a space created at a path below an existing folder: here it is a space (parent none), not listed under that folder.
+9. **`children` cursor** is an offset of the ordered list; a change between two pages can skip or repeat (the contract allows it). `resolve` does not validate its path (an invalid path is `notFound`).
+10. **Redirects and `delete`**: `delete` (0.1) keeps its meaning, so the revision records of a text removed that way stay in the store (an undo of the delete brings the text back with its history); no purge reaches them.
+11. **Trash listing** has no filter and reads the whole trash; there is no retention or expiry of the trash and no feed event for structure changes (folders, order, flags): as the contract's open points say.
+
+### Limits and open points of this step
+
+* **Cost.** `children` / `getFolder` read the texts below the parent without their documents (the top level reads all texts); `search` reads every candidate the store cannot exclude with the longest ASCII word (a term with only non-ASCII words reads all texts); `listTrash` reads the whole trash; `purge` rewrites the database file once per revision record on a disk store. Only `history` / `getRevision` are tested to cost the same in a wiki twice as big (rows read for n and 2n). An index field "folder" on every text would make `children` cheap (not done).
+* If the store fails between the write of a text and the write of its revision record, the text is one revision ahead of its history. The next `history` of that text notices (newest record != text) and records the current state as a revision, with the summary of the store-undo case; the real cause is not told. Not tested (the failure injection of the tests skips revision records).
+* Order slots are kept by id: a page that is trashed and restored finds its slot again; a deleted folder's order list is deleted with it.
+* `fs-wiki-client` and `fs-wiki-app` do not use the new methods. `fs-wiki-server` binary unchanged.
+
 ## Handover (state of branch `integrate-client`, version 0.5.0)
 
 Branch `integrate-client` holds `fs-wiki-client` (`RpcTexts`: `Texts` + `TextFeed` over `texts.capnp`), the testserver crate and
@@ -33,7 +93,7 @@ verified: typing in the real window against a server, the start check on a large
 
 ## State
 
-Version 0.5.0 (workspace; the tag is set by the owner). Built on `fs-objects` v0.5.0, `fs-interfaces` v0.49.1 and `fs-components` v0.2.0 (git tags). New in 0.3.0: pages cut in the store at a place, no quadratic import, `LinkRow.title` / `internal`, store identity in the report, typed problem extensions, `TextFeed::subscribe` may say `Unsupported`.
+Version 0.5.0 (workspace; the tag is set by the owner). Built on `fs-objects` v0.5.0, `fs-interfaces` v0.49.1 (temporarily the commit b83cbb5 on this branch, see "texts 0.2") and `fs-components` v0.2.0 (git tags). New in 0.3.0: pages cut in the store at a place, no quadratic import, `LinkRow.title` / `internal`, store identity in the report, typed problem extensions, `TextFeed::subscribe` may say `Unsupported`.
 
 | Area | State |
 |---|---|
