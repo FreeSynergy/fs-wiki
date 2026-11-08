@@ -50,9 +50,10 @@ impl Served {
     /// The socket cannot be made.
     #[must_use]
     pub fn over(store: Arc<dyn Store>) -> Self {
-        // The port is the real one, pointed at a socket nobody listens on: the tests never reach a hub,
+        // The port is the real one, pointed at a socket in it, where nobody listens: the tests never reach a hub,
         // so `purge` answers "no hub" and the report offers the same ids as the real server.
-        let none = std::env::temp_dir().join("fs-wiki-testserver-no-hub.sock");
+        // A private folder of our own (a fixed name in the shared temp folder could be bound by another user).
+        let none = tempfile::tempdir().unwrap().keep().join("no-hub.sock");
         let port = fs_wiki_server::HubPurge::new(store.clone(), Some(none));
         let repo = Arc::new(WikiRepo::new(store, ACTOR).with_log_purge(Arc::new(port)));
         Self::serving(repo.clone(), repo)

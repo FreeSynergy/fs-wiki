@@ -7,6 +7,7 @@
 //! purged (fail closed). The hub is looked for at every purge, so one started later is found; a dead
 //! cached session is dropped and tried once anew; connecting and each purge have a time limit.
 
+use std::io::ErrorKind;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -94,10 +95,22 @@ impl HubPurge {
     }
 }
 
-/// Whether `e` says the connection to the hub is gone or broken (not that the purge was refused).
+/// Whether `e` says the connection to the hub is gone (closed, reset, refused, disconnected): not that
+/// the purge was refused, and not any other RPC or I/O failure, which stays a plain failure.
 fn is_connection(e: &Hub) -> bool {
     match e {
-        Hub::NoHub | Hub::Closed | Hub::Rpc(_) | Hub::Io(_) => true,
+        Hub::NoHub | Hub::Closed => true,
+        Hub::Rpc(e) => e.kind == capnp::ErrorKind::Disconnected,
+        Hub::Io(e) => matches!(
+            e.kind(),
+            ErrorKind::BrokenPipe
+                | ErrorKind::ConnectionReset
+                | ErrorKind::ConnectionAborted
+                | ErrorKind::NotConnected
+                | ErrorKind::UnexpectedEof
+                | ErrorKind::NotFound
+                | ErrorKind::ConnectionRefused
+        ),
         Hub::Stopped { cause, .. } => is_connection(cause),
         _ => false,
     }

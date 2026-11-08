@@ -121,8 +121,6 @@ impl WikiRepo {
     pub(super) async fn purge_locked(&self, id: ObjectId) -> Result<()> {
         let mut object = self.trashed_object(id).await?;
         self.purger("text.trash")?;
-        // A clean-up an earlier purge could not finish comes first (its result does not matter here).
-        let _ = self.retry_file_cleanup().await;
         // Every record of the text, found by name (`<text>#<number>`), not by counting up from a hint:
         // a store undo moves the hint back and a late record does not raise it, so records can lie above
         // a gap. The highest number seen is written into the trashed text before anything is deleted, so
@@ -153,19 +151,19 @@ impl WikiRepo {
         }
         // The logs go first: a port that refuses (no hub, not synced) has changed nothing then. The
         // records and the text are deleted after, and a retry finds what is left by name.
-        let mut cleaned = true;
+        self.begin_purge("text.trash").await?;
         for number in 1..=high {
-            self.purge_log("text.trash", revision_id(id, number), &mut cleaned)
+            self.purge_log("text.trash", revision_id(id, number))
                 .await?;
         }
-        self.purge_log("text.trash", id, &mut cleaned).await?;
+        self.purge_log("text.trash", id).await?;
         for o in &found {
             self.objects
                 .delete(o.envelope.id, &self.aux_actor())
                 .await?;
         }
         self.objects.delete(id, &self.actor).await?;
-        self.finish_purge("text.trash", cleaned).await
+        self.finish_purge("text.trash").await
     }
 
     /// Whether a trashed text lies at or below `prefix/` (it blocks the deletion of that folder).

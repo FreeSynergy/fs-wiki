@@ -107,29 +107,28 @@ impl WikiRepo {
 }
 
 impl WikiRepo {
-    /// Purge the log of `id` through the port. `cleaned` collects whether the file was cleaned too.
-    pub(super) async fn purge_log(
-        &self,
-        capability: &str,
-        id: ObjectId,
-        cleaned: &mut bool,
-    ) -> Result<()> {
-        let outcome = self.purger(capability)?.purge(id).await?;
-        *cleaned &= outcome.file_cleaned;
+    /// Purge the log of `id` through the port.
+    pub(super) async fn purge_log(&self, capability: &str, id: ObjectId) -> Result<()> {
+        self.purger(capability)?.purge(id).await?;
         Ok(())
     }
 
-    /// The purge is done; if the file could not be cleaned as well (another reader holds it, or the clean-up
-    /// failed) that is remembered in the store and repeated by the next purge or by
-    /// [`WikiRepo::retry_file_cleanup`]. The purge itself has succeeded and is not reported as failed:
-    /// its object is gone, a retry of it could only say "not found".
-    pub(super) async fn finish_purge(&self, capability: &str, cleaned: bool) -> Result<()> {
-        if cleaned {
-            return Ok(());
-        }
-        let done = matches!(self.purger(capability)?.clean_files().await, Ok(true));
-        if !done {
-            self.aux_put(CLEAN_KIND, CLEAN_KEY, &true).await?;
+    /// Before the first log is purged: finish an earlier clean-up and write the reminder that a clean-up is
+    /// due, so a stop between the purge and the clean-up cannot lose it.
+    pub(super) async fn begin_purge(&self, capability: &str) -> Result<()> {
+        self.purger(capability)?;
+        let _ = self.retry_file_cleanup().await;
+        self.aux_put(CLEAN_KIND, CLEAN_KEY, &true).await
+    }
+
+    /// After the last delete or tombstone: clean the file **always**. The purge of each log cleans the file
+    /// too, but the rows the wiki deletes or overwrites afterwards stay in free pages and in the
+    /// write-ahead log until this. If it fails the reminder stays; the purge itself is a success (its
+    /// object is gone, a retry could only say "not found") and the next purge, `retry_file_cleanup` or the
+    /// server start repeats the clean-up.
+    pub(super) async fn finish_purge(&self, capability: &str) -> Result<()> {
+        if matches!(self.purger(capability)?.clean_files().await, Ok(true)) {
+            self.aux_put(CLEAN_KIND, CLEAN_KEY, &false).await?;
         }
         Ok(())
     }

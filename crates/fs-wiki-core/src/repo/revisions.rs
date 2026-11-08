@@ -157,8 +157,6 @@ impl WikiRepo {
     pub(super) async fn purge_revision_locked(&self, id: ObjectId, number: u64) -> Result<()> {
         let text = self.text_any(id).await?;
         self.purger("text.history")?;
-        // A clean-up an earlier purge could not finish comes first (its result does not matter here).
-        let _ = self.retry_file_cleanup().await;
         let gone = || Error::NoSuchRevision { id, number };
         let record = self.revision_record(id, number).await?.ok_or_else(gone)?;
         // A removal that was started and not finished is completed by a retry.
@@ -178,10 +176,10 @@ impl WikiRepo {
         // The logs go first. A port that refuses (no hub, not synced) has changed nothing then, and the
         // record still reads as before. The record loses its document last: a stop before that is
         // repeated from the start.
-        let mut cleaned = true;
-        self.purge_log("text.history", rev, &mut cleaned).await?;
+        self.begin_purge("text.history").await?;
+        self.purge_log("text.history", rev).await?;
         // The text's own log keeps the old document as an image of each change.
-        self.purge_log("text.history", id, &mut cleaned).await?;
+        self.purge_log("text.history", id).await?;
         self.put_revision(&RevisionRecord {
             document: None,
             summary: String::new(),
@@ -189,7 +187,7 @@ impl WikiRepo {
             ..record
         })
         .await?;
-        self.finish_purge("text.history", cleaned).await?;
+        self.finish_purge("text.history").await?;
         Ok(())
     }
 }
