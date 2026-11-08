@@ -7,7 +7,7 @@ mod common;
 
 use common::{temp_dir, wiki_in_file, wiki_with_records, write_files};
 use fs_wiki_app::import_folder;
-use fs_wiki_core::{Origins, Paging, Texts};
+use fs_wiki_core::{Paging, Texts};
 
 #[test]
 fn a_fresh_server_with_old_records_gets_every_file_again() {
@@ -160,40 +160,97 @@ fn when_every_text_of_a_folder_was_deleted_outside_the_server_is_still_the_same_
     std::fs::remove_dir_all(dir).unwrap();
 }
 
-#[test]
-fn records_from_before_the_store_was_recorded_are_kept_and_then_belong_to_it() {
-    let dir = temp_dir("sw-legacy");
-    let (docs, records) = (dir.join("docs"), dir.join("o.origins"));
-    write_files(&docs, &[("a.md", "# A\n")]);
-    let store = {
-        let (rt, w) = wiki_with_records(&records);
-        rt.block_on(import_folder(&**w, &docs));
-        let store = rt.block_on(w.recorded_store()).unwrap();
-        assert!(store.is_some(), "the first import records whose they are");
-        store
-    };
-    // The file as an older version wrote it: records only, no line for the store.
-    let text = std::fs::read_to_string(&records).unwrap();
+/// The file as an older version wrote it: records only, no line for a store.
+fn strip_headers(records: &std::path::Path) {
+    let text = std::fs::read_to_string(records).unwrap();
     let old: String = text
         .lines()
         .filter(|l| !l.contains("\"store\""))
         .map(|l| format!("{l}\n"))
         .collect();
-    assert!(old.len() < text.len());
-    std::fs::write(&records, old).unwrap();
+    assert!(old.len() < text.len(), "there was a header to strip");
+    std::fs::write(records, old).unwrap();
+}
+
+#[test]
+fn records_from_before_the_store_was_recorded_are_taken_over_when_the_server_has_their_texts() {
+    let dir = temp_dir("sw-legacy");
+    let (docs, store) = (dir.join("docs"), dir.join("store.db"));
+    write_files(&docs, &[("a.md", "# A\n")]);
+    {
+        let (rt, w) = wiki_in_file(&store);
+        rt.block_on(import_folder(&**w, &docs));
+    }
+    strip_headers(&store.with_extension("origins"));
+    {
+        let (rt, w) = wiki_in_file(&store);
+        let report = rt.block_on(import_folder(&**w, &docs));
+        assert_eq!(
+            (report.imported, report.unchanged, report.records_ignored),
+            (0, 1, 0)
+        );
+    }
+    let text = std::fs::read_to_string(store.with_extension("origins")).unwrap();
+    assert!(
+        text.lines().next().unwrap().contains("\"store\""),
+        "now bound: {text}"
+    );
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn records_from_before_the_store_was_recorded_are_not_bound_to_a_server_that_lacks_their_texts() {
+    let dir = temp_dir("sw-legacy-fresh");
+    let (docs, records) = (dir.join("docs"), dir.join("o.origins"));
+    write_files(&docs, &[("a.md", "# A\n")]);
+    {
+        let (rt, w) = wiki_with_records(&records);
+        rt.block_on(import_folder(&**w, &docs));
+    }
+    strip_headers(&records);
     let (rt, w) = wiki_with_records(&records);
-    assert_eq!(rt.block_on(w.recorded_store()).unwrap(), None);
     let report = rt.block_on(import_folder(&**w, &docs));
     assert_eq!(
-        report.records_ignored, 0,
-        "nothing says they are of another store"
+        (report.imported, report.records_ignored),
+        (1, 1),
+        "another server: the file comes in, the old record is not trusted"
     );
-    assert!(rt.block_on(w.recorded_store()).unwrap().is_some());
-    assert_ne!(
-        rt.block_on(w.recorded_store()).unwrap(),
-        store,
-        "a fresh in-memory server has its own id"
+    assert!(report.missing.is_empty());
+    let text = std::fs::read_to_string(&records).unwrap();
+    let first = text.lines().next().unwrap();
+    assert!(
+        !first.contains("\"store\""),
+        "the old records were not claimed by this server: {text}"
     );
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn going_back_to_a_server_brings_its_records_and_deleted_marks_back() {
+    let dir = temp_dir("sw-aba");
+    let (docs, store) = (dir.join("docs"), dir.join("a.db"));
+    let records = store.with_extension("origins");
+    write_files(&docs, &[("a.md", "# A\n"), ("b.md", "# B\n")]);
+    {
+        let (rt, w) = wiki_in_file(&store);
+        rt.block_on(import_folder(&**w, &docs));
+        let b = rt.block_on(w.get_by_path("b.md")).unwrap().unwrap();
+        rt.block_on(w.delete(b.id)).unwrap();
+    }
+    {
+        let (rt, w) = wiki_with_records(&records);
+        let report = rt.block_on(import_folder(&**w, &docs));
+        assert_eq!((report.imported, report.records_ignored), (2, 2));
+    }
+    let (rt, w) = wiki_in_file(&store);
+    let report = rt.block_on(import_folder(&**w, &docs));
+    assert_eq!(
+        (report.imported, report.unchanged, report.records_ignored),
+        (0, 2, 0),
+        "b.md stays deleted: its mark came back with the records of this server"
+    );
+    assert!(report.missing.is_empty());
+    assert!(rt.block_on(w.get_by_path("b.md")).unwrap().is_none());
     std::fs::remove_dir_all(dir).unwrap();
 }
 

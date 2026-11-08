@@ -37,5 +37,7 @@ pub use media::{TextFormat, MARKDOWN};
 pub use page::{Place, Placed, TextPage, TextQuery};
 pub use path::TextPath;
 pub use reason::Reason;
-pub use repo::{FileOrigin, IndexReport, Origins, WikiRepo, CONTENT_TYPE, CONTEXT, TEXT_TYPE};
+pub use repo::{
+    FileOrigin, Foreign, IndexReport, Origins, WikiRepo, CONTENT_TYPE, CONTEXT, TEXT_TYPE,
+};
 pub use texts::{LinkEntry, Paging, TextEntry, Texts};

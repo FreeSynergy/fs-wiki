@@ -36,11 +36,14 @@ pub async fn import_folder_within<W: Texts + Origins + ?Sized>(
     let mut files = Vec::new();
     collect(root, root, &mut files, &mut report);
     files.sort();
-    let mut known = match wiki.origins().await {
-        Ok(all) => all
-            .into_iter()
-            .map(|o| (o.file.clone(), o))
-            .collect::<HashMap<String, FileOrigin>>(),
+    // Whose records they are is the store's identity (`Texts::identity`): the records of the store
+    // we are connected to are used, those of other stores are kept in the file and not used.
+    let foreign = match wiki.belong_to(wiki.identity()).await {
+        Ok(foreign) => foreign,
+        Err(e) => return failed_start(report, &e),
+    };
+    let mut known = match records_of(wiki).await {
+        Ok(known) => known,
         Err(e) => {
             report.failures.push(Failure {
                 path: String::new(),
@@ -49,21 +52,49 @@ pub async fn import_folder_within<W: Texts + Origins + ?Sized>(
             return report;
         }
     };
-    if let Some(current) = wiki.identity() {
-        // The records of another store say nothing about this one; the store says whose it is.
-        match wiki.recorded_store().await {
-            Ok(Some(recorded)) if recorded != current => {
-                report.records_ignored = known.len();
-                known.clear();
+    let mut checked = None;
+    if wiki.identity().is_none() && foreign.others > 0 {
+        // The file was made for stores, this server tells none: the records are not known to fit.
+        report.records_ignored = known.len() + foreign.others;
+        known.clear();
+    } else if wiki.identity().is_some() && known.is_empty() {
+        report.records_ignored = foreign.others;
+        if !foreign.legacy.is_empty() {
+            // Records from before the store was recorded: they are taken over only if the server has
+            // at least one of their texts (one deleted on purpose does not count). Otherwise they
+            // may be of another server, and the file is never bound to this one by their account.
+            let legacy: HashMap<String, FileOrigin> = foreign
+                .legacy
+                .into_iter()
+                .map(|o| (o.file.clone(), o))
+                .collect();
+            match present_ids(wiki, &legacy, limit).await {
+                Ok((ids, unasked)) => {
+                    if legacy.values().any(|o| !o.deleted && ids.contains(&o.text)) {
+                        if let Err(e) = wiki.adopt_legacy().await {
+                            return failed_start(report, &e);
+                        }
+                        known = legacy;
+                        checked = Some((ids, unasked));
+                    } else {
+                        report.records_ignored += legacy.len();
+                    }
+                }
+                Err(reason) => {
+                    report.failures.push(Failure {
+                        path: String::new(),
+                        reason,
+                    });
+                    return report;
+                }
             }
-            Ok(_) => {}
-            Err(e) => return failed_start(report, &e),
-        }
-        if let Err(e) = wiki.belong_to(current).await {
-            return failed_start(report, &e);
         }
     }
-    let present = match present_ids(wiki, &known, limit).await {
+    let checked = match checked {
+        Some(done) => Ok(done),
+        None => present_ids(wiki, &known, limit).await,
+    };
+    let present = match checked {
         Ok((ids, unasked)) => {
             report.failures.extend(unasked);
             ids
@@ -96,6 +127,18 @@ pub async fn import_folder_within<W: Texts + Origins + ?Sized>(
     }
     report.gone.sort_by(|a, b| a.path.cmp(&b.path));
     report
+}
+
+/// The records `wiki` answers with, by file.
+async fn records_of<W: Origins + ?Sized>(
+    wiki: &W,
+) -> fs_wiki_core::Result<HashMap<String, FileOrigin>> {
+    Ok(wiki
+        .origins()
+        .await?
+        .into_iter()
+        .map(|o| (o.file.clone(), o))
+        .collect())
 }
 
 /// The import cannot start: nothing is imported.

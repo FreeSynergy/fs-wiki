@@ -29,5 +29,5 @@ mod upgrade;
 mod write;
 
 pub use handle::{WikiRepo, CONTENT_TYPE, CONTEXT, TEXT_TYPE};
-pub use origin::{FileOrigin, Origins};
+pub use origin::{FileOrigin, Foreign, Origins};
 pub use upgrade::IndexReport;

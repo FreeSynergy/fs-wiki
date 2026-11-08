@@ -9,7 +9,7 @@ use std::time::Instant;
 use fs_components_workbenches::{DraftStore, Labels, Options, Picture, Step, launch, snapshot};
 use fs_wiki_app::args::{HELP, parse};
 use fs_wiki_app::server::{connect, socket_path};
-use fs_wiki_app::store_path::{data_dir, origins_file};
+use fs_wiki_app::store_path::{data_dir, old_store_file, origins_file};
 use fs_wiki_app::{Conflict, FileDraftStore, FileOrigins, Wiki, WikiSource, import_folder, words};
 use fs_wiki_core::Texts;
 
@@ -36,6 +36,12 @@ fn run() -> Result<(), String> {
         None => {
             let data = data_dir()
                 .ok_or("no data directory (set HOME or XDG_DATA_HOME, or use --origins)")?;
+            if let Some(old) = old_store_file(&data, &args.docs) {
+                eprintln!(
+                    "{}",
+                    words::say(words::OLD_STORE, &[("path", &old.display())])
+                );
+            }
             origins_file(&data, &args.docs)
         }
     };

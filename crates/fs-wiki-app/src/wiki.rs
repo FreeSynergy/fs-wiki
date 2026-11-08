@@ -13,7 +13,7 @@ use crate::words::{self, say};
 use fs_objects::{ObjectId, StoreId};
 use fs_text::Document;
 use fs_wiki_core::{
-    Capabilities, Error, FileOrigin, LinkEntry, Origins, Paging, Place, Result, TextEntry,
+    Capabilities, Error, FileOrigin, Foreign, LinkEntry, Origins, Paging, Place, Result, TextEntry,
     TextPage, TextQuery, Texts,
 };
 
@@ -64,12 +64,12 @@ impl Origins for Wiki {
         self.origins.set_origin(origin).await
     }
 
-    async fn recorded_store(&self) -> Result<Option<StoreId>> {
-        self.origins.recorded_store().await
+    async fn belong_to(&self, store: Option<StoreId>) -> Result<Foreign> {
+        self.origins.belong_to(store).await
     }
 
-    async fn belong_to(&self, store: StoreId) -> Result<()> {
-        self.origins.belong_to(store).await
+    async fn adopt_legacy(&self) -> Result<()> {
+        self.origins.adopt_legacy().await
     }
 }
 

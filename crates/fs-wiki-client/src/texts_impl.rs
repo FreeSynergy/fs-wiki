@@ -2,7 +2,7 @@
 //!
 //! Pattern: Adapter — each method is one call of `texts.capnp`; the arguments are made owned here,
 //! because the call runs on the thread of the connection. `list` and `find` read as many pages as
-//! `Paging` needs (`calls/pages.rs`); `page` reads from the start as well and drops what comes before its place, each page a call of its own with its own deadline. The report is the server's own: every method of the trait is
+//! `Paging` needs (`calls/pages.rs`); `page` hands the server the cursor of its place, each page a call of its own with its own deadline. The report is the server's own: every method of the trait is
 //! kept, so nothing the server offers is withheld.
 
 use async_trait::async_trait;

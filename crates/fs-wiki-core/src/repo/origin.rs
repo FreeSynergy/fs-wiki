@@ -32,6 +32,15 @@ pub struct FileOrigin {
     pub deleted: bool,
 }
 
+/// What `Origins::belong_to` found that is not the selected store's.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Foreign {
+    /// Records from before the store was recorded: nobody knows whose they are.
+    pub legacy: Vec<FileOrigin>,
+    /// How many records are kept for other stores.
+    pub others: usize,
+}
+
 /// The file records of a wiki.
 #[async_trait]
 pub trait Origins: Send + Sync {
@@ -39,16 +48,16 @@ pub trait Origins: Send + Sync {
     async fn origins(&self) -> Result<Vec<FileOrigin>>;
     /// Store `origin`, replacing the record of the same file.
     async fn set_origin(&self, origin: &FileOrigin) -> Result<()>;
-    /// The store these records were made for, if they know it. Records kept apart from the store (a
-    /// file of an app) remember it, so another store can be told from the same one by
-    /// [`Texts::identity`](crate::Texts::identity), not by a guess. Records inside the store need no
-    /// answer: they cannot be of another one.
-    async fn recorded_store(&self) -> Result<Option<StoreId>> {
-        Ok(None)
+    /// Say which store the caller is connected to (`None`: it has no identity); `origins` and
+    /// `set_origin` answer for that store from now on. Records are kept for each store they were
+    /// made for, so going back to a store brings its records (and its `deleted` marks) back. Records
+    /// inside the store need no answer: they cannot be of another one.
+    async fn belong_to(&self, _store: Option<StoreId>) -> Result<Foreign> {
+        Ok(Foreign::default())
     }
-    /// Say that these records belong to `store` from now on. Records that belonged to another store
-    /// are of no use to this one and are dropped; records that knew none (from before) are kept.
-    async fn belong_to(&self, _store: StoreId) -> Result<()> {
+    /// Take over the records from before any store was recorded (`Foreign::legacy`) as those of the
+    /// store selected by `belong_to`. Only for the caller that has checked they fit.
+    async fn adopt_legacy(&self) -> Result<()> {
         Ok(())
     }
 }

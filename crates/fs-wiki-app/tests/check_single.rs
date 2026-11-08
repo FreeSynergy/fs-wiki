@@ -158,3 +158,60 @@ fn a_text_deleted_whose_record_cannot_be_updated_is_reported_as_deleted() {
     let words_start = words_start.split('(').next().unwrap();
     assert!(said.contains(words_start), "{said}");
 }
+
+/// The real wiki, with no identity (a provider that has no store).
+struct NoIdentity(Arc<WikiRepo>);
+
+#[async_trait]
+impl Texts for NoIdentity {
+    fn capabilities(&self) -> Capabilities {
+        self.0.capabilities()
+    }
+    async fn page(
+        &self,
+        query: &TextQuery,
+        after: Option<&Place>,
+        size: usize,
+    ) -> Result<TextPage> {
+        self.0.page(query, after, size).await
+    }
+    async fn get(&self, id: ObjectId) -> Result<Option<TextEntry>> {
+        self.0.get(id).await
+    }
+    async fn get_by_path(&self, path: &str) -> Result<Option<TextEntry>> {
+        self.0.get_by_path(path).await
+    }
+    async fn list(&self, prefix: &str, page: Paging) -> Result<Vec<TextEntry>> {
+        self.0.list(prefix, page).await
+    }
+    async fn import_text(&self, path: &str, media: &str, text: &str) -> Result<TextEntry> {
+        self.0.import_text(path, media, text).await
+    }
+}
+
+#[test]
+fn records_made_for_a_store_are_not_trusted_by_a_server_that_tells_no_identity() {
+    let dir = temp_dir("cs-noid");
+    let (docs, records) = (dir.join("docs"), dir.join("o.origins"));
+    write_files(&docs, &[("a.md", "# A\\n")]);
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    {
+        let served = rt.block_on(Served::in_memory());
+        let origins = FileOrigins::open(&records).unwrap();
+        let texts = RpcTexts::connect(&served.socket).unwrap();
+        let wiki = Wiki::new(Arc::new(texts), Arc::new(origins));
+        assert_eq!(rt.block_on(import_folder(&wiki, &docs)).imported, 1);
+    }
+    let plain = rt.block_on(Served::in_memory());
+    assert!(plain.repo.identity().is_some());
+    let wiki = Wiki::new(
+        Arc::new(NoIdentity(plain.repo.clone())),
+        Arc::new(FileOrigins::open(&records).unwrap()),
+    );
+    let report = rt.block_on(import_folder(&wiki, &docs));
+    assert_eq!(
+        (report.imported, report.records_ignored),
+        (1, 1),
+        "the records were made for a store this provider cannot name"
+    );
+}

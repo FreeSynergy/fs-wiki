@@ -57,3 +57,17 @@ fn an_empty_or_relative_data_directory_is_treated_as_unset() {
     assert_eq!(data_dir_from(os(""), os("")), None);
     assert_eq!(data_dir_from(None, os("rel")), None);
 }
+
+#[test]
+fn the_old_store_file_of_a_folder_is_found_and_only_when_it_is_there() {
+    use fs_wiki_app::store_path::old_store_file;
+    let dir = std::env::temp_dir().join(format!("fs-wiki-old-store-{}", std::process::id()));
+    let (data, docs) = (dir.join("data"), dir.join("docs"));
+    std::fs::create_dir_all(&docs).unwrap();
+    assert_eq!(old_store_file(&data, &docs), None);
+    let old = origins_file(&data, &docs).with_extension("db");
+    std::fs::create_dir_all(old.parent().unwrap()).unwrap();
+    std::fs::write(&old, b"x").unwrap();
+    assert_eq!(old_store_file(&data, &docs), Some(old));
+    std::fs::remove_dir_all(dir).unwrap();
+}

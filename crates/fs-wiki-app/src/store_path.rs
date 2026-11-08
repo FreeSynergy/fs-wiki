@@ -11,6 +11,17 @@ use crate::hash::digest;
 /// The records file for `docs` below the data directory `data` (`$XDG_DATA_HOME`, else
 /// `$HOME/.local/share`): `<data>/freesynergy/fs-wiki/<folder name>-<hash of the full path>.origins`.
 pub fn origins_file(data: &Path, docs: &Path) -> PathBuf {
+    folder_file(data, docs, "origins")
+}
+
+/// The store file earlier versions of the app kept the wiki of `docs` in (before the wiki moved
+/// into `fs-wiki-server`): `<data>/freesynergy/fs-wiki/<folder name>-<hash>.db`. It is not read any
+/// more; `Some` when it exists, so the app can say so.
+pub fn old_store_file(data: &Path, docs: &Path) -> Option<PathBuf> {
+    Some(folder_file(data, docs, "db")).filter(|f| f.is_file())
+}
+
+fn folder_file(data: &Path, docs: &Path, extension: &str) -> PathBuf {
     let full = docs.canonicalize().unwrap_or_else(|_| docs.to_path_buf());
     let name: String = full
         .file_name()
@@ -22,7 +33,7 @@ pub fn origins_file(data: &Path, docs: &Path) -> PathBuf {
     let hash = digest(full.to_string_lossy().as_bytes());
     data.join("freesynergy")
         .join("fs-wiki")
-        .join(format!("{name}-{}.origins", &hash[..16]))
+        .join(format!("{name}-{}.{extension}", &hash[..16]))
 }
 
 /// The user's data directory, if the environment names one.

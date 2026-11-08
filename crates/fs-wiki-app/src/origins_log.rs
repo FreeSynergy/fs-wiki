@@ -2,7 +2,7 @@
 //!
 //! Pattern: none — free functions on a file.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fs::{File, OpenOptions};
 use std::io::{self, Write};
 use std::os::unix::fs::OpenOptionsExt;
@@ -14,37 +14,54 @@ use rustix::fs::{FlockOperation, flock};
 use rustix::io::Errno;
 use serde::{Deserialize, Serialize};
 
-/// The line that says which store the records are for (the first line of the file, if any).
+/// The line that starts the records of one store; the records after it are that store's.
 #[derive(Serialize, Deserialize)]
 struct Header {
     store: StoreId,
 }
 
-/// What a records file holds: the records, and the store they were made for if the file says it.
-#[derive(Default)]
-pub(crate) struct Content {
-    pub(crate) records: BTreeMap<String, FileOrigin>,
-    pub(crate) store: Option<StoreId>,
+/// The records of one store (or of none), by file.
+pub(crate) type Records = BTreeMap<String, FileOrigin>;
+
+/// What a records file holds: the records from before stores were recorded (`legacy`, at the start
+/// of the file, nobody knows whose), and the records of each store.
+#[derive(Clone, Default)]
+pub(crate) struct Book {
+    pub(crate) legacy: Records,
+    pub(crate) stores: HashMap<StoreId, Records>,
+    /// The store whose header was the last in the file (the end of the file belongs to it).
+    pub(crate) tail: Option<StoreId>,
 }
 
 /// The records of `text`; the last line may be torn, any other bad line is an error: its number and
 /// the parser's reason. A file from before the store id has no header line.
-pub(crate) fn parse(text: &str) -> Result<Content, (usize, String)> {
+pub(crate) fn parse(text: &str) -> Result<Book, (usize, String)> {
     let lines: Vec<&str> = text.lines().filter(|l| !l.trim().is_empty()).collect();
-    let mut content = Content::default();
+    let mut book = Book::default();
     for (i, line) in lines.iter().enumerate() {
         match serde_json::from_str::<FileOrigin>(line) {
-            Ok(r) => {
-                content.records.insert(r.file.clone(), r);
-            }
+            Ok(r) => match book.tail {
+                Some(store) => {
+                    book.stores
+                        .entry(store)
+                        .or_default()
+                        .insert(r.file.clone(), r);
+                }
+                None => {
+                    book.legacy.insert(r.file.clone(), r);
+                }
+            },
             Err(e) => match serde_json::from_str::<Header>(line) {
-                Ok(header) => content.store = Some(header.store),
+                Ok(header) => {
+                    book.stores.entry(header.store).or_default();
+                    book.tail = Some(header.store);
+                }
                 Err(_) if i + 1 == lines.len() && !text.ends_with('\n') => {}
                 Err(_) => return Err((i + 1, e.to_string())),
             },
         }
     }
-    Ok(content)
+    Ok(book)
 }
 
 /// The header line for `store`.
@@ -69,13 +86,14 @@ pub(crate) fn sibling(path: &Path, suffix: &str) -> PathBuf {
     PathBuf::from(name)
 }
 
-/// Write all `records` to a temporary file, sync it, rename it over `path`, sync the folder, and
-/// open `path` for appending.
+/// Write the whole `book` to a temporary file, sync it, rename it over `path`, sync the folder, and
+/// open `path` for appending. The records of `current` come last, so the end of the file is theirs;
+/// the store the end belongs to is returned.
 pub(crate) fn rewrite(
     path: &Path,
-    records: &BTreeMap<String, FileOrigin>,
-    store: Option<StoreId>,
-) -> io::Result<File> {
+    book: &Book,
+    current: Option<StoreId>,
+) -> io::Result<(File, Option<StoreId>)> {
     let temporary = sibling(path, ".tmp");
     let mut file = OpenOptions::new()
         .write(true)
@@ -83,18 +101,32 @@ pub(crate) fn rewrite(
         .truncate(true)
         .mode(0o600)
         .open(&temporary)?;
-    if let Some(store) = store {
-        file.write_all(&header(store)?)?;
-    }
-    for record in records.values() {
+    for record in book.legacy.values() {
         file.write_all(&line(record)?)?;
+    }
+    let mut others: Vec<_> = book
+        .stores
+        .keys()
+        .filter(|s| Some(**s) != current)
+        .collect();
+    others.sort_by_key(|s| s.to_string());
+    let mut tail = None;
+    for store in others.into_iter().copied().chain(current) {
+        let Some(records) = book.stores.get(&store) else {
+            continue;
+        };
+        file.write_all(&header(store)?)?;
+        tail = Some(store);
+        for record in records.values() {
+            file.write_all(&line(record)?)?;
+        }
     }
     file.sync_all()?;
     std::fs::rename(&temporary, path)?;
     if let Some(dir) = path.parent().filter(|d| !d.as_os_str().is_empty()) {
         File::open(dir)?.sync_all()?;
     }
-    OpenOptions::new().append(true).open(path)
+    Ok((OpenOptions::new().append(true).open(path)?, tail))
 }
 
 /// The lock file next to the records.

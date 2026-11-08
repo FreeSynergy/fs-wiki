@@ -22,8 +22,13 @@ pub const NO_SOCKET: &str = "no socket: give --socket PATH of the running fs-wik
 XDG_RUNTIME_DIR, where the server puts its socket by default)";
 
 /// `{count}`: how many records.
-pub const RECORDS_IGNORED: &str = "the server holds none of the {count} imported files recorded \
-here: it is another wiki, so the files are imported again";
+pub const RECORDS_IGNORED: &str = "{count} imported files are recorded here for another wiki \
+(or for a server that cannot say which it is), so they are not trusted and the files are imported again";
+
+/// `{path}`: the old store file of the app.
+pub const OLD_STORE: &str = "an older version of this app kept the wiki of this folder in {path}; \
+it is not read any more (the wiki lives in the server now), and its texts are not copied. Import \
+the folder again, or export what you need from the old file first";
 
 /// The records of another program use this folder. `{path}`: the lock file.
 pub const RECORDS_BUSY: &str = "the records of imported files are in use by another program \

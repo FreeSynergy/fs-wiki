@@ -55,3 +55,29 @@ async fn pages_after_a_place_are_the_ones_of_the_provider_across_server_pages() 
         assert_eq!(mine, theirs);
     }
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn paths_that_differ_only_in_case_are_not_skipped() {
+    let served = Served::in_memory().await;
+    let texts = served.client();
+    for path in ["p/b", "p/a", "p/A"] {
+        texts.create(path, "x\n").await.unwrap();
+    }
+    let query = TextQuery::Prefix("p/".into());
+    let (mut mine, mut theirs) = (Vec::new(), Vec::new());
+    let (mut a, mut b) = (None, None);
+    loop {
+        let left = texts.page(&query, a.as_ref(), 1).await.unwrap();
+        let right = served.repo.page(&query, b.as_ref(), 1).await.unwrap();
+        mine.extend(left.items.iter().map(|p| p.entry.path.clone()));
+        theirs.extend(right.items.iter().map(|p| p.entry.path.clone()));
+        a = left.items.last().map(|p| p.place.clone());
+        b = right.items.last().map(|p| p.place.clone());
+        if !right.more && !left.more {
+            break;
+        }
+        assert_eq!(left.more, right.more);
+    }
+    assert_eq!(theirs.len(), 3);
+    assert_eq!(mine, theirs);
+}

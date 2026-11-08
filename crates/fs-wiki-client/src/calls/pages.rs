@@ -6,6 +6,7 @@
 
 use std::future::Future;
 
+use fs_interfaces::rpc::{encode_place, PlaceParts};
 use fs_interfaces::texts_capnp::text_page;
 use fs_objects::sort_key;
 use fs_wiki_core::{Paging, Place, Placed, Result, TextEntry, TextPage};
@@ -57,10 +58,10 @@ where
     })
 }
 
-/// The page of `size` texts after `after`, fetched with `fetch(cursor)` page after page. The cursor of
-/// the contract is a place the server made; the client cannot make one from a [`Place`], so the pages
-/// are read from the start and the texts up to `after` are dropped (as `collect` does for `offset`).
-/// A path is unique, so its sort key alone tells where a text stands.
+/// The page of `size` texts after `after`, fetched with `fetch(cursor)`. The cursor of the contract
+/// is a place (`fs_interfaces::rpc::encode_place`, since v0.49.1), so the server cuts at exactly the
+/// place the core does (key, name folded, id) and nothing before it is read. A server page is
+/// smaller than `size` at times, so pages are read until `size` texts are there.
 pub(crate) async fn collect_after<F, Fut>(
     after: Option<&Place>,
     size: usize,
@@ -70,21 +71,23 @@ where
     F: FnMut(Vec<u8>) -> Fut,
     Fut: Future<Output = Result<(Vec<TextEntry>, Vec<u8>)>>,
 {
+    let mut cursor = after.map_or_else(Vec::new, |p| {
+        encode_place(&PlaceParts {
+            key: p.key.clone(),
+            name: p.name.clone(),
+            id: p.id,
+        })
+    });
     let mut items: Vec<Placed> = Vec::new();
-    let mut cursor = Vec::new();
     loop {
         let (page, next) = fetch(cursor).await?;
         let empty = page.is_empty();
         for entry in page {
-            let key = sort_key(&entry.path);
-            if after.is_some_and(|a| key.as_str() <= a.key.as_str()) {
-                continue;
-            }
             if items.len() == size {
                 return Ok(TextPage { items, more: true });
             }
             let place = Place {
-                key,
+                key: sort_key(&entry.path),
                 name: entry.envelope.name.clone(),
                 id: entry.id,
             };
@@ -94,6 +97,9 @@ where
         // A page with nothing on it and a cursor would repeat for ever: it ends the list.
         if cursor.is_empty() || empty {
             return Ok(TextPage { items, more: false });
+        }
+        if items.len() == size {
+            return Ok(TextPage { items, more: true });
         }
     }
 }

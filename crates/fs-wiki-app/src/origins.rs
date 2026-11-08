@@ -14,7 +14,6 @@
 //! The blocking write and sync run on a thread for blocking work (`spawn_blocking`), so a slow disk
 //! never holds a thread of the runtime. `Origins` therefore needs a Tokio runtime to run in.
 
-use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -22,9 +21,9 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use async_trait::async_trait;
 use fs_objects::StoreId;
-use fs_wiki_core::{Error, FileOrigin, Origins, Result};
+use fs_wiki_core::{Error, FileOrigin, Foreign, Origins, Result};
 
-use crate::origins_log::{Content, line, lock, lock_path, parse, rewrite};
+use crate::origins_log::{Book, Records, line, lock, lock_path, parse, rewrite};
 use crate::words::{self, say};
 
 /// Why the records could not be opened. Each is a kind of its own; the sentence is the `Display`.
@@ -84,11 +83,30 @@ struct Inner {
 }
 
 struct State {
-    records: BTreeMap<String, FileOrigin>,
-    /// The store the records were made for; none for a file from before it was recorded.
-    store: Option<StoreId>,
+    book: Book,
+    /// The store the caller is connected to; `None` before `belong_to` or for a provider without an
+    /// identity: then the records are those from before stores were recorded.
+    current: Option<StoreId>,
+    /// The store whose records the end of the file holds; appending is only right for `current`.
+    tail: Option<StoreId>,
     /// The file open for appending; `None` after a failed write: the next write starts the file anew.
     log: Option<File>,
+}
+
+impl State {
+    fn records(&self) -> &Records {
+        match self.current.and_then(|s| self.book.stores.get(&s)) {
+            Some(records) => records,
+            None => &self.book.legacy,
+        }
+    }
+
+    fn records_mut(&mut self) -> &mut Records {
+        match self.current {
+            Some(store) => self.book.stores.entry(store).or_default(),
+            None => &mut self.book.legacy,
+        }
+    }
 }
 
 fn failed(sentence: &str, path: &Path, why: &dyn std::fmt::Display) -> OriginsError {
@@ -111,20 +129,21 @@ impl FileOrigins {
             },
             _ => failed(words::RECORDS_LOCK, &lock_path(path), &e),
         })?;
-        let Content { records, store } = match std::fs::read_to_string(path) {
+        let book = match std::fs::read_to_string(path) {
             Ok(text) => parse(&text).map_err(|(line, why)| OriginsError::Damaged {
                 path: path.to_path_buf(),
                 line,
                 why,
             })?,
-            Err(e) if e.kind() == io::ErrorKind::NotFound => Content::default(),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => Book::default(),
             Err(e) => return Err(failed(words::RECORDS_READ, path, &e)),
         };
-        let log =
-            rewrite(path, &records, store).map_err(|e| failed(words::RECORDS_WRITE, path, &e))?;
+        let (log, tail) =
+            rewrite(path, &book, None).map_err(|e| failed(words::RECORDS_WRITE, path, &e))?;
         let state = State {
-            records,
-            store,
+            book,
+            current: None,
+            tail,
             log: Some(log),
         };
         Ok(Self {
@@ -144,22 +163,33 @@ impl Inner {
 
     fn set(&self, origin: &FileOrigin) -> Result<()> {
         let mut state = self.state();
+        // Appending is right only at the end of the records of `current`; else the file is
+        // written anew with them last.
+        let appendable =
+            state.tail == state.current && (state.current.is_some() || state.tail.is_none());
         let written = match state.log.as_mut() {
-            Some(log) => {
+            Some(log) if appendable => {
                 line(origin).and_then(|l| log.write_all(&l).and_then(|()| log.sync_data()))
             }
-            None => Err(io::Error::other("an earlier write failed")),
+            _ => Err(io::Error::other(
+                "the end of the file is not these records'",
+            )),
         };
-        let earlier = state.records.insert(origin.file.clone(), origin.clone());
+        let earlier = state
+            .records_mut()
+            .insert(origin.file.clone(), origin.clone());
         if written.is_err() {
             // The tail of the file is unknown now: start it anew, with the record included.
             state.log = None;
-            match rewrite(&self.path, &state.records, state.store) {
-                Ok(log) => state.log = Some(log),
+            match rewrite(&self.path, &state.book, state.current) {
+                Ok((log, tail)) => {
+                    state.log = Some(log);
+                    state.tail = tail;
+                }
                 Err(e) => {
                     match earlier {
-                        Some(old) => state.records.insert(old.file.clone(), old),
-                        None => state.records.remove(&origin.file),
+                        Some(old) => state.records_mut().insert(old.file.clone(), old),
+                        None => state.records_mut().remove(&origin.file),
                     };
                     return Err(failed(words::RECORDS_WRITE, &self.path, &e).into());
                 }
@@ -167,28 +197,44 @@ impl Inner {
         }
         Ok(())
     }
-}
 
-impl Inner {
-    /// The records belong to `store` from now on. Those of another store are dropped.
-    fn belong_to(&self, store: StoreId) -> Result<()> {
+    fn belong_to(&self, store: Option<StoreId>) -> Foreign {
         let mut state = self.state();
-        if state.store == Some(store) {
-            return Ok(());
+        state.current = store;
+        if let Some(store) = store {
+            state.book.stores.entry(store).or_default();
         }
-        let records = if state.store.is_some() {
-            BTreeMap::new()
-        } else {
-            state.records.clone()
+        let others = state
+            .book
+            .stores
+            .iter()
+            .filter(|(s, _)| Some(**s) != store)
+            .map(|(_, r)| r.len())
+            .sum();
+        let legacy = match store {
+            Some(_) => state.book.legacy.values().cloned().collect(),
+            None => Vec::new(),
         };
+        Foreign { legacy, others }
+    }
+
+    fn adopt_legacy(&self) -> Result<()> {
+        let mut state = self.state();
+        let Some(store) = state.current else {
+            return Ok(());
+        };
+        let mut book = state.book.clone();
+        let legacy = std::mem::take(&mut book.legacy);
+        let section = book.stores.entry(store).or_default();
+        for (file, record) in legacy {
+            section.entry(file).or_insert(record);
+        }
         // The file is written first: a failure leaves memory as it was.
-        let log = rewrite(&self.path, &records, Some(store))
+        let (log, tail) = rewrite(&self.path, &book, Some(store))
             .map_err(|e| failed(words::RECORDS_WRITE, &self.path, &e))?;
-        *state = State {
-            records,
-            store: Some(store),
-            log: Some(log),
-        };
+        state.book = book;
+        state.log = Some(log);
+        state.tail = tail;
         Ok(())
     }
 }
@@ -202,7 +248,7 @@ impl Origins for FileOrigins {
     async fn origins(&self) -> Result<Vec<FileOrigin>> {
         let inner = self.inner.clone();
         let read = tokio::task::spawn_blocking(move || {
-            Ok(inner.state().records.values().cloned().collect())
+            Ok(inner.state().records().values().cloned().collect())
         });
         joined(read.await)
     }
@@ -212,12 +258,12 @@ impl Origins for FileOrigins {
         joined(tokio::task::spawn_blocking(move || inner.set(&origin)).await)
     }
 
-    async fn recorded_store(&self) -> Result<Option<StoreId>> {
-        Ok(self.inner.state().store)
+    async fn belong_to(&self, store: Option<StoreId>) -> Result<Foreign> {
+        Ok(self.inner.belong_to(store))
     }
 
-    async fn belong_to(&self, store: StoreId) -> Result<()> {
+    async fn adopt_legacy(&self) -> Result<()> {
         let inner = self.inner.clone();
-        joined(tokio::task::spawn_blocking(move || inner.belong_to(store)).await)
+        joined(tokio::task::spawn_blocking(move || inner.adopt_legacy()).await)
     }
 }
