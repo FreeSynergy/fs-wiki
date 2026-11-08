@@ -109,7 +109,7 @@ pub(crate) fn rewrite(
         .keys()
         .filter(|s| Some(**s) != current)
         .collect();
-    others.sort_by_key(|s| s.to_string());
+    others.sort_by_key(ToString::to_string);
     let mut tail = None;
     for store in others.into_iter().copied().chain(current) {
         let Some(records) = book.stores.get(&store) else {
