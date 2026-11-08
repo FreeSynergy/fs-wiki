@@ -1,7 +1,7 @@
 //! `page` and `identity` over the socket give what the provider behind it gives.
 //!
-//! Pattern: Integration tests against the trait; no stand-ins. The client cannot make the cursor of
-//! the server from a place, so it reads from the start; the answers must still be the provider's own.
+//! Pattern: Integration tests against the trait; no stand-ins. The client hands the server the
+//! cursor of a place (`encode_place`); the answers must be the provider's own.
 
 mod common;
 
