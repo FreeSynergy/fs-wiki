@@ -187,6 +187,9 @@ impl Texts for NoIdentity {
     async fn import_text(&self, path: &str, media: &str, text: &str) -> Result<TextEntry> {
         self.0.import_text(path, media, text).await
     }
+    async fn delete(&self, id: ObjectId) -> Result<()> {
+        self.0.delete(id).await
+    }
 }
 
 #[test]
@@ -214,4 +217,42 @@ fn records_made_for_a_store_are_not_trusted_by_a_server_that_tells_no_identity()
         (1, 1),
         "the records were made for a store this provider cannot name"
     );
+}
+
+#[test]
+fn a_server_with_no_identity_trusts_its_own_records_at_the_next_start() {
+    let dir = temp_dir("cs-noid-own");
+    let (docs, records) = (dir.join("docs"), dir.join("o.origins"));
+    write_files(&docs, &[("a.md", "# A\n"), ("b.md", "# B\n")]);
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    {
+        let served = rt.block_on(Served::in_memory());
+        let origins = FileOrigins::open(&records).unwrap();
+        let texts = RpcTexts::connect(&served.socket).unwrap();
+        let wiki = Wiki::new(Arc::new(texts), Arc::new(origins));
+        assert_eq!(rt.block_on(import_folder(&wiki, &docs)).imported, 2);
+    }
+    let plain = rt.block_on(Served::in_memory());
+    let open = || {
+        Wiki::new(
+            Arc::new(NoIdentity(plain.repo.clone())),
+            Arc::new(FileOrigins::open(&records).unwrap()),
+        )
+    };
+    {
+        let wiki = open();
+        assert_eq!(rt.block_on(import_folder(&wiki, &docs)).imported, 2);
+        let b = rt.block_on(wiki.get_by_path("b.md")).unwrap().unwrap();
+        rt.block_on(wiki.delete(b.id)).unwrap();
+    }
+    for _ in 0..2 {
+        let wiki = open();
+        let report = rt.block_on(import_folder(&wiki, &docs));
+        assert_eq!(
+            (report.imported, report.unchanged),
+            (0, 2),
+            "b.md was deleted in the app and stays deleted"
+        );
+        assert!(rt.block_on(wiki.get_by_path("b.md")).unwrap().is_none());
+    }
 }

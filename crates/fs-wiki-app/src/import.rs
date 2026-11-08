@@ -10,6 +10,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use fs_objects::StoreId;
 use fs_wiki_core::{FileOrigin, Origins, Texts};
 
 use crate::check::present_ids;
@@ -38,10 +39,19 @@ pub async fn import_folder_within<W: Texts + Origins + ?Sized>(
     files.sort();
     // Whose records they are is the store's identity (`Texts::identity`): the records of the store
     // we are connected to are used, those of other stores are kept in the file and not used.
-    let foreign = match wiki.belong_to(wiki.identity()).await {
+    let identity = wiki.identity();
+    let mut foreign = match wiki.belong_to(identity).await {
         Ok(foreign) => foreign,
         Err(e) => return failed_start(report, &e),
     };
+    if identity.is_none() && foreign.others > 0 {
+        // A file made for stores, and a server that tells none: its records get a section of their
+        // own, so they are trusted at the next start (the stores' records stay as they are).
+        foreign = match wiki.belong_to(Some(unidentified())).await {
+            Ok(foreign) => foreign,
+            Err(e) => return failed_start(report, &e),
+        };
+    }
     let mut known = match records_of(wiki).await {
         Ok(known) => known,
         Err(e) => {
@@ -53,13 +63,9 @@ pub async fn import_folder_within<W: Texts + Origins + ?Sized>(
         }
     };
     let mut checked = None;
-    if wiki.identity().is_none() && foreign.others > 0 {
-        // The file was made for stores, this server tells none: the records are not known to fit.
-        report.records_ignored = known.len() + foreign.others;
-        known.clear();
-    } else if wiki.identity().is_some() && known.is_empty() {
+    if known.is_empty() {
         report.records_ignored = foreign.others;
-        if !foreign.legacy.is_empty() {
+        if identity.is_some() && !foreign.legacy.is_empty() {
             // Records from before the store was recorded: they are taken over only if the server has
             // at least one of their texts (one deleted on purpose does not count). Otherwise they
             // may be of another server, and the file is never bound to this one by their account.
@@ -127,6 +133,13 @@ pub async fn import_folder_within<W: Texts + Origins + ?Sized>(
     }
     report.gone.sort_by(|a, b| a.path.cmp(&b.path));
     report
+}
+
+/// The section of the records of a provider that tells no identity, in a file that has stores.
+fn unidentified() -> StoreId {
+    "00000000-0000-4000-8000-000000000000"
+        .parse()
+        .expect("a UUIDv4 text")
 }
 
 /// The records `wiki` answers with, by file.
