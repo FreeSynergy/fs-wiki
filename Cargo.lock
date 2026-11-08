@@ -1502,6 +1502,77 @@ dependencies = [
 ]
 
 [[package]]
+name = "fs-hub"
+version = "0.4.0"
+source = "git+https://github.com/FreeSynergy/fs-hub?tag=v0.4.0#670fbfda7705a2c62776aac5127bf721cca97253"
+dependencies = [
+ "async-trait",
+ "capnp",
+ "capnp-rpc",
+ "chrono",
+ "fs-hub-proto",
+ "fs-interfaces 0.45.0",
+ "fs-objects",
+ "futures",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "fs-hub-client"
+version = "0.4.0"
+source = "git+https://github.com/FreeSynergy/fs-hub?tag=v0.4.0#670fbfda7705a2c62776aac5127bf721cca97253"
+dependencies = [
+ "capnp",
+ "capnp-rpc",
+ "chrono",
+ "fs-hub-proto",
+ "fs-interfaces 0.45.0",
+ "fs-objects",
+ "futures",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
+name = "fs-hub-proto"
+version = "0.4.0"
+source = "git+https://github.com/FreeSynergy/fs-hub?tag=v0.4.0#670fbfda7705a2c62776aac5127bf721cca97253"
+dependencies = [
+ "capnp",
+ "chrono",
+ "fs-interfaces 0.45.0",
+ "fs-objects",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "uuid",
+]
+
+[[package]]
+name = "fs-interfaces"
+version = "0.45.0"
+source = "git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.45.0#bc4eda933e80c537ae2d73dea371051ed3443fd9"
+dependencies = [
+ "capnp",
+ "capnp-rpc",
+ "chrono",
+ "fs-objects",
+ "futures",
+ "rustix 1.1.6",
+ "tokio",
+ "tokio-util",
+ "uuid",
+]
+
+[[package]]
 name = "fs-interfaces"
 version = "0.50.0"
 source = "git+https://github.com/FreeSynergy/fs-interfaces?rev=b83cbb5#b83cbb5e6e04623a2e1f5acd7e88c8816dfe6c56"
@@ -1578,7 +1649,7 @@ dependencies = [
  "async-trait",
  "capnp",
  "capnp-rpc",
- "fs-interfaces",
+ "fs-interfaces 0.50.0",
  "fs-objects",
  "fs-text",
  "fs-wiki-core",
@@ -1596,7 +1667,7 @@ version = "0.5.0"
 dependencies = [
  "async-trait",
  "chrono",
- "fs-interfaces",
+ "fs-interfaces 0.50.0",
  "fs-objects",
  "fs-text",
  "serde",
@@ -1615,7 +1686,9 @@ dependencies = [
  "async-trait",
  "capnp",
  "capnp-rpc",
- "fs-interfaces",
+ "fs-hub",
+ "fs-hub-client",
+ "fs-interfaces 0.50.0",
  "fs-objects",
  "fs-text",
  "fs-wiki-core",
@@ -1629,7 +1702,7 @@ dependencies = [
 name = "fs-wiki-testserver"
 version = "0.5.0"
 dependencies = [
- "fs-interfaces",
+ "fs-interfaces 0.50.0",
  "fs-objects",
  "fs-wiki-core",
  "fs-wiki-server",

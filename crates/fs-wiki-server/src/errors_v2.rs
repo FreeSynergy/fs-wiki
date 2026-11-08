@@ -7,12 +7,17 @@
 //! `type` and the extensions, never the sentence. The 0.1 methods keep their extensions (`kind` is
 //! `page` there) except the conflict, which is typed for every method that can raise it.
 
-use fs_interfaces::rpc::{problem_keys as keys, Problem};
+use fs_interfaces::rpc::{failed, problem_keys as keys, Problem};
 use fs_interfaces::texts_capnp as c;
-use fs_wiki_core::Error;
+use fs_wiki_core::{Error, Refusal};
 
 use crate::errors::rpc_error;
 use crate::facts::PATH;
+
+/// A purge needs a hub to sync with and there is none (not in `texts.capnp`: see DESIGN.md).
+pub const NO_HUB_PROBLEM_TYPE: &str = "https://freesynergy.net/problems/texts/no-hub";
+/// The hub does not have everything of the object yet, so it is not purged (not in `texts.capnp`).
+pub const NOT_SYNCED_PROBLEM_TYPE: &str = "https://freesynergy.net/problems/texts/not-synced";
 
 /// `kind` of a text in the 0.2 problems.
 const TEXT: &str = "text";
@@ -84,6 +89,16 @@ pub(crate) fn rpc_error_v2(e: Error) -> capnp::Error {
             .with_ext(keys::ID, &id.to_string())
             .with_ext(keys::KIND, TEXT)
             .into_error(),
+        Error::PurgeRefused(Refusal::NoHub) => {
+            problem(&e, NO_HUB_PROBLEM_TYPE, "No hub", 503).into_error()
+        }
+        Error::PurgeRefused(Refusal::NotSynced(id)) => {
+            problem(&e, NOT_SYNCED_PROBLEM_TYPE, "Not synced", 409)
+                .with_ext(keys::ID, &id.to_string())
+                .with_ext(keys::KIND, TEXT)
+                .into_error()
+        }
+        Error::PurgeRefused(Refusal::Failed(_)) => failed(e.to_string()),
         Error::NotEmpty(id) => problem(&e, c::NOT_EMPTY_PROBLEM_TYPE, "Folder not empty", 409)
             .with_ext(keys::ID, &id.to_string())
             .with_ext(keys::KIND, FOLDER)

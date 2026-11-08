@@ -123,7 +123,10 @@ where
 {
     let store: std::sync::Arc<dyn fs_objects::Store> =
         std::sync::Arc::new(fs_objects::TursoStore::open_in_memory().await.unwrap());
-    let repo = std::sync::Arc::new(fs_wiki_core::WikiRepo::new(store, common::ME));
+    let repo = std::sync::Arc::new(
+        fs_wiki_core::WikiRepo::new(store.clone(), common::ME)
+            .with_log_purge(std::sync::Arc::new(common::ports::Direct(store))),
+    );
     let server = fs_wiki_server::TextsServer::new(repo.clone(), repo).with_page_size(2);
     common::with_page_size(server, test).await;
 }

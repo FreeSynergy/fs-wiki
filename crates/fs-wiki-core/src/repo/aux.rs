@@ -92,7 +92,7 @@ impl WikiRepo {
     pub(super) fn purger(
         &self,
         capability: &str,
-    ) -> Result<&std::sync::Arc<dyn super::backend::LogPurge>> {
+    ) -> Result<&std::sync::Arc<dyn crate::purge::LogPurge>> {
         self.purger.as_ref().ok_or_else(|| {
             fs_interfaces::Unsupported::new(
                 capability,
@@ -100,5 +100,27 @@ impl WikiRepo {
             )
             .into()
         })
+    }
+}
+
+impl WikiRepo {
+    /// Purge the log of `id` through the port. `cleaned` collects whether the file was cleaned too.
+    pub(super) async fn purge_log(
+        &self,
+        capability: &str,
+        id: ObjectId,
+        cleaned: &mut bool,
+    ) -> Result<()> {
+        let outcome = self.purger(capability)?.purge(id).await?;
+        *cleaned &= outcome.file_cleaned;
+        Ok(())
+    }
+
+    /// Repeat the file clean-up if a purge could not do it.
+    pub(super) async fn finish_purge(&self, capability: &str, cleaned: bool) -> Result<()> {
+        if !cleaned {
+            self.purger(capability)?.clean_files().await?;
+        }
+        Ok(())
     }
 }

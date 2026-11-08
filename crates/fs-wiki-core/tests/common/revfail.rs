@@ -103,6 +103,7 @@ pub async fn make() -> (Arc<RevFail>, Arc<WikiRepo>, Arc<TursoStore>) {
     });
     let reads: Arc<dyn ObjectQuery> = store.clone();
     let as_store: Arc<dyn Store> = store.clone();
-    let repo = WikiRepo::with_backend(rf.clone(), reads, ME).with_log_purge(as_store);
+    let repo = WikiRepo::with_backend(rf.clone(), reads, ME)
+        .with_log_purge(Arc::new(super::ports::DirectPort(as_store)));
     (rf, Arc::new(repo), store)
 }

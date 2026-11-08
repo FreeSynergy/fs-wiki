@@ -29,6 +29,7 @@ mod media;
 mod nodes;
 mod page;
 mod path;
+mod purge;
 mod reason;
 mod redirect;
 mod repo;
@@ -46,6 +47,7 @@ pub use media::{TextFormat, MARKDOWN};
 pub use nodes::{Node, NodeKind, NodePage, Placement};
 pub use page::{Place, Placed, TextPage, TextQuery};
 pub use path::TextPath;
+pub use purge::{LogPurge, PurgeOutcome, Refusal};
 pub use reason::Reason;
 pub use redirect::{Outcome, Resolution, MAX_REDIRECT_HOPS};
 pub use repo::{

@@ -106,6 +106,9 @@ pub enum Error {
     /// No space or folder with this id.
     #[error("no folder {0}")]
     NoSuchNode(ObjectId),
+    /// The port that removes an object from the log refused (no hub, not synced): nothing was purged.
+    #[error(transparent)]
+    PurgeRefused(#[from] crate::purge::Refusal),
     /// The explicit "not possible" of a provider (ADR 0045).
     #[error(transparent)]
     Unsupported(#[from] fs_interfaces::Unsupported),

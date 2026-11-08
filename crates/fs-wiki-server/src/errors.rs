@@ -47,7 +47,8 @@ pub(crate) fn rpc_error(e: Error) -> capnp::Error {
         | Error::NotInTrash(_)
         | Error::NotEmpty(_)
         | Error::NoSuchRevision { .. }
-        | Error::NoSuchNode(_) => crate::errors_v2::rpc_error_v2(e),
+        | Error::NoSuchNode(_)
+        | Error::PurgeRefused(_) => crate::errors_v2::rpc_error_v2(e),
         Error::Json(_) | Error::NotAText(_) | Error::Stored(_) | Error::Store(_) => {
             failed(text.clone())
         }

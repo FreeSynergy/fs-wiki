@@ -11,8 +11,9 @@ use fs_objects::traits::{ObjectQuery, ObjectRepository};
 use fs_objects::{Store, StoreInfo};
 use tokio::sync::Mutex;
 
-use super::backend::{LogPurge, StoreAdapter};
+use super::backend::StoreAdapter;
 use crate::feed::Registry;
+use crate::purge::LogPurge;
 
 /// AS2 context of texts; also the first segment of their IRI.
 pub const CONTEXT: &str = "texts";
@@ -44,8 +45,7 @@ impl WikiRepo {
     /// A wiki over the whole store, acting as `actor` (an IRI, recorded in the activity log).
     pub fn new(store: Arc<dyn Store>, actor: impl Into<String>) -> Self {
         let adapter = Arc::new(StoreAdapter(store));
-        let mut repo = Self::with_backend(adapter.clone(), adapter.clone(), actor);
-        repo.purger = Some(adapter.clone());
+        let repo = Self::with_backend(adapter.clone(), adapter.clone(), actor);
         repo.with_info(adapter)
     }
 
@@ -67,11 +67,12 @@ impl WikiRepo {
         }
     }
 
-    /// Say that `store` can remove an object from its log: `purge` and `purgeRevision` need it. A wiki made
-    /// with [`WikiRepo::new`] has it already; one made with [`WikiRepo::with_backend`] does not.
+    /// Give the wiki the port through which it removes an object from the log (`purge`,
+    /// `purgeRevision`). Without one those two answer `Unsupported`, and the report does not offer
+    /// `text.trash` and `text.history`. The wiki never purges a log by itself.
     #[must_use]
-    pub fn with_log_purge(mut self, store: Arc<dyn Store>) -> Self {
-        self.purger = Some(Arc::new(StoreAdapter(store)));
+    pub fn with_log_purge(mut self, port: Arc<dyn LogPurge>) -> Self {
+        self.purger = Some(port);
         self
     }
 

@@ -117,10 +117,8 @@ async fn a_purge_of_a_revision_that_stopped_half_way_is_finished_by_a_retry() {
     let t = w.create("a", "half-needle\n").await.unwrap();
     let t = say(&w, &t, "two\n").await;
     let t = say(&w, &t, "three\n").await;
-    // The record of the removal is written twice; the second write fails.
-    let left = rf.revisions_left.load(Ordering::SeqCst);
-    assert_eq!(left, usize::MAX);
-    rf.revisions_left.store(1, Ordering::SeqCst);
+    // The logs are purged first, then the record is written; that write fails.
+    rf.revisions_left.store(0, Ordering::SeqCst);
     assert!(w.purge_revision(t.id, 1).await.is_err());
     rf.revisions_left.store(usize::MAX, Ordering::SeqCst);
     w.purge_revision(t.id, 1).await.unwrap();
@@ -284,4 +282,65 @@ async fn a_request_that_is_refused_writes_nothing() {
         [3, 1],
         "the late record came with the valid request only"
     );
+}
+
+fn hubless(
+    w: &fs_wiki_core::WikiRepo,
+    id: fs_objects::ObjectId,
+) -> impl std::future::Future<Output = Result<(), Error>> + '_ {
+    w.purge(id)
+}
+
+#[tokio::test]
+async fn a_port_that_refuses_purges_nothing_and_a_retry_completes() {
+    let store = std::sync::Arc::new(fs_objects::TursoStore::open_in_memory().await.unwrap());
+    let as_store: std::sync::Arc<dyn Store> = store.clone();
+    let gate = common::ports::Gate::over(as_store.clone());
+    let w = fs_wiki_core::WikiRepo::new(as_store, common::ME).with_log_purge(gate.clone());
+    let t = w.create("a", "SECRET0\n").await.unwrap();
+    let t = say(&w, &t, "SECRET1\n").await;
+    let t = say(&w, &t, "SECRET2\n").await;
+    // purgeRevision: refused, then nothing changed and the record still reads
+    for refusal in [
+        fs_wiki_core::Refusal::NoHub,
+        fs_wiki_core::Refusal::NotSynced(t.id),
+    ] {
+        gate.set(Some(refusal.clone()));
+        let err = w.purge_revision(t.id, 1).await.unwrap_err();
+        assert!(
+            matches!(&err, Error::PurgeRefused(r) if *r == refusal),
+            "{err:?}"
+        );
+        let kept = w
+            .get_revision(t.id, 1)
+            .await
+            .unwrap()
+            .expect("the record is untouched");
+        assert!(has(&kept.document, "SECRET0"));
+    }
+    gate.set(None);
+    w.purge_revision(t.id, 1).await.unwrap();
+    assert!(!log_text(&store).await.contains("SECRET0"));
+    assert!(w.get_revision(t.id, 1).await.unwrap().is_none());
+    // purge of a trashed text: refused before anything is deleted, then completed
+    w.trash(t.id).await.unwrap();
+    gate.set(Some(fs_wiki_core::Refusal::NoHub));
+    let err = hubless(&w, t.id).await.unwrap_err();
+    assert!(matches!(
+        err,
+        Error::PurgeRefused(fs_wiki_core::Refusal::NoHub)
+    ));
+    assert_eq!(
+        w.list_trash(None, 10).await.unwrap().items.len(),
+        1,
+        "still in the trash"
+    );
+    assert!(
+        w.history(t.id, None, 10).await.is_ok(),
+        "its history is still there"
+    );
+    gate.set(None);
+    w.purge(t.id).await.unwrap();
+    assert!(!everything(&store).await.contains("SECRET"));
+    assert!(w.list_trash(None, 10).await.unwrap().items.is_empty());
 }

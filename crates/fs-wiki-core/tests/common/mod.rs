@@ -3,6 +3,7 @@
 #![allow(dead_code)] // each test file uses a different subset
 
 pub mod counting;
+pub mod ports;
 pub mod revfail;
 
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -27,7 +28,10 @@ pub async fn wiki() -> WikiRepo {
 /// The wiki and a handle to its store (for undo checks).
 pub async fn setup() -> (WikiRepo, Arc<dyn Store>) {
     let store: Arc<dyn Store> = Arc::new(TursoStore::open_in_memory().await.unwrap());
-    (WikiRepo::new(store.clone(), ME), store)
+    (
+        WikiRepo::new(store.clone(), ME).with_log_purge(Arc::new(ports::DirectPort(store.clone()))),
+        store,
+    )
 }
 
 pub fn paths(texts: &[TextEntry]) -> Vec<&str> {

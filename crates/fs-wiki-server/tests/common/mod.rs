@@ -3,6 +3,7 @@
 #![allow(dead_code)] // each test file uses a different subset
 
 pub mod counting;
+pub mod ports;
 pub mod seen;
 pub mod v2;
 
@@ -57,7 +58,8 @@ where
     Fut: Future<Output = ()>,
 {
     let store: Arc<dyn Store> = Arc::new(TursoStore::open_in_memory().await.unwrap());
-    let repo = Arc::new(WikiRepo::new(store, ME));
+    let repo =
+        Arc::new(WikiRepo::new(store.clone(), ME).with_log_purge(Arc::new(ports::Direct(store))));
     with_provider(repo.clone(), repo, test).await;
 }
 
