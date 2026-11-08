@@ -97,7 +97,7 @@ has a `Pattern:` line. For `fs-text` see its own DESIGN.md.
 | `texts_service.rs` | Adapter + Facade | the root capability `TextsServer`; depends on `dyn Texts` + `dyn TextFeed`, never on `WikiRepo`; each method forwards to `reads` / `writes` |
 | `reads.rs`, `writes.rs` | Adapter (+ Command for writes) | wire in, one trait call, wire out; every write runs through `run_to_end`, so a client that goes away cannot leave a move half done |
 | `wire.rs`, `links.rs` | Adapter | texts and link rows on the wire; every size checked here (`fits` counts the document's JSON without building it and stops at the limit) |
-| `paging.rs`, `cursor.rs` | Adapter / none | the page of the provider cut by weight, written with the cursor of its last place; the cursor as bytes (same shape as `fs-tasks-server`, to move into `fs-interfaces`) |
+| `paging.rs`, `cursor.rs` | Adapter / none | the page of the provider cut by weight, written with the cursor of its last place; the cursor as bytes (the bytes are `fs_interfaces::rpc::encode_place`, shared with `fs-tasks-server` since `fs-interfaces` v0.49.1) |
 | `facts.rs` | none (pure function) | the extensions of a problem, from the core error |
 | `errors.rs` | Adapter | core errors as RFC 9457 problems; an unknown media type is the explicit `Unsupported` of `text.import` / `text.export` |
 | `feed.rs` | Observer + Adapter | `TextFeed` to the shared forwarder; a failed read ends the feed with `ended` |
