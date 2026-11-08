@@ -5,7 +5,9 @@
 //! `HubSession::sync_then_purge` syncs with the hub, checks that no entry of the object is left
 //! unsynced, and only then purges. No hub, a failed sync or entries the hub holds back: nothing is
 //! purged (fail closed). The hub is looked for at every purge, so one started later is found; a dead
-//! cached session is dropped and tried once anew; connecting and each purge have a time limit.
+//! cached session is dropped and tried once anew; connecting and each purge have a time limit. The sync
+//! and the purge run in a spawned task: a timeout or a dropped caller stops the waiting, never the work
+//! (cancel safety of `fs-objects` is not relied on, see DESIGN.md "Cancelling").
 
 use std::io::ErrorKind;
 use std::path::PathBuf;
@@ -131,8 +133,17 @@ impl LogPurge for HubPurge {
         let mut last = Refusal::NoHub;
         for _ in 0..2 {
             let session = self.session().await?;
-            let purging = session.sync_then_purge(&*self.store, id);
-            match timeout(self.limits.1, purging).await {
+            // Run in a task of its own: a timeout (or a caller that goes away and drops this future) stops
+            // the waiting but never cuts the sync or the purge in the middle.
+            let store = self.store.clone();
+            let mut task = tokio::spawn(async move { session.sync_then_purge(&*store, id).await });
+            let joined = timeout(self.limits.1, &mut task).await;
+            let outcome = match joined {
+                Ok(Ok(done)) => Ok(done),
+                Ok(Err(e)) => return Err(Refusal::Failed(format!("the purge task failed: {e}"))),
+                Err(elapsed) => Err(elapsed),
+            };
+            match outcome {
                 Ok(Ok(report)) => {
                     return Ok(PurgeOutcome {
                         file_cleaned: report.file_cleaned,
@@ -147,6 +158,7 @@ impl LogPurge for HubPurge {
                     }
                 }
                 Err(_) => {
+                    // The task keeps running (the handle is detached); a retry purges again, which is safe.
                     self.forget().await;
                     return Err(Refusal::Timeout);
                 }
