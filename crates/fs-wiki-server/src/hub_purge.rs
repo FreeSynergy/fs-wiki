@@ -145,9 +145,16 @@ impl LogPurge for HubPurge {
             };
             match outcome {
                 Ok(Ok(report)) => {
+                    if report.unsynced_removed > 0 {
+                        // A write slipped in between the check and the purge: the hub never got it.
+                        eprintln!(
+                            "fs-wiki-server: purge of {id} dropped {} entries the hub did not have",
+                            report.unsynced_removed
+                        );
+                    }
                     return Ok(PurgeOutcome {
                         file_cleaned: report.file_cleaned,
-                    })
+                    });
                 }
                 Ok(Err(e)) => {
                     self.forget().await;
