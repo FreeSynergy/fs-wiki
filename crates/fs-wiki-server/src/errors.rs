@@ -31,9 +31,9 @@ pub(crate) fn rpc_error(e: Error) -> capnp::Error {
         Error::NotFound(_) | Error::NoSuchFolder(_) | Error::Store(Store::NotFound(_)) => {
             problem(NOT_FOUND, "Text not found", 404)
         }
-        Error::Conflict { .. } | Error::Store(Store::Conflict(_)) => {
-            problem(CONFLICT, "Conflict", 409)
-        }
+        Error::Conflict { .. } => crate::errors_v2::conflict(&e, crate::facts::PAGE)
+            .unwrap_or_else(|| failed(text.clone())),
+        Error::Store(Store::Conflict(_)) => problem(CONFLICT, "Conflict", 409),
         Error::PathTaken(_) => problem(PATH_TAKEN, "Path taken", 409),
         Error::MoveUnfinished { .. } | Error::TargetNotEmpty { .. } => {
             problem(MOVE_REFUSED, "Move refused", 409)
@@ -42,6 +42,12 @@ pub(crate) fn rpc_error(e: Error) -> capnp::Error {
         | Error::InvalidMove { .. }
         | Error::MediaType(_)
         | Error::Store(Store::Invalid(_)) => problem(INVALID, "Invalid text", 422),
+        // Only the 0.2 methods raise these; their own mapping (`errors_v2`) types them.
+        Error::Invalid { .. }
+        | Error::NotInTrash(_)
+        | Error::NotEmpty(_)
+        | Error::NoSuchRevision { .. }
+        | Error::NoSuchNode(_) => crate::errors_v2::rpc_error_v2(e),
         Error::Json(_) | Error::NotAText(_) | Error::Stored(_) | Error::Store(_) => {
             failed(text.clone())
         }

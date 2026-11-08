@@ -11,15 +11,22 @@
 #![allow(clippy::missing_errors_doc, clippy::unused_async_trait_impl)]
 
 mod cursor;
+mod cursors;
 mod errors;
+mod errors_v2;
 mod facts;
 mod feed;
 mod links;
 mod paging;
 mod reads;
+mod reads_v2;
 mod texts_service;
 mod wire;
+mod wire_history;
+mod wire_nodes;
+mod wire_search;
 mod writes;
+mod writes_v2;
 
 pub use texts_service::{TextsServer, CONTRACT_VERSION};
 pub use wire::MAX_SOURCE_BYTES;

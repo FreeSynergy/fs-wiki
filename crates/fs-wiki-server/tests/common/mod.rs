@@ -4,6 +4,7 @@
 
 pub mod counting;
 pub mod seen;
+pub mod v2;
 
 use std::future::Future;
 use std::sync::Arc;
@@ -28,6 +29,9 @@ pub struct Got {
     pub path: String,
     pub document: String,
     pub revision: u64,
+    pub template: bool,
+    pub redirect_to: String,
+    pub updated_by: String,
 }
 
 pub fn read_text(t: text_entry::Reader<'_>) -> Got {
@@ -40,6 +44,9 @@ pub fn read_text(t: text_entry::Reader<'_>) -> Got {
         path: t.get_path().unwrap().to_string().unwrap(),
         document: t.get_document().unwrap().to_string().unwrap(),
         revision: t.get_revision(),
+        template: t.get_template(),
+        redirect_to: t.get_redirect_to().unwrap().to_string().unwrap(),
+        updated_by: t.get_updated_by().unwrap().to_string().unwrap(),
     }
 }
 

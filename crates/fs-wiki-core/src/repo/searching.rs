@@ -102,7 +102,6 @@ fn hit_of(t: &TextEntry, n: &Needles) -> Option<SearchHit> {
     }
     let body = blocks(t);
     let all = body.join("\n");
-    // Every word must occur somewhere.
     let covered = (0..n.words.len()).all(|i| {
         let one = n.only(i);
         one.hits(&hit.name) + one.hits(&hit.path) + one.hits(&all) > 0

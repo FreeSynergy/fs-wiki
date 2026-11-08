@@ -19,7 +19,7 @@ use fs_wiki_core::{
 };
 use fs_wiki_server::CONTRACT_VERSION;
 
-const ALL: [&str; 10] = [
+const ALL: [&str; 17] = [
     "text.create",
     "text.edit",
     "text.move",
@@ -30,6 +30,13 @@ const ALL: [&str; 10] = [
     "text.import",
     "text.export",
     "text.subscribe",
+    "text.editSummary",
+    "text.history",
+    "text.trash",
+    "text.space",
+    "text.template",
+    "text.redirect",
+    "text.search",
 ];
 
 async fn report(root: &texts::Client) -> (String, String, Vec<(String, bool, String)>) {
@@ -148,6 +155,22 @@ async fn a_provider_without_a_method_answers_not_possible_with_its_capability() 
         let mut req = root.find_request();
         req.get().set_term("shipped");
         not_possible(req.send().promise.await.err().unwrap(), "text.find");
+        // The methods of texts 0.2 answer the same way, with their own capability ids.
+        let mut req = root.history_request();
+        set_id(req.get().init_id(), id.as_uuid());
+        not_possible(req.send().promise.await.err().unwrap(), "text.history");
+        let mut req = root.trash_request();
+        set_id(req.get().init_id(), id.as_uuid());
+        not_possible(req.send().promise.await.err().unwrap(), "text.trash");
+        let mut req = root.search_request();
+        req.get().init_query().set_term("shipped");
+        not_possible(req.send().promise.await.err().unwrap(), "text.search");
+        let mut req = root.resolve_request();
+        req.get().set_path("lib/a");
+        not_possible(req.send().promise.await.err().unwrap(), "text.redirect");
+        let mut req = root.create_folder_request();
+        req.get().set_name("Lib");
+        not_possible(req.send().promise.await.err().unwrap(), "text.space");
         assert_eq!(
             common::list_paths(&root, "").await,
             ["lib/a"],

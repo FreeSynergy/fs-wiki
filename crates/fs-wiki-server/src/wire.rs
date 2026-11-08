@@ -30,7 +30,11 @@ impl Sent {
 
     /// What this text weighs in an answer.
     pub(crate) fn weight(&self) -> usize {
-        self.json.len() + self.entry.path.len() + envelope_weight(&self.entry.envelope)
+        self.json.len()
+            + self.entry.path.len()
+            + self.entry.redirect_to.len()
+            + self.entry.updated_by.len()
+            + envelope_weight(&self.entry.envelope)
     }
 }
 
@@ -51,6 +55,9 @@ pub(crate) fn fill(out: &mut text_entry::Builder<'_>, sent: &Sent) {
     out.set_document(sent.json.as_str());
     // Only equality means anything: `editIf` hands it back unchanged. It is no counter and no time.
     out.set_revision(sent.entry.revision);
+    out.set_template(sent.entry.template);
+    out.set_redirect_to(sent.entry.redirect_to.as_str());
+    out.set_updated_by(sent.entry.updated_by.as_str());
 }
 
 /// Write the texts of one answer without a cursor (`moveFolder`): all, or a refusal that says what

@@ -34,6 +34,9 @@ pub(crate) fn entry(r: text_entry::Reader<'_>) -> Result<TextEntry> {
         path: text(r.get_path())?,
         revision: r.get_revision(),
         document,
+        template: r.get_template(),
+        redirect_to: text(r.get_redirect_to())?,
+        updated_by: text(r.get_updated_by())?,
     })
 }
 

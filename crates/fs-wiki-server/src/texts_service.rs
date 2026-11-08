@@ -14,10 +14,10 @@ use fs_interfaces::texts_capnp::texts;
 use fs_wiki_core::{TextFeed, Texts};
 
 use crate::feed::subscribe;
-use crate::{reads, writes};
+use crate::{reads, reads_v2, writes, writes_v2};
 
 /// The contract version a report names.
-pub const CONTRACT_VERSION: &str = "texts 0.1 (draft)";
+pub const CONTRACT_VERSION: &str = "texts 0.2 (draft)";
 
 /// The root capability of the wiki program.
 pub struct TextsServer {
@@ -52,6 +52,22 @@ impl TextsServer {
 }
 
 type Done = Result<(), capnp::Error>;
+
+/// The methods added by texts 0.2: each forwards to the handler of `reads_v2` / `writes_v2`, which gets
+/// the provider and the page size.
+macro_rules! forward {
+    ($($method:ident, $params:ident, $results:ident => $module:ident;)*) => {
+        $(
+            async fn $method(
+                self: Rc<Self>,
+                params: texts::$params,
+                results: texts::$results,
+            ) -> Done {
+                $module::$method(&self.texts, self.page_size, params, results).await
+            }
+        )*
+    };
+}
 
 impl texts::Server for TextsServer {
     async fn support_report(
@@ -171,5 +187,28 @@ impl texts::Server for TextsServer {
         let subscription = subscribe(&self.feed, self.texts.clone(), listener)?;
         results.get().set_subscription(subscription);
         Ok(())
+    }
+
+    forward! {
+        edit_with, EditWithParams, EditWithResults => writes_v2;
+        history, HistoryParams, HistoryResults => reads_v2;
+        get_revision, GetRevisionParams, GetRevisionResults => reads_v2;
+        restore_revision, RestoreRevisionParams, RestoreRevisionResults => writes_v2;
+        purge_revision, PurgeRevisionParams, PurgeRevisionResults => writes_v2;
+        trash, TrashParams, TrashResults => writes_v2;
+        list_trash, ListTrashParams, ListTrashResults => reads_v2;
+        restore_from_trash, RestoreFromTrashParams, RestoreFromTrashResults => writes_v2;
+        purge, PurgeParams, PurgeResults => writes_v2;
+        create_folder, CreateFolderParams, CreateFolderResults => writes_v2;
+        rename_folder, RenameFolderParams, RenameFolderResults => writes_v2;
+        delete_folder, DeleteFolderParams, DeleteFolderResults => writes_v2;
+        get_folder, GetFolderParams, GetFolderResults => reads_v2;
+        children, ChildrenParams, ChildrenResults => reads_v2;
+        reorder, ReorderParams, ReorderResults => writes_v2;
+        set_template, SetTemplateParams, SetTemplateResults => writes_v2;
+        create_from_template, CreateFromTemplateParams, CreateFromTemplateResults => writes_v2;
+        set_redirect, SetRedirectParams, SetRedirectResults => writes_v2;
+        resolve, ResolveParams, ResolveResults => reads_v2;
+        search, SearchParams, SearchResults => reads_v2;
     }
 }

@@ -1,7 +1,5 @@
 //! Search: whole words, a prefix for the last one, filters and the term limits.
-//!
 //! Pattern: Example-based integration tests over a real in-memory store.
-
 mod common;
 
 use common::wiki;
