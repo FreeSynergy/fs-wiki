@@ -157,6 +157,8 @@ impl WikiRepo {
     pub(super) async fn purge_revision_locked(&self, id: ObjectId, number: u64) -> Result<()> {
         let text = self.text_any(id).await?;
         self.purger("text.history")?;
+        // A clean-up an earlier purge could not finish comes first (its result does not matter here).
+        let _ = self.retry_file_cleanup().await;
         let gone = || Error::NoSuchRevision { id, number };
         let record = self.revision_record(id, number).await?.ok_or_else(gone)?;
         // A removal that was started and not finished is completed by a retry.

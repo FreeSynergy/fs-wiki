@@ -4,9 +4,9 @@
 
 use fs_interfaces::Capabilities;
 
-/// The store-backed provider offers every method of the contract. Without a whole store behind it
-/// (`with_backend`) it cannot remove an object from the log, so `text.trash` and `text.history` (whose
-/// `purge` and `purgeRevision` need that) are not offered.
+/// The store-backed provider offers every method of the contract. Without the purge port
+/// (`with_log_purge`) it cannot remove an object from the log, so `text.trash` and `text.history`
+/// (whose `purge` and `purgeRevision` need that) are not offered.
 pub(super) fn capabilities(can_purge: bool) -> Capabilities {
     let mut caps = Capabilities::new("fs-wiki");
     for id in [

@@ -121,6 +121,8 @@ impl WikiRepo {
     pub(super) async fn purge_locked(&self, id: ObjectId) -> Result<()> {
         let mut object = self.trashed_object(id).await?;
         self.purger("text.trash")?;
+        // A clean-up an earlier purge could not finish comes first (its result does not matter here).
+        let _ = self.retry_file_cleanup().await;
         // Every record of the text, found by name (`<text>#<number>`), not by counting up from a hint:
         // a store undo moves the hint back and a late record does not raise it, so records can lie above
         // a gap. The highest number seen is written into the trashed text before anything is deleted, so

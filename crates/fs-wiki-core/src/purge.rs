@@ -25,6 +25,9 @@ pub enum Refusal {
     /// Entries of the object are not at the hub (held back, or written while syncing).
     #[error("{0} has log entries the hub does not have yet")]
     NotSynced(ObjectId),
+    /// The hub did not answer in time (it accepted the connection and said nothing, or is very slow).
+    #[error("the hub did not answer in time")]
+    Timeout,
     /// The sync or the purge failed for another reason.
     #[error("purge refused: {0}")]
     Failed(String),

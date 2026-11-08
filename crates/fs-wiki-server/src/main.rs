@@ -43,6 +43,10 @@ fn main() {
         for failed in &report.failed {
             eprintln!("fs-wiki-server: text not repaired: {failed}");
         }
+        // A file clean-up that an earlier purge could not finish is done now, if the hub is not needed.
+        if let Ok(false) = repo.retry_file_cleanup().await {
+            eprintln!("fs-wiki-server: a file clean-up after a purge is still pending");
+        }
         let repo = Arc::new(repo);
         Ok(TextsServer::new(repo.clone(), repo).into_client().client)
     });

@@ -202,3 +202,76 @@ async fn a_port_that_refuses_purges_nothing_and_a_retry_completes() {
     assert!(!everything(&store).await.contains("SECRET"));
     assert!(w.list_trash(None, 10).await.unwrap().items.is_empty());
 }
+
+async fn gated() -> (
+    std::sync::Arc<common::ports::Gate>,
+    fs_wiki_core::WikiRepo,
+    std::sync::Arc<fs_objects::TursoStore>,
+) {
+    let store = std::sync::Arc::new(fs_objects::TursoStore::open_in_memory().await.unwrap());
+    let as_store: std::sync::Arc<dyn Store> = store.clone();
+    let gate = common::ports::Gate::over(as_store.clone());
+    (
+        gate.clone(),
+        fs_wiki_core::WikiRepo::new(as_store, common::ME).with_log_purge(gate),
+        store,
+    )
+}
+
+#[tokio::test]
+async fn a_port_that_refuses_part_way_leaves_a_text_the_retry_finishes() {
+    let (gate, w, store) = gated().await;
+    let t = w.create("a", "PART-SECRET0\n").await.unwrap();
+    let t = say(&w, &t, "PART-SECRET1\n").await;
+    let t = say(&w, &t, "PART-SECRET2\n").await;
+    w.trash(t.id).await.unwrap();
+    // The first object is purged, the second is refused.
+    gate.allow.store(1, Ordering::SeqCst);
+    gate.set(Some(fs_wiki_core::Refusal::NotSynced(t.id)));
+    let err = w.purge(t.id).await.unwrap_err();
+    assert!(matches!(err, Error::PurgeRefused(_)), "{err:?}");
+    assert_eq!(
+        w.list_trash(None, 10).await.unwrap().items.len(),
+        1,
+        "still in the trash"
+    );
+    gate.allow.store(usize::MAX, Ordering::SeqCst);
+    gate.set(None);
+    w.purge(t.id).await.unwrap();
+    assert!(!everything(&store).await.contains("PART-SECRET"));
+    assert!(w.list_trash(None, 10).await.unwrap().items.is_empty());
+}
+
+#[tokio::test]
+async fn a_file_clean_up_that_fails_is_repeated_by_the_next_purge_and_never_blocks_a_purge() {
+    let (gate, w, _store) = gated().await;
+    let a = w.create("a", "x\n").await.unwrap();
+    let b = w.create("b", "y\n").await.unwrap();
+    w.trash(a.id).await.unwrap();
+    w.trash(b.id).await.unwrap();
+    gate.unclean.store(true, Ordering::SeqCst);
+    gate.clean_ok.store(false, Ordering::SeqCst);
+    w.purge(a.id)
+        .await
+        .expect("the purge is done, the clean-up is remembered");
+    assert!(w
+        .list_trash(None, 10)
+        .await
+        .unwrap()
+        .items
+        .iter()
+        .all(|i| i.id != a.id));
+    assert!(
+        !w.retry_file_cleanup().await.unwrap(),
+        "still pending while it fails"
+    );
+    gate.unclean.store(false, Ordering::SeqCst);
+    gate.clean_ok.store(true, Ordering::SeqCst);
+    let before = gate.cleans.load(Ordering::SeqCst);
+    w.purge(b.id).await.unwrap();
+    assert!(
+        gate.cleans.load(Ordering::SeqCst) > before,
+        "the next purge repeated it"
+    );
+    assert!(w.retry_file_cleanup().await.unwrap(), "nothing pending now");
+}

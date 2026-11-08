@@ -14,7 +14,7 @@ use fs_wiki_core::{Error, Refusal};
 use crate::errors::rpc_error;
 use crate::facts::PATH;
 
-/// A purge needs a hub to sync with and there is none (not in `texts.capnp`: see DESIGN.md).
+/// A purge needs a hub to sync with and there is none, or it does not answer (not in `texts.capnp`: see DESIGN.md).
 pub const NO_HUB_PROBLEM_TYPE: &str = "https://freesynergy.net/problems/texts/no-hub";
 /// The hub does not have everything of the object yet, so it is not purged (not in `texts.capnp`).
 pub const NOT_SYNCED_PROBLEM_TYPE: &str = "https://freesynergy.net/problems/texts/not-synced";
@@ -89,7 +89,7 @@ pub(crate) fn rpc_error_v2(e: Error) -> capnp::Error {
             .with_ext(keys::ID, &id.to_string())
             .with_ext(keys::KIND, TEXT)
             .into_error(),
-        Error::PurgeRefused(Refusal::NoHub) => {
+        Error::PurgeRefused(Refusal::NoHub | Refusal::Timeout) => {
             problem(&e, NO_HUB_PROBLEM_TYPE, "No hub", 503).into_error()
         }
         Error::PurgeRefused(Refusal::NotSynced(id)) => {

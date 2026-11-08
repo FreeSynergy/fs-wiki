@@ -3,7 +3,7 @@
 
 #![allow(dead_code)]
 
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -39,6 +39,13 @@ pub struct Gate {
     pub inner: DirectPort,
     pub refuse: std::sync::Mutex<Option<Refusal>>,
     pub calls: AtomicUsize,
+    /// Calls still allowed before `refuse` applies (`usize::MAX` = all).
+    pub allow: AtomicUsize,
+    /// Purges report that the file was not cleaned.
+    pub unclean: AtomicBool,
+    /// `clean_files` works.
+    pub clean_ok: AtomicBool,
+    pub cleans: AtomicUsize,
 }
 
 impl Gate {
@@ -47,6 +54,10 @@ impl Gate {
             inner: DirectPort(store),
             refuse: std::sync::Mutex::new(None),
             calls: AtomicUsize::new(0),
+            allow: AtomicUsize::new(usize::MAX),
+            unclean: AtomicBool::new(false),
+            clean_ok: AtomicBool::new(true),
+            cleans: AtomicUsize::new(0),
         })
     }
 
@@ -59,13 +70,35 @@ impl Gate {
 impl LogPurge for Gate {
     async fn purge(&self, id: ObjectId) -> Result<PurgeOutcome, Refusal> {
         self.calls.fetch_add(1, Ordering::SeqCst);
-        if let Some(r) = self.refuse.lock().unwrap().clone() {
+        let left = self.allow.load(Ordering::SeqCst);
+        if left == 0 {
+            if let Some(r) = self.refuse.lock().unwrap().clone() {
+                return Err(r);
+            }
+        } else if left != usize::MAX {
+            self.allow.store(left - 1, Ordering::SeqCst);
+        }
+        if let Some(r) = self
+            .refuse
+            .lock()
+            .unwrap()
+            .clone()
+            .filter(|_| left == usize::MAX)
+        {
             return Err(r);
         }
-        self.inner.purge(id).await
+        let mut done = self.inner.purge(id).await?;
+        if self.unclean.load(Ordering::SeqCst) {
+            done.file_cleaned = false;
+        }
+        Ok(done)
     }
 
     async fn clean_files(&self) -> Result<bool, Refusal> {
+        self.cleans.fetch_add(1, Ordering::SeqCst);
+        if !self.clean_ok.load(Ordering::SeqCst) {
+            return Err(Refusal::Failed("busy".into()));
+        }
         self.inner.clean_files().await
     }
 }

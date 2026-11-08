@@ -16,6 +16,9 @@ use crate::error::Result;
 const AUX_CONTEXT: &str = "wiki-bookkeeping";
 const AUX_CONTENT: &str = "application/json";
 const PAGE: usize = 1000;
+/// The record that says a file clean-up after a purge is still to be done.
+const CLEAN_KIND: &str = "CleanPending";
+const CLEAN_KEY: &str = "file";
 
 fn query(kind: &str) -> Query {
     Query::new()
@@ -116,11 +119,40 @@ impl WikiRepo {
         Ok(())
     }
 
-    /// Repeat the file clean-up if a purge could not do it.
+    /// The purge is done; if the file could not be cleaned as well (another reader holds it, or the clean-up
+    /// failed) that is remembered in the store and repeated by the next purge or by
+    /// [`WikiRepo::retry_file_cleanup`]. The purge itself has succeeded and is not reported as failed:
+    /// its object is gone, a retry of it could only say "not found".
     pub(super) async fn finish_purge(&self, capability: &str, cleaned: bool) -> Result<()> {
-        if !cleaned {
-            self.purger(capability)?.clean_files().await?;
+        if cleaned {
+            return Ok(());
+        }
+        let done = matches!(self.purger(capability)?.clean_files().await, Ok(true));
+        if !done {
+            self.aux_put(CLEAN_KIND, CLEAN_KEY, &true).await?;
         }
         Ok(())
+    }
+}
+
+impl WikiRepo {
+    /// Repeat a file clean-up that a purge could not finish. True if nothing is pending now. A server
+    /// calls it at start; every purge calls it first.
+    pub async fn retry_file_cleanup(&self) -> Result<bool> {
+        let pending = self
+            .aux_get::<bool>(CLEAN_KIND, CLEAN_KEY)
+            .await?
+            .is_some_and(|(_, p)| p);
+        if !pending {
+            return Ok(true);
+        }
+        let Some(port) = self.purger.as_ref() else {
+            return Ok(false);
+        };
+        let done = matches!(port.clean_files().await, Ok(true));
+        if done {
+            self.aux_put(CLEAN_KIND, CLEAN_KEY, &false).await?;
+        }
+        Ok(done)
     }
 }

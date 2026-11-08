@@ -1,6 +1,7 @@
 //! Import the manifesto from a Markdown file, read it back and list its links.
 //!
-//! Pattern: Facade consumer — everything goes through the `Texts` trait.
+//! Pattern: Facade consumer — everything goes through the `Texts` trait. It has no purge port, so it
+//! does not offer `text.trash` / `text.history`; it only imports and reads.
 //!
 //! `cargo run -p fs-wiki-core --example manifesto [path/to/file.md]`
 
