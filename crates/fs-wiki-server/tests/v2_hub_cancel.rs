@@ -96,7 +96,7 @@ async fn a_timeout_stops_the_waiting_not_the_work_and_a_retry_completes() {
     let mut done = false;
     for _ in 0..40 {
         match again.purge(id).await {
-            Ok(()) | Err(Error::NotFound(_)) | Err(Error::NotInTrash(_)) => {
+            Ok(()) | Err(Error::NotFound(_) | Error::NotInTrash(_)) => {
                 done = true;
                 break;
             }
@@ -107,7 +107,7 @@ async fn a_timeout_stops_the_waiting_not_the_work_and_a_retry_completes() {
         }
     }
     assert!(done, "no retry completed in time");
-    assert!(again.list_trash(None, 10).await.unwrap().items.is_empty());
+    assert_eq!(again.list_trash(None, 10).await.unwrap().items.len(), 0);
     assert!(again.retry_file_cleanup().await.unwrap());
     assert!(!bytes(&f.wiki_dir).contains("TIMEOUT-SECRET"), "wiki file");
     assert!(!bytes(&f.hub_dir).contains("TIMEOUT-SECRET"), "hub folder");
@@ -124,17 +124,10 @@ async fn a_caller_that_goes_away_does_not_cut_the_purge() {
     call.abort();
     let _ = call.await;
     // Whatever stage it reached, the store reads right and a retry completes.
-    let mut done = false;
-    for _ in 0..100 {
-        match f.w.purge(id).await {
-            Ok(()) | Err(Error::NotFound(_)) | Err(Error::NotInTrash(_)) => {
-                done = true;
-                break;
-            }
-            Err(e) => panic!("{e:?}"),
-        }
+    match f.w.purge(id).await {
+        Ok(()) | Err(Error::NotFound(_) | Error::NotInTrash(_)) => {}
+        Err(e) => panic!("{e:?}"),
     }
-    assert!(done);
     f.w.create("later", "x\n").await.unwrap();
     assert!(f.w.retry_file_cleanup().await.unwrap());
     assert!(!in_log(&*f.store, "DROPPED-SECRET").await);
