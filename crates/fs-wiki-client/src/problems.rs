@@ -9,10 +9,10 @@
 use fs_interfaces::rpc::client::problems::{
     local_type, object_id_in, unsupported_of, without_store_prefix, Failure,
 };
-use fs_interfaces::rpc::Problem;
+use fs_interfaces::rpc::{problem_keys as keys, Problem};
 use fs_interfaces::Unsupported;
 use fs_objects::{Error as StoreError, ObjectId};
-use fs_wiki_core::{Error, TextPath};
+use fs_wiki_core::{Error, Reason, TextPath};
 
 use crate::quoted::{quoted, text_after};
 
@@ -29,12 +29,8 @@ pub(crate) enum Subject {
     Folder(String),
 }
 
-/// The reasons of `Error::InvalidMove`, which the variant holds as `&'static str`. A reason not in
-/// this list stays a plain invalid request; the test `moves` fails if the core's text changes.
-const MOVE_REASONS: [&str; 2] = [
-    "the target lies inside the folder itself",
-    "a moved text would land inside the old folder, which an interrupted move could not tell apart",
-];
+/// The reasons of `Error::InvalidMove`: the server names one by its token (`issue`).
+const MOVE_REASONS: [Reason; 2] = [Reason::InsideItself, Reason::InsideOld];
 
 /// The error of the core for what the server (or the wire) said.
 pub(crate) fn error_of(e: &capnp::Error, subject: &Subject) -> Error {
@@ -57,7 +53,7 @@ fn from_problem(p: &Problem, subject: &Subject) -> Error {
         "texts/conflict" => conflict(detail, subject),
         "texts/path-taken" => path_taken(detail),
         "texts/move-refused" => move_refused(detail),
-        "texts/invalid" => invalid(detail),
+        "texts/invalid" => invalid(p),
         "too-large" => Error::Store(StoreError::Invalid(format!("too large: {detail}"))),
         "invalid-request" => Error::Store(StoreError::Invalid(detail.to_string())),
         _ => Error::Store(StoreError::Backend(format!(
@@ -120,7 +116,8 @@ fn move_refused(detail: &str) -> Error {
 
 /// `invalid path "x": ...`, `cannot move "a" to "b": <reason>`, `unknown media type "x" ...`, or
 /// another refusal of the request, which stays a text of the store.
-fn invalid(detail: &str) -> Error {
+fn invalid(p: &Problem) -> Error {
+    let detail = p.detail.as_str();
     let names = quoted(detail);
     if detail.starts_with("invalid path ") {
         if let Some(Err(e)) = names.first().map(|p| TextPath::parse(p)) {
@@ -128,11 +125,15 @@ fn invalid(detail: &str) -> Error {
         }
     }
     if let (Some(rest), [from, to]) = (detail.strip_prefix("cannot move "), names.as_slice()) {
-        if let Some(reason) = MOVE_REASONS.iter().find(|r| rest.ends_with(**r)) {
+        let issue = p.ext(keys::ISSUE);
+        if let Some(reason) = MOVE_REASONS
+            .iter()
+            .find(|r| issue == Some(r.token()) || rest.ends_with(&r.to_string()))
+        {
             return Error::InvalidMove {
                 from: from.clone(),
                 to: to.clone(),
-                reason,
+                reason: *reason,
             };
         }
     }

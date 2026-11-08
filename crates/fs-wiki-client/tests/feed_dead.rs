@@ -38,7 +38,7 @@ impl TextListener for Always {
     fn ended(&self, _: &str) {
         self.ends.fetch_add(1, Ordering::SeqCst);
         let me = self.me.get().unwrap().upgrade().unwrap();
-        let again = self.texts.get().unwrap().subscribe(me);
+        let again = self.texts.get().unwrap().subscribe(me).unwrap();
         let mut kept = self.kept.lock().unwrap();
         if kept.len() > 4 {
             drop(kept.remove(0));
@@ -95,7 +95,7 @@ impl TextListener for Fresh {
             calls: self.calls.clone(),
             kept: self.kept.clone(),
         });
-        let again = self.texts.subscribe(next);
+        let again = self.texts.subscribe(next).unwrap();
         self.kept.lock().unwrap().push(again);
     }
 }

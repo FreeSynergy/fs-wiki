@@ -2,16 +2,17 @@
 //!
 //! Pattern: Adapter — each method is one call of `texts.capnp`; the arguments are made owned here,
 //! because the call runs on the thread of the connection. `list` and `find` read as many pages as
-//! `Paging` needs (`calls/pages.rs`), each page a call of its own with its own deadline. The report is the server's own: every method of the trait is
+//! `Paging` needs (`calls/pages.rs`); `page` reads from the start as well and drops what comes before its place, each page a call of its own with its own deadline. The report is the server's own: every method of the trait is
 //! kept, so nothing the server offers is withheld.
 
 use async_trait::async_trait;
 use fs_interfaces::Capabilities;
 use fs_objects::ObjectId;
+use fs_objects::StoreId;
 use fs_text::Document;
-use fs_wiki_core::{LinkEntry, Paging, Result, TextEntry, Texts};
+use fs_wiki_core::{LinkEntry, Paging, Place, Result, TextEntry, TextPage, TextQuery, Texts};
 
-use crate::calls::pages::collect;
+use crate::calls::pages::{collect, collect_after};
 use crate::calls::writes::document_json;
 use crate::calls::{reads, writes};
 use crate::RpcTexts;
@@ -20,6 +21,38 @@ use crate::RpcTexts;
 impl Texts for RpcTexts {
     fn capabilities(&self) -> Capabilities {
         self.report()
+    }
+
+    fn identity(&self) -> Option<StoreId> {
+        RpcTexts::identity(self)
+    }
+
+    async fn page(
+        &self,
+        query: &TextQuery,
+        after: Option<&Place>,
+        size: usize,
+    ) -> Result<TextPage> {
+        match query {
+            TextQuery::Prefix(prefix) => {
+                collect_after(after, size, |cursor| {
+                    let prefix = prefix.clone();
+                    self.call(
+                        move |r| async move { reads::list_page(&r.texts, prefix, cursor).await },
+                    )
+                })
+                .await
+            }
+            TextQuery::Term(term) => {
+                collect_after(after, size, |cursor| {
+                    let term = term.clone();
+                    self.call(
+                        move |r| async move { reads::find_page(&r.texts, term, cursor).await },
+                    )
+                })
+                .await
+            }
+        }
     }
 
     async fn get(&self, id: ObjectId) -> Result<Option<TextEntry>> {

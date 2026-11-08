@@ -7,7 +7,7 @@
 //! hashes are opaque to the core; the caller computes them.
 
 use async_trait::async_trait;
-use fs_objects::ObjectId;
+use fs_objects::{ObjectId, StoreId};
 use serde::{Deserialize, Serialize};
 
 use super::handle::WikiRepo;
@@ -39,6 +39,18 @@ pub trait Origins: Send + Sync {
     async fn origins(&self) -> Result<Vec<FileOrigin>>;
     /// Store `origin`, replacing the record of the same file.
     async fn set_origin(&self, origin: &FileOrigin) -> Result<()>;
+    /// The store these records were made for, if they know it. Records kept apart from the store (a
+    /// file of an app) remember it, so another store can be told from the same one by
+    /// [`Texts::identity`](crate::Texts::identity), not by a guess. Records inside the store need no
+    /// answer: they cannot be of another one.
+    async fn recorded_store(&self) -> Result<Option<StoreId>> {
+        Ok(None)
+    }
+    /// Say that these records belong to `store` from now on. Records that belonged to another store
+    /// are of no use to this one and are dropped; records that knew none (from before) are kept.
+    async fn belong_to(&self, _store: StoreId) -> Result<()> {
+        Ok(())
+    }
 }
 
 #[async_trait]

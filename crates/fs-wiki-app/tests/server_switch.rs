@@ -7,7 +7,7 @@ mod common;
 
 use common::{temp_dir, wiki_in_file, wiki_with_records, write_files};
 use fs_wiki_app::import_folder;
-use fs_wiki_core::{Paging, Texts};
+use fs_wiki_core::{Origins, Paging, Texts};
 
 #[test]
 fn a_fresh_server_with_old_records_gets_every_file_again() {
@@ -138,9 +138,10 @@ fn a_server_restored_from_an_older_copy_lists_what_it_lacks_and_does_not_import_
 }
 
 #[test]
-fn when_every_text_of_a_folder_was_deleted_outside_they_come_back_as_for_another_server() {
-    // The known consequence of the provisional rule (DESIGN.md): the server holds none of the texts
-    // the records name, which is also what another server looks like.
+fn when_every_text_of_a_folder_was_deleted_outside_the_server_is_still_the_same_and_they_are_listed()
+ {
+    // What the store's identity settles: the server holds none of the texts the records name, and it
+    // is still the same server, so nothing is imported again behind the person's back.
     let dir = temp_dir("sw-all");
     let (docs, store) = (dir.join("docs"), dir.join("store.db"));
     write_files(&docs, &[("a.md", "# A\n")]);
@@ -152,8 +153,47 @@ fn when_every_text_of_a_folder_was_deleted_outside_they_come_back_as_for_another
     }
     let (rt, w) = wiki_in_file(&store);
     let report = rt.block_on(import_folder(&**w, &docs));
-    assert_eq!((report.imported, report.records_ignored), (1, 1));
-    assert!(rt.block_on(w.get_by_path("a.md")).unwrap().is_some());
+    assert_eq!((report.imported, report.records_ignored), (0, 0));
+    let missing: Vec<_> = report.missing.iter().map(|m| m.path.as_str()).collect();
+    assert_eq!(missing, ["a.md"]);
+    assert!(rt.block_on(w.get_by_path("a.md")).unwrap().is_none());
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn records_from_before_the_store_was_recorded_are_kept_and_then_belong_to_it() {
+    let dir = temp_dir("sw-legacy");
+    let (docs, records) = (dir.join("docs"), dir.join("o.origins"));
+    write_files(&docs, &[("a.md", "# A\n")]);
+    let store = {
+        let (rt, w) = wiki_with_records(&records);
+        rt.block_on(import_folder(&**w, &docs));
+        let store = rt.block_on(w.recorded_store()).unwrap();
+        assert!(store.is_some(), "the first import records whose they are");
+        store
+    };
+    // The file as an older version wrote it: records only, no line for the store.
+    let text = std::fs::read_to_string(&records).unwrap();
+    let old: String = text
+        .lines()
+        .filter(|l| !l.contains("\"store\""))
+        .map(|l| format!("{l}\n"))
+        .collect();
+    assert!(old.len() < text.len());
+    std::fs::write(&records, old).unwrap();
+    let (rt, w) = wiki_with_records(&records);
+    assert_eq!(rt.block_on(w.recorded_store()).unwrap(), None);
+    let report = rt.block_on(import_folder(&**w, &docs));
+    assert_eq!(
+        report.records_ignored, 0,
+        "nothing says they are of another store"
+    );
+    assert!(rt.block_on(w.recorded_store()).unwrap().is_some());
+    assert_ne!(
+        rt.block_on(w.recorded_store()).unwrap(),
+        store,
+        "a fresh in-memory server has its own id"
+    );
     std::fs::remove_dir_all(dir).unwrap();
 }
 

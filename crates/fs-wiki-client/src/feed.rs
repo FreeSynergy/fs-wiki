@@ -18,6 +18,7 @@ use std::sync::Arc;
 
 use fs_interfaces::common_capnp::{change, change_listener};
 use fs_interfaces::rpc::{read_envelope, read_object_id, Problem};
+use fs_interfaces::Unsupported;
 use fs_wiki_core::{Registry, Subscription, TextChange, TextFeed, TextListener};
 use tokio::sync::oneshot;
 
@@ -101,17 +102,24 @@ impl TextFeed for RpcTexts {
     /// attempt (a later `subscribe` may try again), or that the connection is gone (then no
     /// `subscribe` can work, and `ended` is delivered from a thread of its own, one listener at a
     /// time, never from inside `subscribe`).
-    fn subscribe(&self, listener: Arc<dyn TextListener>) -> Subscription {
+    fn subscribe(&self, listener: Arc<dyn TextListener>) -> Result<Subscription, Unsupported> {
+        // The server's own report decides, as for any provider (ADR 0045).
+        let report = self.report();
+        if !report.is_supported("text.subscribe") {
+            return Err(report.why_not("text.subscribe").unwrap_or_else(|| {
+                Unsupported::new("text.subscribe", "the server does not offer it")
+            }));
+        }
         let subscription = self.registry.add(listener.clone());
         if self.state.is_dead() {
             if self.state.first_notice(&listener) && self.state.queue_notice(listener) {
                 let state = self.state.clone();
                 std::thread::spawn(move || deliver(&state));
             }
-            return subscription;
+            return Ok(subscription);
         }
         let Some(generation) = self.state.claim() else {
-            return subscription;
+            return Ok(subscription);
         };
         let (registry, state) = (self.registry.clone(), self.state.clone());
         let job = {
@@ -129,6 +137,6 @@ impl TextFeed for RpcTexts {
             let outcome = futures::executor::block_on(self.worker().call(job));
             settle(outcome, (&registry, &state, generation));
         }
-        subscription
+        Ok(subscription)
     }
 }

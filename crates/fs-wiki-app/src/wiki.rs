@@ -10,10 +10,11 @@ use std::sync::Arc;
 use async_trait::async_trait;
 
 use crate::words::{self, say};
-use fs_objects::ObjectId;
+use fs_objects::{ObjectId, StoreId};
 use fs_text::Document;
 use fs_wiki_core::{
-    Capabilities, Error, FileOrigin, LinkEntry, Origins, Paging, Result, TextEntry, Texts,
+    Capabilities, Error, FileOrigin, LinkEntry, Origins, Paging, Place, Result, TextEntry,
+    TextPage, TextQuery, Texts,
 };
 
 /// `Texts` of one provider and `Origins` of another.
@@ -62,12 +63,33 @@ impl Origins for Wiki {
     async fn set_origin(&self, origin: &FileOrigin) -> Result<()> {
         self.origins.set_origin(origin).await
     }
+
+    async fn recorded_store(&self) -> Result<Option<StoreId>> {
+        self.origins.recorded_store().await
+    }
+
+    async fn belong_to(&self, store: StoreId) -> Result<()> {
+        self.origins.belong_to(store).await
+    }
 }
 
 #[async_trait]
 impl Texts for Wiki {
     fn capabilities(&self) -> Capabilities {
         self.texts.capabilities()
+    }
+
+    fn identity(&self) -> Option<StoreId> {
+        self.texts.identity()
+    }
+
+    async fn page(
+        &self,
+        query: &TextQuery,
+        after: Option<&Place>,
+        size: usize,
+    ) -> Result<TextPage> {
+        self.texts.page(query, after, size).await
     }
 
     async fn get(&self, id: ObjectId) -> Result<Option<TextEntry>> {

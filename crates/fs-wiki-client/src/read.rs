@@ -37,13 +37,13 @@ pub(crate) fn entry(r: text_entry::Reader<'_>) -> Result<TextEntry> {
     })
 }
 
-/// A row of the link table. Only links into the wiki are sent, so every row is `internal`.
+/// A row of the link table, with the link text and whether the target is a text of the wiki.
 pub(crate) fn link(r: link_row::Reader<'_>) -> Result<LinkEntry> {
     Ok(LinkEntry {
         source: wire(r.get_source().and_then(read_object_id))?,
         target: text(r.get_target())?,
         at: text(r.get_at())?,
-        title: String::new(),
-        internal: true,
+        title: text(r.get_title())?,
+        internal: r.get_internal(),
     })
 }

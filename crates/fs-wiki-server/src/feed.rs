@@ -6,7 +6,7 @@
 use std::sync::Arc;
 
 use fs_interfaces::common_capnp::{change_listener, subscription};
-use fs_interfaces::rpc::{change_channel, forward, ChangeSender, Notice};
+use fs_interfaces::rpc::{change_channel, forward, unsupported, ChangeSender, Notice};
 use fs_wiki_core::{TextChange, TextFeed, TextListener, Texts};
 
 struct ToChannel(ChangeSender<TextChange>);
@@ -22,13 +22,15 @@ pub(crate) fn subscribe(
     feed: &Arc<dyn TextFeed>,
     texts: Arc<dyn Texts>,
     listener: change_listener::Client,
-) -> subscription::Client {
+) -> capnp::Result<subscription::Client> {
     let (tx, rx) = change_channel();
-    let core_subscription = feed.subscribe(Arc::new(ToChannel(tx)));
-    forward(rx, core_subscription, listener, move |change| {
+    let core_subscription = feed
+        .subscribe(Arc::new(ToChannel(tx)))
+        .map_err(|e| unsupported(&e))?;
+    Ok(forward(rx, core_subscription, listener, move |change| {
         let texts = texts.clone();
         async move { notice(texts.as_ref(), change).await }
-    })
+    }))
 }
 
 /// A text that is gone again by now has nothing to report but its own `Deleted`, which follows. A

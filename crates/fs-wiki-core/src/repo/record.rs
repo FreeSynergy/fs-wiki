@@ -3,15 +3,18 @@
 //! Pattern: Adapter — maps a path and a [`Document`] onto the AS2 `Article` envelope and index
 //! fields that `fs-objects` understands (ADR 0020). The content is the record `{ path, document }`
 //! as JSON, so the stored object is complete without its index. Index fields (all derived, never
-//! the truth): `path`; `link` = the path every internal link means (a relative link is resolved against its page), which answers backlinks
-//! in one query; `block` = the plain text of each block, which answers `find` in the store.
+//! the truth): `path`; `path_key` (its sort key) and `id_key` (the id as text), which give a text its
+//! place in a page; `link` = the path every internal link means (a relative link is resolved against
+//! its page), which answers backlinks in one query; `block` = the plain text of each block, which
+//! answers `find` in the store.
 
-use fs_objects::{Envelope, IndexFields, ObjectId, StoredObject};
+use fs_objects::{sort_key, Envelope, IndexFields, ObjectId, StoredObject};
 use fs_text::Document;
 use serde::{Deserialize, Serialize};
 
 use super::definitions::definition_links;
 use super::handle::{WikiRepo, CONTENT_TYPE, CONTEXT, TEXT_TYPE};
+use super::keys::{BLOCK, ID_KEY, LINK, PATH, PATH_KEY};
 use super::name::derive_name;
 use super::target::written;
 use super::titles::links_in_titles;
@@ -47,7 +50,7 @@ impl WikiRepo {
             revision: fresh_revision(),
         };
         let mut obj = StoredObject::new(env, CONTENT_TYPE, serde_json::to_value(record)?);
-        obj.index = index_fields(path, doc);
+        obj.index = index_fields(id, path, doc);
         Ok(obj)
     }
 
@@ -78,9 +81,11 @@ pub(super) fn entry_of(o: StoredObject) -> Result<TextEntry> {
     })
 }
 
-fn index_fields(path: &str, doc: &Document) -> IndexFields {
+fn index_fields(id: ObjectId, path: &str, doc: &Document) -> IndexFields {
     let mut index = IndexFields::new();
-    index.insert("path".into(), vec![path.to_string()]);
+    index.insert(PATH.into(), vec![path.to_string()]);
+    index.insert(PATH_KEY.into(), vec![sort_key(path)]);
+    index.insert(ID_KEY.into(), vec![id.to_string()]);
     let mut links: Vec<String> = vec![];
     for block in &doc.blocks {
         let marked = block.marks.iter().filter_map(|m| m.link().cloned());
@@ -99,7 +104,7 @@ fn index_fields(path: &str, doc: &Document) -> IndexFields {
         }
     }
     if !links.is_empty() {
-        index.insert("link".into(), links);
+        index.insert(LINK.into(), links);
     }
     let blocks: Vec<String> = doc
         .blocks
@@ -109,7 +114,7 @@ fn index_fields(path: &str, doc: &Document) -> IndexFields {
         .filter(|t| !t.is_empty())
         .collect();
     if !blocks.is_empty() {
-        index.insert("block".into(), blocks);
+        index.insert(BLOCK.into(), blocks);
     }
     index
 }

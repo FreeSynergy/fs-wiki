@@ -21,9 +21,10 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use async_trait::async_trait;
+use fs_objects::StoreId;
 use fs_wiki_core::{Error, FileOrigin, Origins, Result};
 
-use crate::origins_log::{line, lock, lock_path, parse, rewrite};
+use crate::origins_log::{Content, line, lock, lock_path, parse, rewrite};
 use crate::words::{self, say};
 
 /// Why the records could not be opened. Each is a kind of its own; the sentence is the `Display`.
@@ -84,6 +85,8 @@ struct Inner {
 
 struct State {
     records: BTreeMap<String, FileOrigin>,
+    /// The store the records were made for; none for a file from before it was recorded.
+    store: Option<StoreId>,
     /// The file open for appending; `None` after a failed write: the next write starts the file anew.
     log: Option<File>,
 }
@@ -108,18 +111,20 @@ impl FileOrigins {
             },
             _ => failed(words::RECORDS_LOCK, &lock_path(path), &e),
         })?;
-        let records = match std::fs::read_to_string(path) {
+        let Content { records, store } = match std::fs::read_to_string(path) {
             Ok(text) => parse(&text).map_err(|(line, why)| OriginsError::Damaged {
                 path: path.to_path_buf(),
                 line,
                 why,
             })?,
-            Err(e) if e.kind() == io::ErrorKind::NotFound => BTreeMap::new(),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => Content::default(),
             Err(e) => return Err(failed(words::RECORDS_READ, path, &e)),
         };
-        let log = rewrite(path, &records).map_err(|e| failed(words::RECORDS_WRITE, path, &e))?;
+        let log =
+            rewrite(path, &records, store).map_err(|e| failed(words::RECORDS_WRITE, path, &e))?;
         let state = State {
             records,
+            store,
             log: Some(log),
         };
         Ok(Self {
@@ -149,7 +154,7 @@ impl Inner {
         if written.is_err() {
             // The tail of the file is unknown now: start it anew, with the record included.
             state.log = None;
-            match rewrite(&self.path, &state.records) {
+            match rewrite(&self.path, &state.records, state.store) {
                 Ok(log) => state.log = Some(log),
                 Err(e) => {
                     match earlier {
@@ -160,6 +165,30 @@ impl Inner {
                 }
             }
         }
+        Ok(())
+    }
+}
+
+impl Inner {
+    /// The records belong to `store` from now on. Those of another store are dropped.
+    fn belong_to(&self, store: StoreId) -> Result<()> {
+        let mut state = self.state();
+        if state.store == Some(store) {
+            return Ok(());
+        }
+        let records = if state.store.is_some() {
+            BTreeMap::new()
+        } else {
+            state.records.clone()
+        };
+        // The file is written first: a failure leaves memory as it was.
+        let log = rewrite(&self.path, &records, Some(store))
+            .map_err(|e| failed(words::RECORDS_WRITE, &self.path, &e))?;
+        *state = State {
+            records,
+            store: Some(store),
+            log: Some(log),
+        };
         Ok(())
     }
 }
@@ -181,5 +210,14 @@ impl Origins for FileOrigins {
     async fn set_origin(&self, origin: &FileOrigin) -> Result<()> {
         let (inner, origin) = (self.inner.clone(), origin.clone());
         joined(tokio::task::spawn_blocking(move || inner.set(&origin)).await)
+    }
+
+    async fn recorded_store(&self) -> Result<Option<StoreId>> {
+        Ok(self.inner.state().store)
+    }
+
+    async fn belong_to(&self, store: StoreId) -> Result<()> {
+        let inner = self.inner.clone();
+        joined(tokio::task::spawn_blocking(move || inner.belong_to(store)).await)
     }
 }

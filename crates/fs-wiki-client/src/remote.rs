@@ -5,13 +5,17 @@
 //! the shared `Worker` of `fs-interfaces`.
 
 use fs_interfaces::rpc::client::Remote as Contract;
+use fs_interfaces::rpc::read_uuid;
 use fs_interfaces::texts_capnp::texts;
 use fs_interfaces::Capabilities;
+use fs_objects::StoreId;
 
 /// The capability of the server a call may use.
 #[derive(Clone)]
 pub(crate) struct Remote {
     pub(crate) texts: texts::Client,
+    /// The id of the store behind the server, as its report said (none: it has no store).
+    pub(crate) identity: Option<StoreId>,
 }
 
 impl Contract for Remote {
@@ -19,7 +23,16 @@ impl Contract for Remote {
 
     async fn open(root: texts::Client) -> Result<(Self, Capabilities), capnp::Error> {
         let report = root.support_report_request().send().promise.await?;
-        let capabilities = Capabilities::read(report.get()?.get_report()?)?;
-        Ok((Self { texts: root }, capabilities))
+        let report = report.get()?.get_report()?;
+        let capabilities = Capabilities::read(report)?;
+        // What is not a store id (not a UUIDv4) is no identity: better none than a wrong one.
+        let identity = read_uuid(report.get_instance()?).and_then(|u| u.to_string().parse().ok());
+        Ok((
+            Self {
+                texts: root,
+                identity,
+            },
+            capabilities,
+        ))
     }
 }

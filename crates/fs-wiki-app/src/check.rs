@@ -23,7 +23,7 @@ const CHECK_IN_FLIGHT: usize = 64;
 ///
 /// One `get` that fails does not stop the start: that text is taken to be there (as the records say)
 /// and its file is reported. The whole check stops with a message when it runs past `limit`, or when
-/// every `get` failed (the server is not there).
+/// every `get` of at least two failed (the server is not there; one alone cannot tell).
 pub(crate) async fn present_ids<W: Texts + ?Sized>(
     wiki: &W,
     known: &HashMap<String, FileOrigin>,
@@ -59,8 +59,13 @@ pub(crate) async fn present_ids<W: Texts + ?Sized>(
             }
         }
     }
+    // One failed read of one record says nothing about the server: it is not told "every read failed"
+    // from "this read failed". Then the file is reported like any other and the import goes on (a
+    // server that is really gone fails every file's own call).
     match last_error {
-        Some(e) if unasked.len() == known.len() => Err(say(words::CHECK_FAILED, &[("error", &e)])),
+        Some(e) if known.len() > 1 && unasked.len() == known.len() => {
+            Err(say(words::CHECK_FAILED, &[("error", &e)]))
+        }
         _ => Ok((present, unasked)),
     }
 }

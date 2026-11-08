@@ -17,7 +17,8 @@ use fs_interfaces::Capabilities;
 use fs_objects::ObjectId;
 use fs_wiki_client::RpcTexts;
 use fs_wiki_core::{
-    Paging, Result, TextChange, TextEntry, TextFeed, TextListener, Texts, WikiRepo,
+    Paging, Place, Result, TextChange, TextEntry, TextFeed, TextListener, TextPage, TextQuery,
+    Texts, WikiRepo,
 };
 
 /// The real wiki, whose `get` fails while `fail` is set.
@@ -36,6 +37,14 @@ impl Texts for Flaky {
             return Err(fs_objects::Error::Backend("the read failed".into()).into());
         }
         self.repo.get(id).await
+    }
+    async fn page(
+        &self,
+        query: &TextQuery,
+        after: Option<&Place>,
+        size: usize,
+    ) -> Result<TextPage> {
+        self.repo.page(query, after, size).await
     }
     async fn get_by_path(&self, path: &str) -> Result<Option<TextEntry>> {
         self.repo.get_by_path(path).await
@@ -149,7 +158,7 @@ impl TextListener for Resubscribes {
     fn changed(&self, _: &TextChange) {}
     fn ended(&self, _: &str) {
         let texts = self.texts.get().unwrap();
-        let again = texts.subscribe(self.next.clone());
+        let again = texts.subscribe(self.next.clone()).unwrap();
         self.kept.lock().unwrap().push(again);
     }
 }

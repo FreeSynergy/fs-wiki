@@ -14,7 +14,8 @@ use fs_objects::ObjectId;
 use fs_wiki_app::{FileOrigins, Wiki, import_folder};
 use fs_wiki_client::RpcTexts;
 use fs_wiki_core::{
-    Capabilities, Error, FileOrigin, Origins, Paging, Result, TextEntry, Texts, WikiRepo,
+    Capabilities, Error, FileOrigin, Origins, Paging, Place, Result, TextEntry, TextPage,
+    TextQuery, Texts, WikiRepo,
 };
 use fs_wiki_testserver::Served;
 
@@ -28,9 +29,19 @@ impl Texts for OneBad {
     }
     async fn get(&self, id: ObjectId) -> Result<Option<TextEntry>> {
         if *self.1.lock().unwrap() == Some(id) {
-            return Err(Error::Store(fs_objects::Error::Backend("disk hiccup".into())));
+            return Err(Error::Store(fs_objects::Error::Backend(
+                "disk hiccup".into(),
+            )));
         }
         self.0.get(id).await
+    }
+    async fn page(
+        &self,
+        query: &TextQuery,
+        after: Option<&Place>,
+        size: usize,
+    ) -> Result<TextPage> {
+        self.0.page(query, after, size).await
     }
     async fn get_by_path(&self, path: &str) -> Result<Option<TextEntry>> {
         self.0.get_by_path(path).await
@@ -75,6 +86,35 @@ fn one_failing_read_is_reported_for_its_file_and_does_not_stop_the_import() {
         "and the file whose text could not be asked about is named"
     );
     assert_eq!(report.records_ignored, 0);
+}
+
+#[test]
+fn the_only_record_whose_read_fails_does_not_stop_the_import_either() {
+    let dir = temp_dir("cs-onlybad");
+    let docs = dir.join("docs");
+    write_files(&docs, &[("a.md", "# A\n")]);
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let plain = rt.block_on(Served::in_memory());
+    let bad = Arc::new(OneBad(plain.repo.clone(), Mutex::new(None)));
+    let served = Served::serving(bad.clone(), plain.repo.clone());
+    let origins = FileOrigins::open(&dir.join("o.origins")).unwrap();
+    let texts = RpcTexts::connect(&served.socket).unwrap();
+    let wiki = Wiki::new(Arc::new(texts), Arc::new(origins));
+    assert_eq!(rt.block_on(import_folder(&wiki, &docs)).imported, 1);
+    let a = rt.block_on(wiki.get_by_path("a.md")).unwrap().unwrap();
+    *bad.1.lock().unwrap() = Some(a.id);
+    let report = rt.block_on(import_folder(&wiki, &docs));
+    assert_eq!(
+        (report.imported, report.unchanged),
+        (0, 1),
+        "the one file is taken as there, as with two"
+    );
+    let reported: Vec<_> = report.failures.iter().map(|f| f.path.as_str()).collect();
+    assert_eq!(
+        reported,
+        ["a.md"],
+        "named by its file, not as a failed start"
+    );
 }
 
 /// Records that name every text, and cannot be written.

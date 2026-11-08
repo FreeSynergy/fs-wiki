@@ -6,10 +6,10 @@
 //! what could not come back.
 
 use fs_interfaces::rpc::{
-    check_answer, check_intake, envelope_weight, write_envelope, Page, DEFAULT_PAGE_SIZE,
-    MAX_INTAKE_BYTES, MAX_PAGE_BYTES,
+    check_answer, check_intake, envelope_weight, too_large_by, write_envelope, MAX_INTAKE_BYTES,
+    MAX_PAGE_BYTES,
 };
-use fs_interfaces::texts_capnp::{text_entry, text_page};
+use fs_interfaces::texts_capnp::text_entry;
 use fs_text::Document;
 use fs_wiki_core::TextEntry;
 
@@ -29,7 +29,7 @@ impl Sent {
     }
 
     /// What this text weighs in an answer.
-    fn weight(&self) -> usize {
+    pub(crate) fn weight(&self) -> usize {
         self.json.len() + self.entry.path.len() + envelope_weight(&self.entry.envelope)
     }
 }
@@ -45,10 +45,11 @@ pub(crate) fn write_entry(mut out: text_entry::Builder<'_>, sent: &Sent) -> capn
     Ok(())
 }
 
-fn fill(out: &mut text_entry::Builder<'_>, sent: &Sent) {
+pub(crate) fn fill(out: &mut text_entry::Builder<'_>, sent: &Sent) {
     write_envelope(out.reborrow().init_envelope(), &sent.entry.envelope);
     out.set_path(sent.entry.path.as_str());
     out.set_document(sent.json.as_str());
+    // Only equality means anything: `editIf` hands it back unchanged. It is no counter and no time.
     out.set_revision(sent.entry.revision);
 }
 
@@ -61,31 +62,18 @@ pub(crate) fn write_all(
     let sent: Vec<Sent> = texts.into_iter().map(Sent::new).collect::<Result<_, _>>()?;
     let total: usize = sent.iter().map(Sent::weight).sum();
     if total > MAX_PAGE_BYTES {
-        return Err(fs_interfaces::rpc::too_large(format!(
-            "the {} moved texts weigh {total} bytes, at most {MAX_PAGE_BYTES} fit; the move is done, read them with list",
-            sent.len()
-        )));
+        return Err(too_large_by(
+            format!(
+                "the {} moved texts weigh {total} bytes, at most {MAX_PAGE_BYTES} fit; the move is done, read them with list",
+                sent.len()
+            ),
+            total as u64,
+            MAX_PAGE_BYTES as u64,
+        ));
     }
     for (i, s) in (0u32..).zip(&sent) {
         fill(&mut out.reborrow().get(i), s);
     }
-    Ok(())
-}
-
-/// Cut the page at `cursor` and write it.
-pub(crate) fn write_page(
-    mut out: text_page::Builder<'_>,
-    all: Vec<TextEntry>,
-    cursor: capnp::Result<fs_interfaces::common_capnp::cursor::Reader<'_>>,
-) -> capnp::Result<()> {
-    let opaque = cursor?.get_opaque()?;
-    let sent: Vec<Sent> = all.into_iter().map(Sent::new).collect::<Result<_, _>>()?;
-    let page = Page::of_weighted(sent, opaque, DEFAULT_PAGE_SIZE, Sent::weight)?;
-    let mut items = out.reborrow().init_items(count(page.items.len())?);
-    for (i, s) in (0u32..).zip(&page.items) {
-        fill(&mut items.reborrow().get(i), s);
-    }
-    out.init_next().set_opaque(&page.next);
     Ok(())
 }
 
@@ -105,10 +93,14 @@ pub const MAX_SOURCE_BYTES: usize = 4 * 1024 * 1024;
 pub(crate) fn source_arg(text: capnp::text::Reader<'_>) -> capnp::Result<&str> {
     let text = text.to_str()?;
     if text.len() > MAX_SOURCE_BYTES {
-        return Err(fs_interfaces::rpc::too_large(format!(
-            "{} bytes of text, at most {MAX_SOURCE_BYTES} are taken",
-            text.len()
-        )));
+        return Err(too_large_by(
+            format!(
+                "{} bytes of text, at most {MAX_SOURCE_BYTES} are taken",
+                text.len()
+            ),
+            text.len() as u64,
+            MAX_SOURCE_BYTES as u64,
+        ));
     }
     Ok(text)
 }
@@ -117,7 +109,10 @@ pub(crate) fn source_arg(text: capnp::text::Reader<'_>) -> capnp::Result<&str> {
 pub(crate) fn required<'a>(text: capnp::text::Reader<'a>, what: &str) -> capnp::Result<&'a str> {
     let text = text_arg(text)?;
     if text.is_empty() {
-        return Err(invalid(format!("{what} must not be empty")));
+        return Err(invalid(
+            format!("{what} must not be empty"),
+            &format!("{what}-empty"),
+        ));
     }
     Ok(text)
 }
@@ -125,19 +120,53 @@ pub(crate) fn required<'a>(text: capnp::text::Reader<'a>, what: &str) -> capnp::
 /// The document of a request, from its JSON form.
 pub(crate) fn read_document(text: capnp::text::Reader<'_>) -> capnp::Result<Document> {
     let text = text_arg(text)?;
-    serde_json::from_str(text).map_err(|e| invalid(format!("the document does not read: {e}")))
+    serde_json::from_str(text).map_err(|e| {
+        invalid(
+            format!("the document does not read: {e}"),
+            "document-unreadable",
+        )
+    })
+}
+
+/// Counts the bytes written and refuses to take more than `left`: the JSON form of a document is
+/// measured without being kept, and measuring stops where the limit is crossed.
+struct Measure {
+    seen: usize,
+    left: usize,
+}
+
+impl std::io::Write for Measure {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.seen += bytes.len();
+        if bytes.len() > self.left {
+            return Err(std::io::Error::other("over the limit"));
+        }
+        self.left -= bytes.len();
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
 }
 
 /// Refuse a document whose JSON form could not come back in an answer, before it is stored. Used for
-/// Markdown, whose document may be many times larger than the text it came from.
+/// Markdown, whose document may be many times larger than the text it came from. The JSON is only
+/// counted, never built as a string, and counting stops at the limit.
 pub(crate) fn fits(document: &Document) -> capnp::Result<()> {
-    let json = serde_json::to_string(document)
-        .map_err(|e| capnp::Error::failed(format!("document does not write: {e}")))?;
-    if json.len() > MAX_INTAKE_BYTES {
-        return Err(fs_interfaces::rpc::too_large(format!(
-            "the text becomes {} bytes as a document, at most {MAX_INTAKE_BYTES} fit",
-            json.len()
-        )));
+    let mut measure = Measure {
+        seen: 0,
+        left: MAX_INTAKE_BYTES,
+    };
+    match serde_json::to_writer(&mut measure, document) {
+        Ok(()) => Ok(()),
+        Err(e) if e.is_io() => Err(too_large_by(
+            format!(
+                "the text becomes more than {MAX_INTAKE_BYTES} bytes as a document, at most {MAX_INTAKE_BYTES} fit"
+            ),
+            measure.seen as u64,
+            MAX_INTAKE_BYTES as u64,
+        )),
+        Err(e) => Err(capnp::Error::failed(format!("document does not write: {e}"))),
     }
-    Ok(())
 }

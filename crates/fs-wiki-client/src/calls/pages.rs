@@ -7,7 +7,8 @@
 use std::future::Future;
 
 use fs_interfaces::texts_capnp::text_page;
-use fs_wiki_core::{Paging, Result, TextEntry};
+use fs_objects::sort_key;
+use fs_wiki_core::{Paging, Place, Placed, Result, TextEntry, TextPage};
 
 use crate::read::{entry, unreadable};
 
@@ -54,4 +55,45 @@ where
         Some(limit) => rest.take(limit).collect(),
         None => rest.collect(),
     })
+}
+
+/// The page of `size` texts after `after`, fetched with `fetch(cursor)` page after page. The cursor of
+/// the contract is a place the server made; the client cannot make one from a [`Place`], so the pages
+/// are read from the start and the texts up to `after` are dropped (as `collect` does for `offset`).
+/// A path is unique, so its sort key alone tells where a text stands.
+pub(crate) async fn collect_after<F, Fut>(
+    after: Option<&Place>,
+    size: usize,
+    mut fetch: F,
+) -> Result<TextPage>
+where
+    F: FnMut(Vec<u8>) -> Fut,
+    Fut: Future<Output = Result<(Vec<TextEntry>, Vec<u8>)>>,
+{
+    let mut items: Vec<Placed> = Vec::new();
+    let mut cursor = Vec::new();
+    loop {
+        let (page, next) = fetch(cursor).await?;
+        let empty = page.is_empty();
+        for entry in page {
+            let key = sort_key(&entry.path);
+            if after.is_some_and(|a| key.as_str() <= a.key.as_str()) {
+                continue;
+            }
+            if items.len() == size {
+                return Ok(TextPage { items, more: true });
+            }
+            let place = Place {
+                key,
+                name: entry.envelope.name.clone(),
+                id: entry.id,
+            };
+            items.push(Placed { entry, place });
+        }
+        cursor = next;
+        // A page with nothing on it and a cursor would repeat for ever: it ends the list.
+        if cursor.is_empty() || empty {
+            return Ok(TextPage { items, more: false });
+        }
+    }
 }

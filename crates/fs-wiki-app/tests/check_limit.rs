@@ -15,7 +15,10 @@ use common::{temp_dir, write_files};
 use fs_objects::ObjectId;
 use fs_wiki_app::{FileOrigins, Wiki, import_folder_within};
 use fs_wiki_client::RpcTexts;
-use fs_wiki_core::{Capabilities, FileOrigin, Origins, Paging, Result, TextEntry, Texts, WikiRepo};
+use fs_wiki_core::{
+    Capabilities, FileOrigin, Origins, Paging, Place, Result, TextEntry, TextPage, TextQuery,
+    Texts, WikiRepo,
+};
 use fs_wiki_testserver::Served;
 
 /// The real wiki whose first `get` does not answer for a long time.
@@ -31,6 +34,14 @@ impl Texts for Stuck {
             std::thread::sleep(Duration::from_secs(4));
         }
         self.0.get(id).await
+    }
+    async fn page(
+        &self,
+        query: &TextQuery,
+        after: Option<&Place>,
+        size: usize,
+    ) -> Result<TextPage> {
+        self.0.page(query, after, size).await
     }
     async fn get_by_path(&self, path: &str) -> Result<Option<TextEntry>> {
         self.0.get_by_path(path).await

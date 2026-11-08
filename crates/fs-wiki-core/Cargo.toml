@@ -10,7 +10,7 @@ version.workspace = true
 fs-text = { path = "../fs-text" }
 fs-objects = { git = "https://github.com/FreeSynergy/fs-objects", tag = "v0.5.0" }
 # The contract and the provider rule (ADR 0045).
-fs-interfaces = { git = "https://github.com/FreeSynergy/fs-interfaces", tag = "v0.34.0" }
+fs-interfaces = { git = "https://github.com/FreeSynergy/fs-interfaces", tag = "v0.45.0" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
@@ -19,3 +19,4 @@ tokio = { version = "1", features = ["sync"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
+tempfile = "3"

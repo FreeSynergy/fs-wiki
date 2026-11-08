@@ -8,25 +8,50 @@ use std::io::{self, Write};
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 
+use fs_objects::StoreId;
 use fs_wiki_core::FileOrigin;
 use rustix::fs::{FlockOperation, flock};
 use rustix::io::Errno;
+use serde::{Deserialize, Serialize};
+
+/// The line that says which store the records are for (the first line of the file, if any).
+#[derive(Serialize, Deserialize)]
+struct Header {
+    store: StoreId,
+}
+
+/// What a records file holds: the records, and the store they were made for if the file says it.
+#[derive(Default)]
+pub(crate) struct Content {
+    pub(crate) records: BTreeMap<String, FileOrigin>,
+    pub(crate) store: Option<StoreId>,
+}
 
 /// The records of `text`; the last line may be torn, any other bad line is an error: its number and
-/// the parser's reason.
-pub(crate) fn parse(text: &str) -> Result<BTreeMap<String, FileOrigin>, (usize, String)> {
+/// the parser's reason. A file from before the store id has no header line.
+pub(crate) fn parse(text: &str) -> Result<Content, (usize, String)> {
     let lines: Vec<&str> = text.lines().filter(|l| !l.trim().is_empty()).collect();
-    let mut records = BTreeMap::new();
+    let mut content = Content::default();
     for (i, line) in lines.iter().enumerate() {
         match serde_json::from_str::<FileOrigin>(line) {
             Ok(r) => {
-                records.insert(r.file.clone(), r);
+                content.records.insert(r.file.clone(), r);
             }
-            Err(_) if i + 1 == lines.len() && !text.ends_with('\n') => {}
-            Err(e) => return Err((i + 1, e.to_string())),
+            Err(e) => match serde_json::from_str::<Header>(line) {
+                Ok(header) => content.store = Some(header.store),
+                Err(_) if i + 1 == lines.len() && !text.ends_with('\n') => {}
+                Err(_) => return Err((i + 1, e.to_string())),
+            },
         }
     }
-    Ok(records)
+    Ok(content)
+}
+
+/// The header line for `store`.
+fn header(store: StoreId) -> io::Result<Vec<u8>> {
+    let mut bytes = serde_json::to_vec(&Header { store }).map_err(io::Error::other)?;
+    bytes.push(b'\n');
+    Ok(bytes)
 }
 
 /// One record as a line.
@@ -46,7 +71,11 @@ pub(crate) fn sibling(path: &Path, suffix: &str) -> PathBuf {
 
 /// Write all `records` to a temporary file, sync it, rename it over `path`, sync the folder, and
 /// open `path` for appending.
-pub(crate) fn rewrite(path: &Path, records: &BTreeMap<String, FileOrigin>) -> io::Result<File> {
+pub(crate) fn rewrite(
+    path: &Path,
+    records: &BTreeMap<String, FileOrigin>,
+    store: Option<StoreId>,
+) -> io::Result<File> {
     let temporary = sibling(path, ".tmp");
     let mut file = OpenOptions::new()
         .write(true)
@@ -54,6 +83,9 @@ pub(crate) fn rewrite(path: &Path, records: &BTreeMap<String, FileOrigin>) -> io
         .truncate(true)
         .mode(0o600)
         .open(&temporary)?;
+    if let Some(store) = store {
+        file.write_all(&header(store)?)?;
+    }
     for record in records.values() {
         file.write_all(&line(record)?)?;
     }

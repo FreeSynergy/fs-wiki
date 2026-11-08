@@ -9,7 +9,9 @@ use async_trait::async_trait;
 use common::wiki;
 use fs_objects::ObjectId;
 use fs_text::Document;
-use fs_wiki_core::{Capabilities, Error, Paging, Result, TextEntry, Texts};
+use fs_wiki_core::{
+    Capabilities, Error, Paging, Place, Result, TextEntry, TextPage, TextQuery, Texts,
+};
 
 /// A read-only provider, for example a help library shipped with a program.
 struct ReadOnly;
@@ -31,6 +33,12 @@ impl Texts for ReadOnly {
     async fn list(&self, _: &str, _: Paging) -> Result<Vec<TextEntry>> {
         Ok(vec![])
     }
+    async fn page(&self, _: &TextQuery, _: Option<&Place>, _: usize) -> Result<TextPage> {
+        Ok(TextPage {
+            items: vec![],
+            more: false,
+        })
+    }
 }
 
 fn capability<T: std::fmt::Debug>(r: Result<T>) -> String {
@@ -45,6 +53,10 @@ async fn a_missing_method_says_not_possible() {
     let p: Arc<dyn Texts> = Arc::new(ReadOnly);
     let id = ObjectId::new();
     assert!(p.list("", Paging::default()).await.unwrap().is_empty());
+    assert!(
+        p.identity().is_none(),
+        "a provider without a store has no identity"
+    );
     assert_eq!(capability(p.create("a", "x").await), "text.create");
     assert_eq!(capability(p.edit(id, Document::new()).await), "text.edit");
     assert_eq!(capability(p.move_to(id, "b").await), "text.move");

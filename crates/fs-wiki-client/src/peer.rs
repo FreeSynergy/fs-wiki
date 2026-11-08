@@ -12,6 +12,7 @@ use std::sync::Arc;
 
 use fs_interfaces::rpc::client::{Fault, Timeouts, Worker};
 use fs_interfaces::Capabilities;
+use fs_objects::StoreId;
 use fs_wiki_core::{Error, Registry, Result};
 
 use crate::feed_state::FeedState;
@@ -27,6 +28,7 @@ const SERVER: &str = "wiki";
 pub struct RpcTexts {
     worker: Arc<Worker<Remote>>,
     capabilities: Capabilities,
+    identity: Option<StoreId>,
     /// The listeners of `TextFeed::subscribe`: the one remote subscription tells this registry.
     pub(crate) registry: Arc<Registry>,
     /// Which remote subscription is the running one (see `feed.rs`).
@@ -52,10 +54,15 @@ impl RpcTexts {
     /// # Errors
     /// As for [`connect`](Self::connect), and the server did not answer in time.
     pub fn connect_with(socket: &Path, timeouts: Timeouts) -> io::Result<Self> {
-        let (worker, capabilities) = Worker::start(SERVER, socket, timeouts)?;
+        let (worker, capabilities): (Worker<Remote>, _) = Worker::start(SERVER, socket, timeouts)?;
+        // The handshake keeps the store's id in the connection's own `Remote`: ask it once.
+        let identity =
+            futures::executor::block_on(worker.call(|remote| async move { remote.identity }))
+                .map_err(|fault| io::Error::other(fault.to_string()))?;
         Ok(Self {
             worker: Arc::new(worker),
             capabilities,
+            identity,
             registry: Arc::new(Registry::default()),
             state: Arc::default(),
         })
@@ -72,6 +79,11 @@ impl RpcTexts {
     /// again.
     pub(crate) fn report(&self) -> Capabilities {
         self.capabilities.clone()
+    }
+
+    /// The id of the store behind the server, as the server reported it when this connection was made.
+    pub(crate) fn identity(&self) -> Option<StoreId> {
+        self.identity
     }
 
     /// The worker, for the one place that needs it beyond `call` (the first subscription).

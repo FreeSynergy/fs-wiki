@@ -5,12 +5,13 @@
 
 use async_trait::async_trait;
 use fs_interfaces::Capabilities;
-use fs_objects::ObjectId;
+use fs_objects::{ObjectId, StoreId};
 use fs_text::Document;
 
 use super::handle::WikiRepo;
 use crate::error::{Error, Result};
 use crate::media::TextFormat;
+use crate::page::{Place, TextPage, TextQuery};
 use crate::path::TextPath;
 use crate::texts::{LinkEntry, Paging, TextEntry, Texts};
 
@@ -18,6 +19,9 @@ use crate::texts::{LinkEntry, Paging, TextEntry, Texts};
 impl Texts for WikiRepo {
     fn capabilities(&self) -> Capabilities {
         capabilities()
+    }
+    fn identity(&self) -> Option<StoreId> {
+        self.info.as_ref().map(|info| info.identity())
     }
     async fn get(&self, id: ObjectId) -> Result<Option<TextEntry>> {
         self.text(id).await
@@ -27,6 +31,14 @@ impl Texts for WikiRepo {
     }
     async fn list(&self, prefix: &str, page: Paging) -> Result<Vec<TextEntry>> {
         self.list_texts(prefix, page).await
+    }
+    async fn page(
+        &self,
+        query: &TextQuery,
+        after: Option<&Place>,
+        size: usize,
+    ) -> Result<TextPage> {
+        self.page_of(query, after, size).await
     }
     async fn create(&self, path: &str, markdown: &str) -> Result<TextEntry> {
         let path = TextPath::parse(path)?;

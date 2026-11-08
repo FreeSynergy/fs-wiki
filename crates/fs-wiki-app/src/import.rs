@@ -49,6 +49,20 @@ pub async fn import_folder_within<W: Texts + Origins + ?Sized>(
             return report;
         }
     };
+    if let Some(current) = wiki.identity() {
+        // The records of another store say nothing about this one; the store says whose it is.
+        match wiki.recorded_store().await {
+            Ok(Some(recorded)) if recorded != current => {
+                report.records_ignored = known.len();
+                known.clear();
+            }
+            Ok(_) => {}
+            Err(e) => return failed_start(report, &e),
+        }
+        if let Err(e) = wiki.belong_to(current).await {
+            return failed_start(report, &e);
+        }
+    }
     let present = match present_ids(wiki, &known, limit).await {
         Ok((ids, unasked)) => {
             report.failures.extend(unasked);
@@ -62,13 +76,6 @@ pub async fn import_folder_within<W: Texts + Origins + ?Sized>(
             return report;
         }
     };
-    let mut live = known.values().filter(|o| !o.deleted).peekable();
-    if live.peek().is_some() && !live.any(|o| present.contains(&o.text)) {
-        // The server holds none of the texts the records name (those deleted here on purpose do not
-        // count): they are of another wiki, and say nothing about this one.
-        report.records_ignored = known.len();
-        known.clear();
-    }
     let mut seen = std::collections::HashSet::new();
     for relative in files {
         let path = relative.join("/");
@@ -88,6 +95,15 @@ pub async fn import_folder_within<W: Texts + Origins + ?Sized>(
         }
     }
     report.gone.sort_by(|a, b| a.path.cmp(&b.path));
+    report
+}
+
+/// The import cannot start: nothing is imported.
+fn failed_start(mut report: Report, why: &dyn std::fmt::Display) -> Report {
+    report.failures.push(Failure {
+        path: String::new(),
+        reason: format!("cannot tell whose the records of earlier imports are: {why}"),
+    });
     report
 }
 

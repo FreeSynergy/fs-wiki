@@ -7,10 +7,11 @@
 
 use async_trait::async_trait;
 use fs_interfaces::{Capabilities, Unsupported};
-use fs_objects::{Envelope, ObjectId};
+use fs_objects::{Envelope, ObjectId, StoreId};
 use fs_text::Document;
 
 use crate::error::Result;
+use crate::page::{Place, TextPage, TextQuery};
 
 /// The explicit "not possible" of a method a provider does not override.
 pub(crate) fn not_possible<T>(capability: &str) -> Result<T> {
@@ -75,12 +76,23 @@ impl Paging {
 pub trait Texts: Send + Sync {
     /// What this provider can do, per capability id.
     fn capabilities(&self) -> Capabilities;
+    /// The identity of the store behind this provider, if it has one: made once when the store is
+    /// created, never in the log. A provider without a store (a fake) answers `None`.
+    fn identity(&self) -> Option<StoreId> {
+        None
+    }
     /// `text.read`: the text, if it exists.
     async fn get(&self, id: ObjectId) -> Result<Option<TextEntry>>;
     /// `text.read`: lookup by readable path.
     async fn get_by_path(&self, path: &str) -> Result<Option<TextEntry>>;
     /// `text.read`: texts whose path starts with `prefix` (empty = all), in path order, paged.
     async fn list(&self, prefix: &str, page: Paging) -> Result<Vec<TextEntry>>;
+    /// `text.read` / `text.find`: at most `size` texts of `query` that come after `after` (`None` =
+    /// from the start), in path order. A provider with a store cuts the page in the store: it reads
+    /// neither the texts before the place nor the ones after the page. A `Term` query is `text.find`:
+    /// a provider without it answers [`Unsupported`].
+    async fn page(&self, query: &TextQuery, after: Option<&Place>, size: usize)
+        -> Result<TextPage>;
 
     /// `text.create`: a new text at `path` from Markdown. A taken path is an error.
     async fn create(&self, _path: &str, _markdown: &str) -> Result<TextEntry> {
