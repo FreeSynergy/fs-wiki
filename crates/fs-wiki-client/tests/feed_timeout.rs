@@ -41,15 +41,16 @@ impl Texts for Busy {
         after: Option<&Place>,
         size: usize,
     ) -> Result<TextPage> {
+        // The server answers `list` and `find` with `page`: that is the call to hold.
+        if self.slow.swap(false, Ordering::SeqCst) {
+            std::thread::sleep(Duration::from_secs(3));
+        }
         self.repo.page(query, after, size).await
     }
     async fn get_by_path(&self, path: &str) -> Result<Option<TextEntry>> {
         self.repo.get_by_path(path).await
     }
     async fn list(&self, prefix: &str, page: Paging) -> Result<Vec<TextEntry>> {
-        if self.slow.swap(false, Ordering::SeqCst) {
-            std::thread::sleep(Duration::from_secs(3));
-        }
         self.repo.list(prefix, page).await
     }
 }
