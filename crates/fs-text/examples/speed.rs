@@ -4,7 +4,7 @@
 //! changed block costs) and the export of an untouched document (kept source texts).
 //!
 //! Pattern: Facade usage — only the crate root API.
-use fs_text::*;
+use fs_text::{export_markdown, import_markdown, ExportOptions};
 use std::time::Instant;
 
 fn run(name: &str, src: &str) {

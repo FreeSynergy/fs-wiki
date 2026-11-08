@@ -72,11 +72,11 @@ async fn racing_writers_never_lose_an_accepted_update() {
     }
     let last = w.get(t.id).await.unwrap().unwrap();
     let text = TextFormat::Markdown.export(&last.document);
-    let lost: Vec<_> = words
+    let missing: Vec<_> = words
         .iter()
         .filter(|x| !text.contains(x.as_str()))
         .collect();
-    assert!(lost.is_empty(), "accepted but lost: {lost:?}");
+    assert!(missing.is_empty(), "accepted but lost: {missing:?}");
 }
 
 #[tokio::test]

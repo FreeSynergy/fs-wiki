@@ -59,7 +59,11 @@ fn the_write_is_atomic_and_leaves_no_temporary_file() {
         .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
         .collect();
     assert_eq!(names.len(), 1, "{names:?}");
-    assert!(names[0].ends_with(".draft"));
+    assert!(
+        std::path::Path::new(&names[0])
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("draft"))
+    );
     std::fs::remove_dir_all(docs).unwrap();
     std::fs::remove_dir_all(base).unwrap();
 }

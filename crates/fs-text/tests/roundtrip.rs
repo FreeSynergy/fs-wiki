@@ -7,7 +7,7 @@ fn corpus() -> Vec<(String, String)> {
     let mut v: Vec<_> = std::fs::read_dir(dir)
         .unwrap()
         .map(|e| e.unwrap().path())
-        .filter(|p| p.extension().map(|e| e == "md").unwrap_or(false))
+        .filter(|p| p.extension().is_some_and(|e| e == "md"))
         .map(|p| {
             (
                 p.file_name().unwrap().to_string_lossy().to_string(),
@@ -19,7 +19,9 @@ fn corpus() -> Vec<(String, String)> {
     v
 }
 
+#[allow(clippy::many_single_char_names)] // short fixture names (a, b, d, s)
 fn all_diffs(a: &str, b: &str) -> String {
+    use std::fmt::Write;
     let d = similar::TextDiff::from_lines(a, b);
     let mut s = String::new();
     let mut n = 0;
@@ -29,15 +31,17 @@ fn all_diffs(a: &str, b: &str) -> String {
             t => {
                 n += 1;
                 if n <= 8 {
-                    s.push_str(&format!(
-                        "   {} {}\n",
+                    writeln!(
+                        s,
+                        "   {} {}",
                         if t == similar::ChangeTag::Delete {
                             "-"
                         } else {
                             "+"
                         },
                         c.value().trim_end()
-                    ));
+                    )
+                    .unwrap();
                 }
             }
         }

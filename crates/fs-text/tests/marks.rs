@@ -64,7 +64,7 @@ fn point_marks_and_deletion() {
         vec![Mark::point(MarkKind::Variable, 3, MarkValue::None)],
     );
     d.apply(&Op::delete_text(id, 1, 5)).unwrap();
-    assert!(marks_of(&d).is_empty());
+    assert_eq!(marks_of(&d), [] as [fs_text::Mark; 0]);
 }
 
 #[test]

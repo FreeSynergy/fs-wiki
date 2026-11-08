@@ -88,11 +88,13 @@ fn deeply_nested_quotes_and_lists_do_not_overflow() {
     let deep = ">".repeat(1000) + " bottom\n";
     let b = blocks(&deep);
     assert!(b.iter().any(|x| x.plain_text().contains("bottom")));
-    let nested = (0..300)
-        .map(|i| format!("{}- item\n", "  ".repeat(i)))
-        .collect::<String>();
+    let nested = (0..300).fold(String::new(), |mut text, i| {
+        text.push_str(&"  ".repeat(i));
+        text.push_str("- item\n");
+        text
+    });
     let b = blocks(&nested);
-    assert!(!b.is_empty());
+    assert_ne!(b, [] as [fs_components_widgets::Block; 0]);
 }
 
 #[test]

@@ -73,11 +73,10 @@ async fn a_path_with_the_last_code_point_is_refused_so_no_text_stays_behind() {
     w.create("a/\u{10FFFE}z", "x").await.unwrap();
     let moved = w.move_folder("a", "c").await.unwrap();
     assert_eq!(moved.len(), 2);
-    assert!(w
-        .list("a/", fs_wiki_core::Paging::default())
-        .await
-        .unwrap()
-        .is_empty());
+    assert_eq!(
+        w.list("a/", fs_wiki_core::Paging::default()).await.unwrap(),
+        [] as [fs_wiki_core::TextEntry; 0]
+    );
 }
 
 #[tokio::test]

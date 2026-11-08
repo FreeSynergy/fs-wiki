@@ -29,7 +29,10 @@ async fn list_is_in_path_order_by_prefix_and_paged() {
             .is_empty(),
         "prefix is case sensitive"
     );
-    assert!(w.list("nope/", Paging::default()).await.unwrap().is_empty());
+    assert_eq!(
+        w.list("nope/", Paging::default()).await.unwrap(),
+        [] as [fs_wiki_core::TextEntry; 0]
+    );
 }
 
 #[tokio::test]
@@ -63,6 +66,6 @@ async fn find_looks_at_name_path_and_text_inside_the_store() {
         "text and path"
     );
     assert_eq!(find("welc").await, ["manual/start"], "name");
-    assert!(find("zzz").await.is_empty());
+    assert_eq!(find("zzz").await, [] as [std::string::String; 0]);
     assert_eq!(w.find("tea", Paging::new(1, 1)).await.unwrap().len(), 1);
 }

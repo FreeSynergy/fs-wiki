@@ -50,7 +50,7 @@ fn history_undo_redo_and_retention() {
     while h.redo(&mut d).unwrap() {}
     assert_eq!(d, current);
     h.mark_synced();
-    assert!(h.pending_sync().is_empty());
+    assert_eq!(h.pending_sync(), []);
     // retention by age
     let mut h = History::new(Retention {
         max_age: Some(60),

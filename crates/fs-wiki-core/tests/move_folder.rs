@@ -47,8 +47,14 @@ async fn a_folder_moves_with_everything_below_and_links_follow() {
     assert_ne!(old.document, before_old.document);
 
     // The link table agrees: nothing points into the old folder any more.
-    assert!(w.backlinks("manual/a").await.unwrap().is_empty());
-    assert!(w.backlinks("manual").await.unwrap().is_empty());
+    assert_eq!(
+        w.backlinks("manual/a").await.unwrap(),
+        [] as [fs_wiki_core::LinkEntry; 0]
+    );
+    assert_eq!(
+        w.backlinks("manual").await.unwrap(),
+        [] as [fs_wiki_core::LinkEntry; 0]
+    );
     assert_eq!(w.backlinks("guide/a").await.unwrap().len(), 5);
 }
 

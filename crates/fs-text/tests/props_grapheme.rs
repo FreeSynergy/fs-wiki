@@ -36,7 +36,7 @@ proptest! {
         let (mut d, id) = block_with(&text, vec![]);
         d.apply(&Op::AddMark { block: id, mark: Mark::new(MarkKind::Passage, s, s + n, MarkValue::Name("p".into())) }).unwrap();
         let t = &d.blocks[0].text;
-        for m in d.blocks[0].marks.iter() {
+        for m in &d.blocks[0].marks {
             prop_assert!(t.is_boundary(m.start) && t.is_boundary(m.end), "{m:?} in {text:?}");
         }
     }

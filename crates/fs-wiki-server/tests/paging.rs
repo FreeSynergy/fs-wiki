@@ -20,7 +20,7 @@ async fn list_follows_the_cursor_through_all_pages_in_path_order() {
         assert_eq!(all, want, "250 texts, 100 per page, no gap and no repeat");
         assert_eq!(list_paths(&root, "").await.len(), 251);
         assert_eq!(list_paths(&root, "other").await, ["other/q"]);
-        assert!(list_paths(&root, "nothing").await.is_empty());
+        assert_eq!(list_paths(&root, "nothing").await, [] as [String; 0]);
     })
     .await;
 }
@@ -45,7 +45,10 @@ async fn find_matches_name_path_and_text_and_pages_like_list() {
             .collect();
         paths.sort();
         assert_eq!(paths, ["guide/a", "guide/b", "kanban/c"]);
-        assert!(page.get_next().unwrap().get_opaque().unwrap().is_empty());
+        assert_eq!(
+            page.get_next().unwrap().get_opaque().unwrap(),
+            [] as [u8; 0]
+        );
     })
     .await;
 }

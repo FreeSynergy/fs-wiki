@@ -91,7 +91,10 @@ async fn the_hub_comes_away_with_nothing_of_the_wiki_and_a_dead_hub_is_found_aga
     w.purge(t.id).await.unwrap();
     let local = log(&store).await;
     assert!(!local.contains("TRASH-SECRET") && !local.contains("REV3"));
-    assert!(w.list_trash(None, 10).await.unwrap().items.is_empty());
+    assert_eq!(
+        w.list_trash(None, 10).await.unwrap().items,
+        [] as [fs_wiki_core::TrashItem; 0]
+    );
     let seen = hub_bytes(&hubdata);
     for needle in [
         "REV1-SECRET",

@@ -56,14 +56,14 @@ fn a_block_that_loses_its_container_does_not_drag_the_next_one_along() {
 #[test]
 fn a_block_that_becomes_a_list_item_does_not_swallow_the_code_after_it() {
     edited("x\n\n    code\n", |d| {
-        d.blocks[0].attrs.containers.push(item(50))
+        d.blocks[0].attrs.containers.push(item(50));
     });
 }
 
 #[test]
 fn a_heading_that_becomes_a_paragraph_does_not_merge_with_the_text_below() {
     edited("# h\ntext\n", |d| {
-        d.blocks[0].attrs.kind = BlockKind::Paragraph
+        d.blocks[0].attrs.kind = BlockKind::Paragraph;
     });
 }
 

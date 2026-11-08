@@ -23,7 +23,7 @@ async fn trash_hides_a_text_and_restore_or_purge_ends_it() {
         trash(&root, b.id).await.unwrap();
         let (ids, next) = trash_ids(&root, &[]).await;
         assert_eq!(ids, [b.id, a.id], "the most recently deleted first");
-        assert!(next.is_empty());
+        assert_eq!(next, [] as [u8; 0]);
 
         create(&root, "a", "in the way\n").await;
         let mut req = root.restore_from_trash_request();
@@ -59,7 +59,7 @@ async fn trash_hides_a_text_and_restore_or_purge_ends_it() {
             ("not-in-trash", 409)
         );
         purge(b.id).await.unwrap();
-        assert!(trash_ids(&root, &[]).await.0.is_empty());
+        assert_eq!(trash_ids(&root, &[]).await.0, [] as [uuid::Uuid; 0]);
         let mut req = root.restore_from_trash_request();
         set_id(req.get().init_id(), b.id);
         assert_eq!(short(&req.send().promise.await.err().unwrap()), "not-found");

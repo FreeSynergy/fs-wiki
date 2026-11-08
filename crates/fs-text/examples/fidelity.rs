@@ -6,7 +6,7 @@
 //! the slowest import-export.
 //!
 //! Pattern: Facade usage — only the crate root API.
-use fs_text::*;
+use fs_text::{export_markdown, import_markdown, BlockKind, Document, ExportOptions};
 use pulldown_cmark::{html::push_html, Parser};
 use std::time::Instant;
 

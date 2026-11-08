@@ -33,7 +33,7 @@ fn an_export_after_a_move_names_the_old_file_and_keeps_the_next_start_quiet() {
         (report.imported, report.updated, report.unchanged),
         (0, 0, 2)
     );
-    assert!(report.conflicts.is_empty());
+    assert_eq!(report.conflicts, [] as [fs_wiki_app::Conflict; 0]);
     let all = rt
         .block_on(w.list("", fs_wiki_core::Paging::default()))
         .unwrap();

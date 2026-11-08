@@ -140,11 +140,10 @@ async fn a_redirect_is_followed_by_resolve_and_loops_are_results() {
             .err()
             .unwrap();
         assert_eq!(short(&err), "conflict");
-        assert!(redirect(&root, old.id, "", None)
-            .await
-            .unwrap()
-            .redirect_to
-            .is_empty());
+        assert_eq!(
+            redirect(&root, old.id, "", None).await.unwrap().redirect_to,
+            ""
+        );
     })
     .await;
 }

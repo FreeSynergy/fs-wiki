@@ -60,7 +60,7 @@ async fn delete_removes_the_text() {
     let a = make(&texts, "a", "x\n").await;
     texts.delete(a.id).await.unwrap();
     assert!(texts.get(a.id).await.unwrap().is_none());
-    assert!(paths(&texts, "").await.is_empty());
+    assert_eq!(paths(&texts, "").await, [] as [std::string::String; 0]);
 }
 
 #[tokio::test(flavor = "multi_thread")]

@@ -116,7 +116,7 @@ async fn children_are_paged_and_a_moved_page_lands_last_in_its_new_folder() {
     assert_eq!(names(&w, Some(s2.id)).await.join(""), "AM");
     w.create("two/z", "# Z\n").await.unwrap();
     w.move_to(a.id, "one/a").await.unwrap();
-    assert!(!names(&w, Some(s1.id)).await.is_empty());
+    assert_ne!(names(&w, Some(s1.id)).await, [] as [std::string::String; 0]);
 }
 
 #[tokio::test]

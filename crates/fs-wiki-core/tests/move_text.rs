@@ -54,7 +54,10 @@ async fn move_rewrites_links_in_other_texts() {
 
     // The link table follows: back references under the new path, none under the old.
     assert_eq!(w.backlinks("archive/new").await.unwrap().len(), 5);
-    assert!(w.backlinks("wiki/old-page").await.unwrap().is_empty());
+    assert_eq!(
+        w.backlinks("wiki/old-page").await.unwrap(),
+        [] as [fs_wiki_core::LinkEntry; 0]
+    );
     let rows = w.links(a.id).await.unwrap();
     assert!(rows.iter().all(|r| r.target.starts_with("archive/new")));
 }

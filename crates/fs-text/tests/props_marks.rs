@@ -64,7 +64,7 @@ proptest! {
         for e in &es {
             apply_e(&mut d, id, e);
             let len = d.blocks[0].text.len();
-            for m in d.blocks[0].marks.iter() {
+            for m in &d.blocks[0].marks {
                 prop_assert!(m.start <= m.end && m.end <= len, "{m:?} len {len}");
                 if m.kind == MarkKind::Variable { prop_assert!(m.is_point()); }
             }

@@ -3,6 +3,7 @@
 use fs_text::*;
 mod common;
 
+#[allow(clippy::many_single_char_names)] // short fixture names (a, b, d, s)
 #[test]
 fn external_edit_moves_marks() {
     let mut d = Document::from_file_text("fn main() {\n    let name = 1;\n}\n");
@@ -26,7 +27,7 @@ fn external_edit_moves_marks() {
     ));
     let new = "// header\nfn main() {\n    let name = 1;\n    let other = 2;\n}\n";
     let (ops, inv) = import_external(&mut d, new);
-    assert!(!ops.is_empty());
+    assert_ne!(ops, [] as [fs_text::Op; 0]);
     assert_eq!(d.raw_text().unwrap(), new);
     let b = &d.blocks[0];
     let p = b

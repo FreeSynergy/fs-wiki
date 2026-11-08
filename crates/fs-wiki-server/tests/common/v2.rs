@@ -53,7 +53,7 @@ pub async fn history(root: &texts::Client, id: Uuid, cursor: &[u8]) -> (Vec<u64>
         .get_items()
         .unwrap()
         .iter()
-        .map(|i| i.get_number())
+        .map(fs_interfaces::texts_capnp::revision_info::Reader::get_number)
         .collect();
     (
         numbers,
@@ -62,7 +62,7 @@ pub async fn history(root: &texts::Client, id: Uuid, cursor: &[u8]) -> (Vec<u64>
 }
 
 /// The document of a text after `markdown` was written over it (a document JSON to send back).
-pub async fn document_saying(root: &texts::Client, got: &Got, markdown: &str) -> String {
+pub fn document_saying(root: &texts::Client, got: &Got, markdown: &str) -> String {
     let mut doc: fs_text::Document = serde_json::from_str(&got.document).unwrap();
     fs_wiki_core::TextFormat::Markdown.import_external(&mut doc, markdown);
     let _ = root;

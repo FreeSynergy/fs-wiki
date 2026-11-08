@@ -38,14 +38,14 @@ fn every_accepted_save_is_in_the_final_text() {
         .flat_map(|t| t.join().unwrap())
         .collect();
     let last = markdown_at(&rt, &w, "p.md").unwrap();
-    let lost: Vec<_> = accepted
+    let missing: Vec<_> = accepted
         .iter()
         .filter(|x| !last.contains(x.as_str()))
         .collect();
-    assert!(!accepted.is_empty());
+    assert_ne!(accepted, [] as [std::string::String; 0]);
     assert!(
-        lost.is_empty(),
-        "{} accepted, lost: {lost:?}",
+        missing.is_empty(),
+        "{} accepted, lost: {missing:?}",
         accepted.len()
     );
 }

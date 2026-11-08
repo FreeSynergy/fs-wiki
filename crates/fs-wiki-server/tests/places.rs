@@ -60,7 +60,7 @@ async fn texts_added_or_removed_before_the_cursor_neither_repeat_nor_skip() {
         create(&root, "n/09", "x\n").await;
         let (second, cursor) = page(&root, "n/", &cursor).await;
         assert_eq!(second, ["n/16", "n/18"]);
-        assert!(cursor.is_empty());
+        assert_eq!(cursor, [] as [u8; 0]);
     })
     .await;
 }

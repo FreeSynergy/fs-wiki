@@ -52,7 +52,10 @@ async fn a_purge_of_a_text_that_stopped_half_way_is_finished_by_a_retry() {
     assert!(w.purge(t.id).await.is_err());
     w.purge(t.id).await.unwrap();
     assert!(!log_text(&store).await.contains("trash-needle"));
-    assert!(w.list_trash(None, 10).await.unwrap().items.is_empty());
+    assert_eq!(
+        w.list_trash(None, 10).await.unwrap().items,
+        [] as [fs_wiki_core::TrashItem; 0]
+    );
     assert!(store.get(t.id).await.unwrap().is_none());
 }
 
@@ -200,7 +203,10 @@ async fn a_port_that_refuses_purges_nothing_and_a_retry_completes() {
     gate.set(None);
     w.purge(t.id).await.unwrap();
     assert!(!everything(&store).await.contains("SECRET"));
-    assert!(w.list_trash(None, 10).await.unwrap().items.is_empty());
+    assert_eq!(
+        w.list_trash(None, 10).await.unwrap().items,
+        [] as [fs_wiki_core::TrashItem; 0]
+    );
 }
 
 async fn gated() -> (
@@ -239,7 +245,10 @@ async fn a_port_that_refuses_part_way_leaves_a_text_the_retry_finishes() {
     gate.set(None);
     w.purge(t.id).await.unwrap();
     assert!(!everything(&store).await.contains("PART-SECRET"));
-    assert!(w.list_trash(None, 10).await.unwrap().items.is_empty());
+    assert_eq!(
+        w.list_trash(None, 10).await.unwrap().items,
+        [] as [fs_wiki_core::TrashItem; 0]
+    );
 }
 
 #[tokio::test]

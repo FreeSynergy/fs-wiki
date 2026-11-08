@@ -21,8 +21,8 @@ fn main() {
 }
 
 fn run() -> Result<(), String> {
-    let argv: Vec<String> = std::env::args().skip(1).collect();
-    let args = parse(&argv)?;
+    let given: Vec<String> = std::env::args().skip(1).collect();
+    let args = parse(&given)?;
     if args.help {
         println!("{HELP}");
         return Ok(());
@@ -31,19 +31,18 @@ fn run() -> Result<(), String> {
     let started = Instant::now();
     let socket = socket_path(args.socket.as_deref())?;
     let texts = connect(&socket)?;
-    let records = match &args.origins {
-        Some(file) => file.clone(),
-        None => {
-            let data = data_dir()
-                .ok_or("no data directory (set HOME or XDG_DATA_HOME, or use --origins)")?;
-            if let Some(old) = old_store_file(&data, &args.docs) {
-                eprintln!(
-                    "{}",
-                    words::say(words::OLD_STORE, &[("path", &old.display())])
-                );
-            }
-            origins_file(&data, &args.docs)
+    let records = if let Some(file) = &args.origins {
+        file.clone()
+    } else {
+        let data =
+            data_dir().ok_or("no data directory (set HOME or XDG_DATA_HOME, or use --origins)")?;
+        if let Some(old) = old_store_file(&data, &args.docs) {
+            eprintln!(
+                "{}",
+                words::say(words::OLD_STORE, &[("path", &old.display())])
+            );
         }
+        origins_file(&data, &args.docs)
     };
     eprintln!(
         "server: {}, records: {}",
@@ -53,31 +52,7 @@ fn run() -> Result<(), String> {
     let origins = FileOrigins::open(&records).map_err(|e| e.to_string())?;
     let wiki = Arc::new(Wiki::new(Arc::new(texts), Arc::new(origins)));
     let report = runtime.block_on(import_folder(wiki.as_ref(), &args.docs));
-    eprintln!(
-        "{} new, {} updated, {} unchanged, {} failed, {} conflict(s), {} gone, {} skipped, in {:.1?}",
-        report.imported,
-        report.updated,
-        report.unchanged,
-        report.failures.len(),
-        report.conflicts.len(),
-        report.gone.len(),
-        report.skipped.len(),
-        started.elapsed()
-    );
-    if report.records_ignored > 0 {
-        let count = report.records_ignored;
-        eprintln!(
-            "{}",
-            words::say(words::RECORDS_IGNORED, &[("count", &count)])
-        );
-    }
-    if !report.missing.is_empty() {
-        let count = report.missing.len();
-        eprintln!(
-            "{}",
-            words::say(words::MISSING_SUMMARY, &[("count", &count)])
-        );
-    }
+    print_summary(&report, started);
     let drafts = args
         .drafts
         .clone()
@@ -128,6 +103,35 @@ fn run() -> Result<(), String> {
     options.labels = labels;
     options.export_target = export_target;
     launch(&options, source).map_err(|e| e.to_string())
+}
+
+/// One line of counts, then a word for what was ignored or is missing.
+fn print_summary(report: &fs_wiki_app::Report, started: Instant) {
+    eprintln!(
+        "{} new, {} updated, {} unchanged, {} failed, {} conflict(s), {} gone, {} skipped, in {:.1?}",
+        report.imported,
+        report.updated,
+        report.unchanged,
+        report.failures.len(),
+        report.conflicts.len(),
+        report.gone.len(),
+        report.skipped.len(),
+        started.elapsed()
+    );
+    if report.records_ignored > 0 {
+        let count = report.records_ignored;
+        eprintln!(
+            "{}",
+            words::say(words::RECORDS_IGNORED, &[("count", &count)])
+        );
+    }
+    if !report.missing.is_empty() {
+        let count = report.missing.len();
+        eprintln!(
+            "{}",
+            words::say(words::MISSING_SUMMARY, &[("count", &count)])
+        );
+    }
 }
 
 /// `open:<path>`, `follow:<href>`, `back`, `search:<term>`.

@@ -1,7 +1,7 @@
 //! Example: round-trip every .md file below a directory and print identical/unstable counts.
 //!
 //! Pattern: Facade usage — only the crate root API.
-use fs_text::*;
+use fs_text::{export_markdown, import_markdown, ExportOptions};
 fn main() {
     let root = std::env::args().nth(1).unwrap();
     let (mut n, mut ident, mut unstable) = (0, 0, 0);
@@ -13,7 +13,7 @@ fn main() {
                 stack.push(path);
                 continue;
             }
-            if path.extension().map(|x| x != "md").unwrap_or(true) {
+            if path.extension().is_none_or(|x| x != "md") {
                 continue;
             }
             let src = std::fs::read_to_string(&path).unwrap();

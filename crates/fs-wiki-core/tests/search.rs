@@ -41,7 +41,10 @@ async fn words_match_whole_ignore_case_and_all_must_match() {
         "all words, any case, any order"
     );
     assert_eq!(paths(&w, &q("tea")).await, ["a", "b", "c"]);
-    assert!(paths(&w, &q("towel zebra")).await.is_empty());
+    assert_eq!(
+        paths(&w, &q("towel zebra")).await,
+        [] as [std::string::String; 0]
+    );
     assert_eq!(paths(&w, &q("tow")).await, Vec::<String>::new());
     let prefix = SearchQuery {
         term: "tea tow".into(),
@@ -157,7 +160,10 @@ async fn filters_combine_and_an_empty_term_lists_without_snippets() {
         author: "someone".into(),
         ..Default::default()
     };
-    assert!(hits(&w, &with(other)).await.is_empty());
+    assert_eq!(
+        hits(&w, &with(other)).await,
+        [] as [fs_wiki_core::SearchHit; 0]
+    );
     let space = w.create_folder(None, "Docs", "docs").await.unwrap();
     let in_space = SearchFilter {
         space: Some(space.id),
@@ -174,7 +180,7 @@ async fn filters_combine_and_an_empty_term_lists_without_snippets() {
     .await;
     assert_eq!(only_filters.len(), 1);
     assert!(only_filters[0].snippets.is_empty() && only_filters[0].template);
-    assert!(hits(&w, &SearchQuery::default()).await.len() == 3);
+    assert_eq!(hits(&w, &SearchQuery::default()).await.len(), 3);
 }
 
 #[tokio::test]

@@ -20,11 +20,10 @@ async fn a_trashed_text_is_out_of_sight_and_its_path_is_free() {
     assert!(w.get(a.id).await.unwrap().is_none());
     assert!(w.get_by_path("a").await.unwrap().is_none());
     assert_eq!(paths(&w.list("", Paging::default()).await.unwrap()), ["b"]);
-    assert!(w
-        .find("needle", Paging::default())
-        .await
-        .unwrap()
-        .is_empty());
+    assert_eq!(
+        w.find("needle", Paging::default()).await.unwrap(),
+        [] as [fs_wiki_core::TextEntry; 0]
+    );
     assert!(
         w.backlinks("b").await.unwrap().is_empty(),
         "its links are out of the index"
@@ -41,7 +40,7 @@ async fn a_trashed_text_is_out_of_sight_and_its_path_is_free() {
         )
         .await
         .unwrap();
-    assert!(hits.items.is_empty());
+    assert_eq!(hits.items, [] as [fs_wiki_core::SearchHit; 0]);
     w.create("a", "a new text at the freed path\n")
         .await
         .unwrap();
@@ -111,7 +110,10 @@ async fn restoring_brings_the_text_back_at_its_path_or_another() {
     let back = w.restore_from_trash(a.id, "elsewhere/a").await.unwrap();
     assert_eq!((back.id, back.path.as_str()), (a.id, "elsewhere/a"));
     assert_eq!(back.document, a.document);
-    assert!(w.list_trash(None, 10).await.unwrap().items.is_empty());
+    assert_eq!(
+        w.list_trash(None, 10).await.unwrap().items,
+        [] as [fs_wiki_core::TrashItem; 0]
+    );
     assert!(matches!(
         w.restore_from_trash(a.id, "").await,
         Err(Error::NotInTrash(_))
@@ -139,7 +141,10 @@ async fn purge_takes_the_text_out_of_the_store_and_its_log() {
     );
     w.trash(a.id).await.unwrap();
     w.purge(a.id).await.unwrap();
-    assert!(w.list_trash(None, 10).await.unwrap().items.is_empty());
+    assert_eq!(
+        w.list_trash(None, 10).await.unwrap().items,
+        [] as [fs_wiki_core::TrashItem; 0]
+    );
     assert!(matches!(
         w.history(a.id, None, 5).await,
         Err(Error::NotFound(_))

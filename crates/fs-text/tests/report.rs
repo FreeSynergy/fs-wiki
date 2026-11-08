@@ -97,7 +97,7 @@ fn a_clean_edit_has_an_empty_report() {
     d.blocks[1].splice(0, 4, "other");
     let (out, report) = export(&d);
     assert_eq!(out, "# T\n\nother words\n");
-    assert!(report.inexact.is_empty());
+    assert_eq!(report.inexact, [] as [fs_text::Inexact; 0]);
 }
 
 #[test]

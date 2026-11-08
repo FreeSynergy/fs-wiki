@@ -11,7 +11,7 @@ use common::{create, get, set_id, with_server};
 async fn a_stale_edit_with_is_the_typed_conflict_and_writes_nothing() {
     with_server(|root| async move {
         let a = create(&root, "a", "one\n").await;
-        let doc = document_saying(&root, &a, "two\n").await;
+        let doc = document_saying(&root, &a, "two\n");
         let second = edit_with(&root, a.id, Some(a.revision), &doc, "first fix")
             .await
             .unwrap();
@@ -48,14 +48,14 @@ async fn history_is_paged_by_cursor_and_a_revision_can_be_read_and_restored() {
         let a = create(&root, "a", "v1\n").await;
         let mut now = a.clone();
         for i in 2..=5 {
-            let doc = document_saying(&root, &now, &format!("v{i}\n")).await;
+            let doc = document_saying(&root, &now, &format!("v{i}\n"));
             now = edit_with(&root, a.id, None, &doc, &format!("step {i}"))
                 .await
                 .unwrap();
         }
         let (first, next) = history(&root, a.id, &[]).await;
         assert_eq!(first, [5, 4, 3, 2, 1], "one page holds them all");
-        assert!(next.is_empty());
+        assert_eq!(next, [] as [u8; 0]);
         let mut req = root.history_request();
         set_id(req.get().init_id(), a.id);
         let answer = req.send().promise.await.unwrap();
@@ -137,7 +137,7 @@ async fn a_long_history_continues_with_the_cursor_and_unknowns_are_typed() {
         let a = create(&root, "a", "v1\n").await;
         let mut now = a.clone();
         for i in 2..=7 {
-            let doc = document_saying(&root, &now, &format!("v{i}\n")).await;
+            let doc = document_saying(&root, &now, &format!("v{i}\n"));
             now = edit_with(&root, a.id, None, &doc, "").await.unwrap();
         }
         let (mut seen, mut cursor) = (vec![], vec![]);

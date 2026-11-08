@@ -1,7 +1,7 @@
 //! Example: grapheme-safe marking and editing (ADR 0043 pending improvement).
 //!
 //! Pattern: Factory (Command) — `Document::edit_op` / `Block::add_mark` snap to clusters.
-use fs_text::*;
+use fs_text::{Block, Document, Mark, MarkKind, MarkValue};
 
 fn main() {
     let mut doc = Document::new();

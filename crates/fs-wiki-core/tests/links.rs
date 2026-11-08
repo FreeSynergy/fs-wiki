@@ -72,7 +72,10 @@ async fn backlinks_find_internal_links_from_all_texts() {
         3,
         "the page part counts"
     );
-    assert!(w.backlinks("nobody").await.unwrap().is_empty());
+    assert_eq!(
+        w.backlinks("nobody").await.unwrap(),
+        [] as [fs_wiki_core::LinkEntry; 0]
+    );
 }
 
 #[tokio::test]
@@ -95,5 +98,8 @@ async fn backlinks_follow_edits_and_deletes() {
     let c = w.create("third", "[[manual/start]]").await.unwrap();
     assert_eq!(w.backlinks("manual/start").await.unwrap().len(), 1);
     w.delete(c.id).await.unwrap();
-    assert!(w.backlinks("manual/start").await.unwrap().is_empty());
+    assert_eq!(
+        w.backlinks("manual/start").await.unwrap(),
+        [] as [fs_wiki_core::LinkEntry; 0]
+    );
 }

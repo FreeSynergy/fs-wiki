@@ -22,11 +22,10 @@ async fn a_private_comment_is_not_found_by_search() {
             .len(),
         1
     );
-    assert!(w
-        .find("private", Paging::default())
-        .await
-        .unwrap()
-        .is_empty());
+    assert_eq!(
+        w.find("private", Paging::default()).await.unwrap(),
+        [] as [fs_wiki_core::TextEntry; 0]
+    );
 }
 
 #[tokio::test]

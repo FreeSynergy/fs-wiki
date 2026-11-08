@@ -35,6 +35,7 @@ impl Seen {
     }
 }
 
+#[allow(clippy::unused_async_trait_impl)] // the generated trait requires async methods
 impl change_listener::Server for Seen {
     async fn change(
         self: Rc<Self>,

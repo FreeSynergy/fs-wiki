@@ -56,8 +56,8 @@ async fn limit_and_offset_cut_across_the_page_borders() {
     let border = DEFAULT_PAGE_SIZE - 3;
     assert_eq!(at(border, 10).await, want[border..border + 10]);
     assert_eq!(at(MANY - 4, 50).await, want[MANY - 4..]);
-    assert!(at(MANY + 10, 5).await.is_empty());
-    assert!(at(0, 0).await.is_empty());
+    assert_eq!(at(MANY + 10, 5).await, [] as [std::string::String; 0]);
+    assert_eq!(at(0, 0).await, [] as [std::string::String; 0]);
     let only_offset = Paging {
         limit: None,
         offset: MANY - 2,

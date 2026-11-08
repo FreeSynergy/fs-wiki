@@ -166,7 +166,7 @@ fn strip_headers(records: &std::path::Path) {
     let old: String = text
         .lines()
         .filter(|l| !l.contains("\"store\""))
-        .map(|l| format!("{l}\n"))
+        .flat_map(|l| [l, "\n"])
         .collect();
     assert!(old.len() < text.len(), "there was a header to strip");
     std::fs::write(records, old).unwrap();
@@ -215,7 +215,7 @@ fn records_from_before_the_store_was_recorded_are_not_bound_to_a_server_that_lac
         (1, 1),
         "another server: the file comes in, the old record is not trusted"
     );
-    assert!(report.missing.is_empty());
+    assert_eq!(report.missing, [] as [fs_wiki_app::Failure; 0]);
     let text = std::fs::read_to_string(&records).unwrap();
     let first = text.lines().next().unwrap();
     assert!(
@@ -249,7 +249,7 @@ fn going_back_to_a_server_brings_its_records_and_deleted_marks_back() {
         (0, 2, 0),
         "b.md stays deleted: its mark came back with the records of this server"
     );
-    assert!(report.missing.is_empty());
+    assert_eq!(report.missing, [] as [fs_wiki_app::Failure; 0]);
     assert!(rt.block_on(w.get_by_path("b.md")).unwrap().is_none());
     std::fs::remove_dir_all(dir).unwrap();
 }

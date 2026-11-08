@@ -11,8 +11,8 @@ fn export(d: &Document) -> String {
 /// Hand-written file with the styles that used to be normalised.
 const SAMPLE: &str = "Title\n=====\n\nSub\n---\n\nSome *text*  \nwith a break and\\\nanother.\n\n1. one\n1. two\n1. three\n\n| a   | b |\n|-----|:-:|\n| 1   | 2 |\n\n!!! note \"Careful\"\n    Mind the gap.\n\n* star\n* bullets\n\n[ref]: /url \"title\"\n\n    indented code\n\n<!-- comment -->\n\nlast line without newline";
 
-fn edit_first_word(d: &mut Document, kind: BlockKind) {
-    let b = d.blocks.iter_mut().find(|b| b.attrs.kind == kind).unwrap();
+fn edit_first_word(d: &mut Document, kind: &BlockKind) {
+    let b = d.blocks.iter_mut().find(|b| b.attrs.kind == *kind).unwrap();
     let t = b.text.to_string();
     let end = t.find(' ').map_or(t.len(), |i| t[..i].chars().count());
     b.splice(0, end, "changed");
@@ -59,7 +59,7 @@ fn every_corpus_file_is_byte_identical() {
 #[test]
 fn one_changed_word_changes_one_line() {
     let mut d = import_markdown(SAMPLE);
-    edit_first_word(&mut d, BlockKind::Paragraph);
+    edit_first_word(&mut d, &BlockKind::Paragraph);
     let out = export(&d);
     let changed: Vec<_> = SAMPLE
         .lines()
@@ -80,7 +80,7 @@ fn one_changed_word_changes_one_line() {
 fn crlf_file_stays_crlf_when_a_block_changes() {
     let src = "# Head\r\n\r\nfirst paragraph\r\n\r\n- a\r\n- b\r\n";
     let mut d = import_markdown(src);
-    edit_first_word(&mut d, BlockKind::Paragraph);
+    edit_first_word(&mut d, &BlockKind::Paragraph);
     let out = export(&d);
     assert_eq!(out, "# Head\r\n\r\nchanged paragraph\r\n\r\n- a\r\n- b\r\n");
     d.blocks[2].insert(1, "X");

@@ -96,7 +96,7 @@ async fn a_folder_move_dropped_while_it_waits_at_a_write_still_finishes() {
         gated.open.send_replace(true);
         for _ in 0..100 {
             if list_paths(&root, "n").await.len() == 3 {
-                assert!(list_paths(&root, "m").await.is_empty());
+                assert_eq!(list_paths(&root, "m").await, [] as [std::string::String; 0]);
                 return;
             }
             tokio::time::sleep(Duration::from_millis(20)).await;

@@ -52,7 +52,10 @@ fn capability<T: std::fmt::Debug>(r: Result<T>) -> String {
 async fn a_missing_method_says_not_possible() {
     let p: Arc<dyn Texts> = Arc::new(ReadOnly);
     let id = ObjectId::new();
-    assert!(p.list("", Paging::default()).await.unwrap().is_empty());
+    assert_eq!(
+        p.list("", Paging::default()).await.unwrap(),
+        [] as [fs_wiki_core::TextEntry; 0]
+    );
     assert!(
         p.identity().is_none(),
         "a provider without a store has no identity"

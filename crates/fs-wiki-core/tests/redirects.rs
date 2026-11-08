@@ -35,12 +35,13 @@ async fn a_redirect_is_set_cleared_and_never_followed_by_get() {
         .await
         .unwrap_err();
     assert!(matches!(stale, Error::Conflict { .. }));
-    assert!(w
-        .set_redirect(a.id, "", Expect::Any)
-        .await
-        .unwrap()
-        .redirect_to
-        .is_empty());
+    assert_eq!(
+        w.set_redirect(a.id, "", Expect::Any)
+            .await
+            .unwrap()
+            .redirect_to,
+        ""
+    );
     assert_eq!(w.resolve("old").await.unwrap().text.unwrap().id, a.id);
     let missing = w
         .set_redirect(a.id, "not/there", Expect::Any)
@@ -94,9 +95,10 @@ async fn bad_targets_are_refused_with_the_reason() {
         ),
         "{e:?}"
     );
-    assert!(w.get(a.id).await.unwrap().unwrap().redirect_to.is_empty());
+    assert_eq!(w.get(a.id).await.unwrap().unwrap().redirect_to, "");
 }
 
+#[allow(clippy::many_single_char_names)] // short fixture names (a, b, d, s)
 #[tokio::test]
 async fn loops_and_long_chains_are_results_not_errors() {
     let w = wiki().await;
