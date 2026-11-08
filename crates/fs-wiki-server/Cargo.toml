@@ -15,9 +15,9 @@ path = "src/main.rs"
 [dependencies]
 fs-wiki-core = { path = "../fs-wiki-core" }
 fs-text = { path = "../fs-text" }
-fs-interfaces = { git = "https://github.com/FreeSynergy/fs-interfaces", rev = "b83cbb5", features = ["rpc"] }
-fs-objects = { git = "https://github.com/FreeSynergy/fs-objects", tag = "v0.5.0" }
-fs-hub-client = { git = "https://github.com/FreeSynergy/fs-hub", tag = "v0.4.0" }
+fs-interfaces = { git = "https://github.com/FreeSynergy/fs-interfaces", tag = "v0.0.1", features = ["rpc"] }
+fs-objects = { git = "https://github.com/FreeSynergy/fs-objects", tag = "v0.0.1" }
+fs-hub-client = { git = "https://github.com/FreeSynergy/fs-hub", tag = "v0.0.1" }
 async-trait = "0.1"
 tokio = { version = "1", features = ["sync", "time"] }
 capnp = "0.27"
@@ -26,6 +26,6 @@ serde_json = "1"
 uuid = "1"
 
 [dev-dependencies]
-fs-hub = { git = "https://github.com/FreeSynergy/fs-hub", tag = "v0.4.0" }
+fs-hub = { git = "https://github.com/FreeSynergy/fs-hub", tag = "v0.0.1" }
 tempfile = "3"
 tokio = { version = "1", features = ["full"] }

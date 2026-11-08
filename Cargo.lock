@@ -1447,18 +1447,20 @@ checksum = "aa9a19cbb55df58761df49b23516a86d432839add4af60fc256da840f66ed35b"
 
 [[package]]
 name = "fs-components-primitives"
-version = "0.2.0"
-source = "git+https://github.com/FreeSynergy/fs-components?tag=v0.2.0#22456e305ec09f3b8c18d4dc88e8b71700f7cec4"
+version = "0.0.1"
+source = "git+https://github.com/FreeSynergy/fs-components?tag=v0.0.1#320de5f62953b1b3c259aa4746e606f3ece9a8dc"
 dependencies = [
  "blinc_cn",
  "blinc_core",
  "blinc_layout",
+ "blinc_theme",
+ "fs-interfaces 0.52.0",
 ]
 
 [[package]]
 name = "fs-components-render"
-version = "0.2.0"
-source = "git+https://github.com/FreeSynergy/fs-components?tag=v0.2.0#22456e305ec09f3b8c18d4dc88e8b71700f7cec4"
+version = "0.0.1"
+source = "git+https://github.com/FreeSynergy/fs-components?tag=v0.0.1#320de5f62953b1b3c259aa4746e606f3ece9a8dc"
 dependencies = [
  "blinc_app",
  "blinc_cn",
@@ -1472,8 +1474,8 @@ dependencies = [
 
 [[package]]
 name = "fs-components-widgets"
-version = "0.2.0"
-source = "git+https://github.com/FreeSynergy/fs-components?tag=v0.2.0#22456e305ec09f3b8c18d4dc88e8b71700f7cec4"
+version = "0.0.1"
+source = "git+https://github.com/FreeSynergy/fs-components?tag=v0.0.1#320de5f62953b1b3c259aa4746e606f3ece9a8dc"
 dependencies = [
  "blinc_cn",
  "blinc_core",
@@ -1488,8 +1490,8 @@ dependencies = [
 
 [[package]]
 name = "fs-components-workbenches"
-version = "0.2.0"
-source = "git+https://github.com/FreeSynergy/fs-components?tag=v0.2.0#22456e305ec09f3b8c18d4dc88e8b71700f7cec4"
+version = "0.0.1"
+source = "git+https://github.com/FreeSynergy/fs-components?tag=v0.0.1#320de5f62953b1b3c259aa4746e606f3ece9a8dc"
 dependencies = [
  "blinc_app",
  "blinc_cn",
@@ -1503,15 +1505,15 @@ dependencies = [
 
 [[package]]
 name = "fs-hub"
-version = "0.4.0"
-source = "git+https://github.com/FreeSynergy/fs-hub?tag=v0.4.0#670fbfda7705a2c62776aac5127bf721cca97253"
+version = "0.0.1"
+source = "git+https://github.com/FreeSynergy/fs-hub?tag=v0.0.1#d80026896403641e55eabf0f79346f92ba06f69d"
 dependencies = [
  "async-trait",
  "capnp",
  "capnp-rpc",
  "chrono",
  "fs-hub-proto",
- "fs-interfaces 0.45.0",
+ "fs-interfaces 0.0.1",
  "fs-objects",
  "futures",
  "serde",
@@ -1525,14 +1527,14 @@ dependencies = [
 
 [[package]]
 name = "fs-hub-client"
-version = "0.4.0"
-source = "git+https://github.com/FreeSynergy/fs-hub?tag=v0.4.0#670fbfda7705a2c62776aac5127bf721cca97253"
+version = "0.0.1"
+source = "git+https://github.com/FreeSynergy/fs-hub?tag=v0.0.1#d80026896403641e55eabf0f79346f92ba06f69d"
 dependencies = [
  "capnp",
  "capnp-rpc",
  "chrono",
  "fs-hub-proto",
- "fs-interfaces 0.45.0",
+ "fs-interfaces 0.0.1",
  "fs-objects",
  "futures",
  "serde_json",
@@ -1543,12 +1545,12 @@ dependencies = [
 
 [[package]]
 name = "fs-hub-proto"
-version = "0.4.0"
-source = "git+https://github.com/FreeSynergy/fs-hub?tag=v0.4.0#670fbfda7705a2c62776aac5127bf721cca97253"
+version = "0.0.1"
+source = "git+https://github.com/FreeSynergy/fs-hub?tag=v0.0.1#d80026896403641e55eabf0f79346f92ba06f69d"
 dependencies = [
  "capnp",
  "chrono",
- "fs-interfaces 0.45.0",
+ "fs-interfaces 0.0.1",
  "fs-objects",
  "serde",
  "serde_json",
@@ -1558,8 +1560,8 @@ dependencies = [
 
 [[package]]
 name = "fs-interfaces"
-version = "0.45.0"
-source = "git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.45.0#bc4eda933e80c537ae2d73dea371051ed3443fd9"
+version = "0.0.1"
+source = "git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.1#9f2d3a0626d7382b478c754eb31834146188dfab"
 dependencies = [
  "capnp",
  "capnp-rpc",
@@ -1574,24 +1576,17 @@ dependencies = [
 
 [[package]]
 name = "fs-interfaces"
-version = "0.50.0"
-source = "git+https://github.com/FreeSynergy/fs-interfaces?rev=b83cbb5#b83cbb5e6e04623a2e1f5acd7e88c8816dfe6c56"
+version = "0.52.0"
+source = "git+https://github.com/FreeSynergy/fs-interfaces?rev=9a288a6#9a288a6e7a1e5400cacca1a893fcc5c519bfe3b2"
 dependencies = [
  "capnp",
- "capnp-rpc",
- "chrono",
- "fs-objects",
- "futures",
- "rustix 1.1.6",
- "tokio",
- "tokio-util",
- "uuid",
+ "idna",
 ]
 
 [[package]]
 name = "fs-objects"
-version = "0.5.0"
-source = "git+https://github.com/FreeSynergy/fs-objects?tag=v0.5.0#b0a794ab702d8cf8660956950e1e8868e4c155c3"
+version = "0.0.1"
+source = "git+https://github.com/FreeSynergy/fs-objects?tag=v0.0.1#7cf0f05e3a9835b582aa2ac22014f2a1f1bff200"
 dependencies = [
  "async-trait",
  "base64",
@@ -1608,7 +1603,7 @@ dependencies = [
 
 [[package]]
 name = "fs-text"
-version = "0.5.0"
+version = "0.0.1"
 dependencies = [
  "proptest",
  "pulldown-cmark 0.13.6",
@@ -1623,7 +1618,7 @@ dependencies = [
 
 [[package]]
 name = "fs-wiki-app"
-version = "0.5.0"
+version = "0.0.1"
 dependencies = [
  "async-trait",
  "fs-components-widgets",
@@ -1644,12 +1639,12 @@ dependencies = [
 
 [[package]]
 name = "fs-wiki-client"
-version = "0.5.0"
+version = "0.0.1"
 dependencies = [
  "async-trait",
  "capnp",
  "capnp-rpc",
- "fs-interfaces 0.50.0",
+ "fs-interfaces 0.0.1",
  "fs-objects",
  "fs-text",
  "fs-wiki-core",
@@ -1663,11 +1658,11 @@ dependencies = [
 
 [[package]]
 name = "fs-wiki-core"
-version = "0.5.0"
+version = "0.0.1"
 dependencies = [
  "async-trait",
  "chrono",
- "fs-interfaces 0.50.0",
+ "fs-interfaces 0.0.1",
  "fs-objects",
  "fs-text",
  "serde",
@@ -1681,14 +1676,14 @@ dependencies = [
 
 [[package]]
 name = "fs-wiki-server"
-version = "0.5.0"
+version = "0.0.1"
 dependencies = [
  "async-trait",
  "capnp",
  "capnp-rpc",
  "fs-hub",
  "fs-hub-client",
- "fs-interfaces 0.50.0",
+ "fs-interfaces 0.0.1",
  "fs-objects",
  "fs-text",
  "fs-wiki-core",
@@ -1700,9 +1695,9 @@ dependencies = [
 
 [[package]]
 name = "fs-wiki-testserver"
-version = "0.5.0"
+version = "0.0.1"
 dependencies = [
- "fs-interfaces 0.50.0",
+ "fs-interfaces 0.0.1",
  "fs-objects",
  "fs-wiki-core",
  "fs-wiki-server",
@@ -2276,6 +2271,27 @@ dependencies = [
  "zerofrom",
  "zerotrie",
  "zerovec",
+]
+
+[[package]]
+name = "idna"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3b0875f23caa03898994f6ddc501886a45c7d3d62d04d2d90788d47be1b1e4de"
+dependencies = [
+ "idna_adapter",
+ "smallvec",
+ "utf8_iter",
+]
+
+[[package]]
+name = "idna_adapter"
+version = "1.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb68373c0d6620ef8105e855e7745e18b0d00d3bdb07fb532e434244cdb9a714"
+dependencies = [
+ "icu_normalizer",
+ "icu_properties",
 ]
 
 [[package]]
