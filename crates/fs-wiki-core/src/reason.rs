@@ -26,6 +26,12 @@ pub enum Reason {
     InsideItself,
     /// A moved text would land inside the old folder.
     InsideOld,
+    /// A folder name that has no letter or digit a path can use.
+    EmptySlug,
+    /// A folder path that is not strictly below its parent's path.
+    OutsideParent,
+    /// A redirect target that is an outside address (`https:...`).
+    ExternalTarget,
 }
 
 impl Reason {
@@ -42,6 +48,9 @@ impl Reason {
             Self::EdgeSpace => "edge-space",
             Self::InsideItself => "inside-itself",
             Self::InsideOld => "inside-old-folder",
+            Self::EmptySlug => "empty-slug",
+            Self::OutsideParent => "outside-parent",
+            Self::ExternalTarget => "external-target",
         }
     }
 }
@@ -60,6 +69,9 @@ impl fmt::Display for Reason {
             Self::InsideOld => {
                 "a moved text would land inside the old folder, which an interrupted move could not tell apart"
             }
+            Self::EmptySlug => "the name has no letter or digit to make a path of; give a path",
+            Self::OutsideParent => "the path does not lie below the path of the parent",
+            Self::ExternalTarget => "a redirect leads to a path of this wiki, not to an outside address",
         })
     }
 }

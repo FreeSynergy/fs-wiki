@@ -81,6 +81,31 @@ pub enum Error {
     /// A stored text lacks what a page needs (written by an older version): run `upgrade_index`.
     #[error("stored data is incomplete: {0}")]
     Stored(String),
+    /// The request is not acceptable and the path rules are not the reason (`texts/invalid`, texts 0.2).
+    #[error("{detail}")]
+    Invalid {
+        /// The reason as a token (`summary-too-long`, `self-redirect`, `anchor`, ...).
+        issue: &'static str,
+        /// The sentence for people.
+        detail: String,
+    },
+    /// `purge` or `restore_from_trash` on a text that is not in the trash.
+    #[error("text {0} is not in the trash")]
+    NotInTrash(ObjectId),
+    /// `delete_folder` on a folder that still has children (live or trashed).
+    #[error("folder {0} is not empty")]
+    NotEmpty(ObjectId),
+    /// No revision with this number (never existed, or removed).
+    #[error("text {id} has no revision {number}")]
+    NoSuchRevision {
+        /// The text.
+        id: ObjectId,
+        /// The number asked for.
+        number: u64,
+    },
+    /// No space or folder with this id.
+    #[error("no folder {0}")]
+    NoSuchNode(ObjectId),
     /// The explicit "not possible" of a provider (ADR 0045).
     #[error(transparent)]
     Unsupported(#[from] fs_interfaces::Unsupported),

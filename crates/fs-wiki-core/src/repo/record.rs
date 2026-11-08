@@ -30,6 +30,45 @@ struct Record {
     /// Changes with every write and never repeats; records written before it existed read as 0.
     #[serde(default)]
     revision: u64,
+    /// texts 0.2: marked as a template.
+    #[serde(default)]
+    template: bool,
+    /// texts 0.2: the path this text forwards to; empty = not a redirect.
+    #[serde(default)]
+    redirect_to: String,
+    /// texts 0.2: actor of the last write.
+    #[serde(default)]
+    updated_by: String,
+    /// The number of the newest revision written (a shortcut; the revision records are the truth, so a
+    /// store undo that brings an old record back cannot make a number come round again).
+    #[serde(default)]
+    pub(super) hint: u64,
+    /// Set while the text is in the trash.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) trashed: Option<TrashMark>,
+}
+
+/// When and by whom a text was moved to the trash.
+#[derive(Clone, Serialize, Deserialize)]
+pub(super) struct TrashMark {
+    pub(super) at_ms: i64,
+    pub(super) by: String,
+}
+
+/// What a write sets besides path and document.
+pub(super) struct Flags {
+    pub(super) template: bool,
+    pub(super) redirect_to: String,
+}
+
+impl Flags {
+    /// The flags a text has now (none for a new text).
+    pub(super) fn of(prior: Option<&TextEntry>) -> Self {
+        Self {
+            template: prior.is_some_and(|p| p.template),
+            redirect_to: prior.map(|p| p.redirect_to.clone()).unwrap_or_default(),
+        }
+    }
 }
 
 impl WikiRepo {
@@ -41,13 +80,20 @@ impl WikiRepo {
         prior: Option<&TextEntry>,
         path: &str,
         doc: &Document,
+        stamp: (Flags, u64),
     ) -> Result<StoredObject> {
+        let (flags, hint) = stamp;
         let mut env = prior.map_or_else(|| self.fresh_envelope(id), |p| p.envelope.clone());
         env.name = derive_name(doc, path);
         let record = Record {
             path: path.to_string(),
             document: doc.clone(),
             revision: fresh_revision(),
+            template: flags.template,
+            redirect_to: flags.redirect_to,
+            updated_by: self.actor.clone(),
+            hint,
+            trashed: None,
         };
         let mut obj = StoredObject::new(env, CONTENT_TYPE, serde_json::to_value(record)?);
         obj.index = index_fields(id, path, doc);
@@ -67,18 +113,28 @@ impl WikiRepo {
 
 /// Read a stored object back as a text.
 pub(super) fn entry_of(o: StoredObject) -> Result<TextEntry> {
+    record_of(o).map(|(entry, _)| entry)
+}
+
+/// Read a stored object back as a text and what the record holds beyond it.
+pub(super) fn record_of(o: StoredObject) -> Result<(TextEntry, Option<TrashMark>)> {
     let id = o.envelope.id;
     if o.envelope.object_type != TEXT_TYPE || o.content_type != CONTENT_TYPE {
         return Err(Error::NotAText(id));
     }
     let record: Record = serde_json::from_value(o.content)?;
-    Ok(TextEntry {
+    let trashed = record.trashed;
+    let entry = TextEntry {
         id,
         envelope: o.envelope,
         path: record.path,
         revision: record.revision,
         document: record.document,
-    })
+        template: record.template,
+        redirect_to: record.redirect_to,
+        updated_by: record.updated_by,
+    };
+    Ok((entry, trashed))
 }
 
 fn index_fields(id: ObjectId, path: &str, doc: &Document) -> IndexFields {

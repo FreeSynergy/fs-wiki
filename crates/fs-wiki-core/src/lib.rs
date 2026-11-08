@@ -19,25 +19,40 @@
 )]
 
 mod definitions;
+mod entry;
 mod error;
 mod feed;
 mod hidden;
+mod history;
+mod limits;
 mod media;
+mod nodes;
 mod page;
 mod path;
 mod reason;
+mod redirect;
 mod repo;
+mod search;
 mod texts;
+mod trash;
 
 pub use error::{Error, Result};
 pub use feed::{Registry, Subscription, TextChange, TextFeed, TextListener};
 pub use fs_interfaces::{Capabilities, Unsupported};
 pub use hidden::is_hidden_block;
+pub use history::{Expect, RevisionContent, RevisionInfo, RevisionPage};
+pub use limits::*;
 pub use media::{TextFormat, MARKDOWN};
+pub use nodes::{Node, NodeKind, NodePage, Placement};
 pub use page::{Place, Placed, TextPage, TextQuery};
 pub use path::TextPath;
 pub use reason::Reason;
+pub use redirect::{Outcome, Resolution, MAX_REDIRECT_HOPS};
 pub use repo::{
     FileOrigin, Foreign, IndexReport, Origins, WikiRepo, CONTENT_TYPE, CONTEXT, TEXT_TYPE,
 };
+pub use search::{
+    Highlight, SearchFilter, SearchHit, SearchPage, SearchPlace, SearchQuery, Snippet, Tri,
+};
 pub use texts::{LinkEntry, Paging, TextEntry, Texts};
+pub use trash::{TrashItem, TrashPage, TrashPlace};

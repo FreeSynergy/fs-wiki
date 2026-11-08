@@ -2,6 +2,8 @@
 
 #![allow(dead_code)] // each test file uses a different subset
 
+pub mod counting;
+
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
@@ -11,7 +13,8 @@ use fs_objects::{
     Activity, Error as StoreError, LogEntry, ObjectId, Result as StoreResult, Store, StoredObject,
     TursoStore,
 };
-use fs_wiki_core::{Paging, TextEntry, Texts, WikiRepo, MARKDOWN};
+use fs_text::Document;
+use fs_wiki_core::{Paging, TextEntry, TextFormat, Texts, WikiRepo, MARKDOWN};
 
 pub const ME: &str = "https://example.org/actors/a";
 
@@ -74,7 +77,11 @@ impl Failing {
 #[async_trait]
 impl ObjectRepository for Failing {
     async fn put(&self, object: StoredObject, actor: &str) -> StoreResult<Activity> {
-        self.gate()?;
+        // The failure injection counts the writes of texts; the revision of a write is its bookkeeping
+        // (texts 0.2), so a test written for "n writes" still means n writes of texts.
+        if object.envelope.object_type != "WikiRevision" {
+            self.gate()?;
+        }
         ObjectRepository::put(&*self.inner, object, actor).await
     }
     async fn put_and_log(
@@ -103,4 +110,16 @@ pub fn failing(store: &Arc<TursoStore>, left: usize) -> WikiRepo {
     });
     let reads: Arc<dyn ObjectQuery> = store.clone();
     WikiRepo::with_backend(objects, reads, ME)
+}
+
+/// The document of `t` changed to say `markdown` (layers stay).
+pub fn doc_with(t: &TextEntry, markdown: &str) -> Document {
+    let mut doc = t.document.clone();
+    TextFormat::Markdown.import_external(&mut doc, markdown);
+    doc
+}
+
+/// Edit `t` to say `markdown`.
+pub async fn say(w: &WikiRepo, t: &TextEntry, markdown: &str) -> TextEntry {
+    w.edit(t.id, doc_with(t, markdown)).await.unwrap()
 }

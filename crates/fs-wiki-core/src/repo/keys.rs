@@ -13,3 +13,5 @@ pub(super) const ID_KEY: &str = "id_key";
 pub(super) const BLOCK: &str = "block";
 /// The paths every internal link can mean: what `backlinks` searches.
 pub(super) const LINK: &str = "link";
+/// The path a trashed text had: what `deleteFolder` checks, since a trashed text has no `path` index.
+pub(super) const TRASH_PATH: &str = "trash_path";

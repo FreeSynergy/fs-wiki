@@ -13,6 +13,7 @@ use super::handle::WikiRepo;
 use super::read::all_texts;
 use super::record::entry_of;
 use super::relink::relinked;
+use super::revise::How;
 use super::shift::Shift;
 use crate::error::{Error, Result};
 use crate::feed::TextChange;
@@ -63,8 +64,13 @@ impl WikiRepo {
         path: &str,
         doc: &Document,
     ) -> Result<()> {
-        let obj = self.build_object(prior.id, Some(prior), path, doc)?;
-        self.objects.put(obj, &self.actor).await?;
+        let summary = if path == prior.path {
+            "links updated"
+        } else {
+            "moved"
+        };
+        self.write_text(prior.id, Some(prior), path, doc, How::said(summary))
+            .await?;
         self.feed.notify(&TextChange::Updated(prior.id));
         Ok(())
     }

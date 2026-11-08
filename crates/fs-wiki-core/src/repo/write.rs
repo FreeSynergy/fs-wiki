@@ -10,6 +10,7 @@ use fs_objects::ObjectId;
 use fs_text::Document;
 
 use super::handle::WikiRepo;
+use super::revise::How;
 use crate::error::{Error, Result};
 use crate::feed::TextChange;
 use crate::path::TextPath;
@@ -36,17 +37,27 @@ impl WikiRepo {
         self.ensure_free(path, None).await?;
         let id = ObjectId::new();
         doc.id = id.as_uuid();
-        let obj = self.build_object(id, None, path.as_str(), &doc)?;
-        self.objects.put(obj, &self.actor).await?;
+        self.write_text(id, None, path.as_str(), &doc, How::said("created"))
+            .await?;
         self.feed.notify(&TextChange::Created(id));
         self.entry(id).await
     }
 
-    pub(super) async fn edit_locked(&self, id: ObjectId, mut doc: Document) -> Result<TextEntry> {
+    pub(super) async fn edit_locked(&self, id: ObjectId, doc: Document) -> Result<TextEntry> {
+        self.edit_said(id, doc, "edited").await
+    }
+
+    /// Edit with a summary (`editWith`; the plain edit says `edited`).
+    pub(super) async fn edit_said(
+        &self,
+        id: ObjectId,
+        mut doc: Document,
+        summary: &str,
+    ) -> Result<TextEntry> {
         let old = self.text(id).await?.ok_or(Error::NotFound(id))?;
         doc.id = id.as_uuid();
-        let obj = self.build_object(id, Some(&old), &old.path, &doc)?;
-        self.objects.put(obj, &self.actor).await?;
+        self.write_text(id, Some(&old), &old.path, &doc, How::said(summary))
+            .await?;
         self.feed.notify(&TextChange::Updated(id));
         self.entry(id).await
     }

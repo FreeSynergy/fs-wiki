@@ -25,7 +25,7 @@ fn query(kind: &str) -> Query {
 }
 
 impl WikiRepo {
-    fn aux_actor(&self) -> String {
+    pub(super) fn aux_actor(&self) -> String {
         format!("{}#bookkeeping", self.actor)
     }
 
@@ -85,4 +85,17 @@ impl WikiRepo {
 
 fn decode<T: DeserializeOwned>(object: StoredObject) -> Result<(ObjectId, T)> {
     Ok((object.envelope.id, serde_json::from_value(object.content)?))
+}
+
+impl WikiRepo {
+    /// What removes an object from the log, or the explicit "not possible" of a backend without it.
+    pub(super) fn purger(&self) -> Result<&std::sync::Arc<dyn super::backend::LogPurge>> {
+        self.purger.as_ref().ok_or_else(|| {
+            fs_interfaces::Unsupported::new(
+                "text.history",
+                "this backend cannot remove an object from its log",
+            )
+            .into()
+        })
+    }
 }

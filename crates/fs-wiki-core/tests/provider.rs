@@ -94,12 +94,19 @@ async fn the_store_backed_provider_reports_what_it_can() {
         "text.import",
         "text.export",
         "text.subscribe",
+        "text.editSummary",
+        "text.history",
+        "text.trash",
+        "text.space",
+        "text.template",
+        "text.redirect",
+        "text.search",
     ] {
         assert!(caps.is_supported(id), "{id}");
     }
     assert_eq!(
         caps.entries().len(),
-        10,
+        17,
         "one entry per capability, none twice"
     );
 }

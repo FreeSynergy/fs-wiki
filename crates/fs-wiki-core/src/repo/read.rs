@@ -11,6 +11,11 @@ use super::record::entry_of;
 use crate::error::Result;
 use crate::texts::{Paging, TextEntry};
 
+/// Whether a stored text is in the wiki and not in the trash.
+pub(super) fn is_live(o: &fs_objects::StoredObject) -> bool {
+    o.envelope.context.as_deref() == Some(CONTEXT)
+}
+
 /// The query for all texts, in path order, with `page` applied.
 pub(super) fn all_texts(page: Paging) -> Query {
     let mut q = Query::new()
@@ -25,7 +30,7 @@ pub(super) fn all_texts(page: Paging) -> Query {
 impl WikiRepo {
     pub(super) async fn text(&self, id: ObjectId) -> Result<Option<TextEntry>> {
         match self.objects.get(id).await? {
-            Some(o) if o.envelope.object_type == TEXT_TYPE => entry_of(o).map(Some),
+            Some(o) if o.envelope.object_type == TEXT_TYPE && is_live(&o) => entry_of(o).map(Some),
             _ => Ok(None),
         }
     }

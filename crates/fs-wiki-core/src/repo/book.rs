@@ -10,15 +10,20 @@ use fs_text::Document;
 
 use super::handle::WikiRepo;
 use crate::error::{Error, Result};
+use crate::history::{Expect, RevisionContent, RevisionPage};
 use crate::media::TextFormat;
+use crate::nodes::{Node, NodePage, Placement};
 use crate::page::{Place, TextPage, TextQuery};
 use crate::path::TextPath;
+use crate::redirect::Resolution;
+use crate::search::{SearchPage, SearchPlace, SearchQuery};
 use crate::texts::{LinkEntry, Paging, TextEntry, Texts};
+use crate::trash::{TrashItem, TrashPage, TrashPlace};
 
 #[async_trait]
 impl Texts for WikiRepo {
     fn capabilities(&self) -> Capabilities {
-        capabilities()
+        super::caps::capabilities()
     }
     fn identity(&self) -> Option<StoreId> {
         self.info.as_ref().map(|info| info.identity())
@@ -65,7 +70,12 @@ impl Texts for WikiRepo {
     async fn move_to(&self, id: ObjectId, path: &str) -> Result<TextEntry> {
         let path = TextPath::parse(path)?;
         let _write = self.write_lock.lock().await;
-        self.move_locked(id, &path).await
+        let old = self.text(id).await?.map(|t| t.path);
+        let moved = self.move_locked(id, &path).await?;
+        if let Some(old) = old {
+            self.settle_after_move(id, &old, &moved.path).await?;
+        }
+        Ok(moved)
     }
     async fn move_folder(&self, prefix: &str, path: &str) -> Result<Vec<TextEntry>> {
         let prefix = TextPath::parse(prefix)?;
@@ -96,24 +106,131 @@ impl Texts for WikiRepo {
         self.export_of(id, TextFormat::from_media_type(media_type)?)
             .await
     }
-}
-
-/// The store-backed provider offers every method of the contract.
-fn capabilities() -> Capabilities {
-    let mut caps = Capabilities::new("fs-wiki");
-    for id in [
-        "text.create",
-        "text.edit",
-        "text.move",
-        "text.delete",
-        "text.read",
-        "text.find",
-        "link.read",
-        "text.import",
-        "text.export",
-        "text.subscribe",
-    ] {
-        caps.supported(id);
+    async fn edit_with(
+        &self,
+        id: ObjectId,
+        expect: Expect,
+        document: Document,
+        summary: &str,
+    ) -> Result<TextEntry> {
+        Self::check_summary(summary)?;
+        let _write = self.write_lock.lock().await;
+        let text = self.text(id).await?.ok_or(Error::NotFound(id))?;
+        Self::check_expect(&text, expect)?;
+        let summary = if summary.is_empty() {
+            "edited"
+        } else {
+            summary
+        };
+        self.edit_said(id, document, summary).await
     }
-    caps
+    async fn history(
+        &self,
+        id: ObjectId,
+        before: Option<u64>,
+        size: usize,
+    ) -> Result<RevisionPage> {
+        self.history_of(id, before, size).await
+    }
+    async fn get_revision(&self, id: ObjectId, number: u64) -> Result<Option<RevisionContent>> {
+        self.revision_of(id, number).await
+    }
+    async fn restore_revision(
+        &self,
+        id: ObjectId,
+        number: u64,
+        expect: Expect,
+    ) -> Result<TextEntry> {
+        let _write = self.write_lock.lock().await;
+        self.restore_locked(id, number, expect).await
+    }
+    async fn purge_revision(&self, id: ObjectId, number: u64) -> Result<()> {
+        let _write = self.write_lock.lock().await;
+        self.purge_revision_locked(id, number).await
+    }
+    async fn trash(&self, id: ObjectId) -> Result<TrashItem> {
+        let _write = self.write_lock.lock().await;
+        self.trash_locked(id).await
+    }
+    async fn list_trash(&self, after: Option<&TrashPlace>, size: usize) -> Result<TrashPage> {
+        self.trash_page(after, size).await
+    }
+    async fn restore_from_trash(&self, id: ObjectId, path: &str) -> Result<TextEntry> {
+        let _write = self.write_lock.lock().await;
+        self.restore_trashed_locked(id, path).await
+    }
+    async fn purge(&self, id: ObjectId) -> Result<()> {
+        let _write = self.write_lock.lock().await;
+        self.purge_locked(id).await
+    }
+    async fn create_folder(
+        &self,
+        parent: Option<ObjectId>,
+        name: &str,
+        path: &str,
+    ) -> Result<Node> {
+        let _write = self.write_lock.lock().await;
+        let folder = self.create_folder_locked(parent, name, path).await?;
+        self.folder_node(folder.id).await
+    }
+    async fn rename_folder(&self, id: ObjectId, name: &str) -> Result<Node> {
+        let _write = self.write_lock.lock().await;
+        self.rename_folder_locked(id, name).await?;
+        self.folder_node(id).await
+    }
+    async fn delete_folder(&self, id: ObjectId) -> Result<()> {
+        let _write = self.write_lock.lock().await;
+        self.delete_folder_locked(id).await
+    }
+    async fn get_folder(&self, id: ObjectId) -> Result<Option<Node>> {
+        match self.folder_node(id).await {
+            Err(Error::NoSuchNode(_)) => Ok(None),
+            other => other.map(Some),
+        }
+    }
+    async fn children(
+        &self,
+        parent: Option<ObjectId>,
+        offset: usize,
+        size: usize,
+    ) -> Result<NodePage> {
+        self.children_page(parent, offset, size).await
+    }
+    async fn reorder(
+        &self,
+        id: ObjectId,
+        placement: Placement,
+        anchor: Option<ObjectId>,
+    ) -> Result<Node> {
+        let _write = self.write_lock.lock().await;
+        self.reorder_locked(id, placement, anchor).await
+    }
+    async fn set_template(
+        &self,
+        id: ObjectId,
+        template: bool,
+        expect: Expect,
+    ) -> Result<TextEntry> {
+        let _write = self.write_lock.lock().await;
+        self.set_template_locked(id, template, expect).await
+    }
+    async fn create_from_template(&self, template: ObjectId, path: &str) -> Result<TextEntry> {
+        let _write = self.write_lock.lock().await;
+        self.copy_template_locked(template, path).await
+    }
+    async fn set_redirect(&self, id: ObjectId, target: &str, expect: Expect) -> Result<TextEntry> {
+        let _write = self.write_lock.lock().await;
+        self.set_redirect_locked(id, target, expect).await
+    }
+    async fn resolve(&self, path: &str) -> Result<Resolution> {
+        self.resolve_path(path).await
+    }
+    async fn search(
+        &self,
+        query: &SearchQuery,
+        after: Option<&SearchPlace>,
+        size: usize,
+    ) -> Result<SearchPage> {
+        self.search_page(query, after, size).await
+    }
 }

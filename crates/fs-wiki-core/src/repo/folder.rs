@@ -59,7 +59,12 @@ impl WikiRepo {
             // Nothing left to move: a repeat of a move that is complete, if the record says it
             // was this one and the texts are at the target.
             let moved = self.entries_below(new).await?;
+            if moved.is_empty() && self.move_folder_nodes(old, new).await? > 0 {
+                // Only folder nodes (no text) were there: they moved.
+                return Ok(moved);
+            }
             if let Some(r) = same.filter(|_| !moved.is_empty()) {
+                self.move_folder_nodes(old, new).await?;
                 self.record_move(&MoveRecord {
                     done: true,
                     ..r.clone()
@@ -121,6 +126,7 @@ impl WikiRepo {
                 .unwrap_or_else(|| text.document.clone());
             self.store_document(&text, &step.new, &doc).await?;
         }
+        self.move_folder_nodes(old, new).await?;
         self.record_move(&MoveRecord {
             done: true,
             ..record

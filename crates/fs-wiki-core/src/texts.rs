@@ -7,66 +7,21 @@
 
 use async_trait::async_trait;
 use fs_interfaces::{Capabilities, Unsupported};
-use fs_objects::{Envelope, ObjectId, StoreId};
+use fs_objects::{ObjectId, StoreId};
 use fs_text::Document;
 
+pub use crate::entry::{LinkEntry, Paging, TextEntry};
 use crate::error::Result;
+use crate::history::{Expect, RevisionContent, RevisionPage};
+use crate::nodes::{Node, NodePage, Placement};
 use crate::page::{Place, TextPage, TextQuery};
+use crate::redirect::Resolution;
+use crate::search::{SearchPage, SearchPlace, SearchQuery};
+use crate::trash::{TrashItem, TrashPage, TrashPlace};
 
 /// The explicit "not possible" of a method a provider does not override.
 pub(crate) fn not_possible<T>(capability: &str) -> Result<T> {
     Err(Unsupported::new(capability, "this provider does not offer it").into())
-}
-
-/// One text: its AS2 envelope, readable path and document (`TextEntry` in `texts.capnp`).
-#[derive(Clone, Debug, PartialEq)]
-pub struct TextEntry {
-    /// Object id (also the id of the document).
-    pub id: ObjectId,
-    /// AS2 `Article` envelope.
-    pub envelope: Envelope,
-    /// Readable path, unique.
-    pub path: String,
-    /// Changes with every write and is never used twice (not a counter: a store undo cannot make one
-    /// come round again); 0 only for records from before revisions.
-    pub revision: u64,
-    /// The document: text + layers.
-    pub document: Document,
-}
-
-/// One row of the link table (`LinkRow` in `texts.capnp`, plus what a caller needs to show it).
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct LinkEntry {
-    /// The text that contains the link.
-    pub source: ObjectId,
-    /// Readable path of the target, as written (may carry a `#fragment`).
-    pub target: String,
-    /// Where in the source: `<block id>:<start>-<end>` (char offsets of the link text).
-    pub at: String,
-    /// The link text as shown.
-    pub title: String,
-    /// Whether the link points into the wiki (not an URL or mail address).
-    pub internal: bool,
-}
-
-/// One page of a list: the Rust form of the contract's cursor (an offset behind it).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct Paging {
-    /// Maximum number of texts; `None` = all.
-    pub limit: Option<usize>,
-    /// Texts to skip.
-    pub offset: usize,
-}
-
-impl Paging {
-    /// A page of `limit` texts after skipping `offset`.
-    #[must_use]
-    pub fn new(limit: usize, offset: usize) -> Self {
-        Self {
-            limit: Some(limit),
-            offset,
-        }
-    }
 }
 
 /// Texts: pages with layers, found by path or term, linked to each other.
@@ -147,5 +102,134 @@ pub trait Texts: Send + Sync {
     /// `text.export`: the text as a file of `media_type` (layers are not written).
     async fn export_text(&self, _id: ObjectId, _media_type: &str) -> Result<String> {
         not_possible("text.export")
+    }
+    // ---- texts 0.2 (all append only; every one defaults to `Unsupported`) ----------------------------
+
+    /// `text.editSummary`: `edit` / `edit_if` (per `expect`) with a revision summary (at most 200 bytes).
+    async fn edit_with(
+        &self,
+        _id: ObjectId,
+        _expect: Expect,
+        _document: Document,
+        _summary: &str,
+    ) -> Result<TextEntry> {
+        not_possible("text.editSummary")
+    }
+    /// `text.history`: revisions of a text (also a trashed one), newest first; `before` = only numbers
+    /// below it.
+    async fn history(
+        &self,
+        _id: ObjectId,
+        _before: Option<u64>,
+        _size: usize,
+    ) -> Result<RevisionPage> {
+        not_possible("text.history")
+    }
+    /// `text.history`: one revision with its document; `None` if it never existed or was removed.
+    async fn get_revision(&self, _id: ObjectId, _number: u64) -> Result<Option<RevisionContent>> {
+        not_possible("text.history")
+    }
+    /// `text.history`: write an old document as a new revision; path, template and redirect stay.
+    async fn restore_revision(
+        &self,
+        _id: ObjectId,
+        _number: u64,
+        _expect: Expect,
+    ) -> Result<TextEntry> {
+        not_possible("text.history")
+    }
+    /// `text.history`: remove one old revision for good (not the current one).
+    async fn purge_revision(&self, _id: ObjectId, _number: u64) -> Result<()> {
+        not_possible("text.history")
+    }
+    /// `text.trash`: move a text with its history out of sight; its path is free again.
+    async fn trash(&self, _id: ObjectId) -> Result<TrashItem> {
+        not_possible("text.trash")
+    }
+    /// `text.trash`: trashed texts, most recently deleted first, after `after`.
+    async fn list_trash(&self, _after: Option<&TrashPlace>, _size: usize) -> Result<TrashPage> {
+        not_possible("text.trash")
+    }
+    /// `text.trash`: bring a trashed text back at `path` (empty = the old one).
+    async fn restore_from_trash(&self, _id: ObjectId, _path: &str) -> Result<TextEntry> {
+        not_possible("text.trash")
+    }
+    /// `text.trash`: remove a trashed text from this provider for good.
+    async fn purge(&self, _id: ObjectId) -> Result<()> {
+        not_possible("text.trash")
+    }
+    /// `text.space`: a new space (no parent) or folder.
+    async fn create_folder(
+        &self,
+        _parent: Option<ObjectId>,
+        _name: &str,
+        _path: &str,
+    ) -> Result<Node> {
+        not_possible("text.space")
+    }
+    /// `text.space`: change the display name of a space or folder.
+    async fn rename_folder(&self, _id: ObjectId, _name: &str) -> Result<Node> {
+        not_possible("text.space")
+    }
+    /// `text.space`: delete an empty space or folder.
+    async fn delete_folder(&self, _id: ObjectId) -> Result<()> {
+        not_possible("text.space")
+    }
+    /// `text.space`: one space or folder.
+    async fn get_folder(&self, _id: ObjectId) -> Result<Option<Node>> {
+        not_possible("text.space")
+    }
+    /// `text.space`: the children of `parent` in order, skipping `offset`.
+    async fn children(
+        &self,
+        _parent: Option<ObjectId>,
+        _offset: usize,
+        _size: usize,
+    ) -> Result<NodePage> {
+        not_possible("text.space")
+    }
+    /// `text.space`: move a node among its siblings.
+    async fn reorder(
+        &self,
+        _id: ObjectId,
+        _placement: Placement,
+        _anchor: Option<ObjectId>,
+    ) -> Result<Node> {
+        not_possible("text.space")
+    }
+    /// `text.template`: mark or unmark a text as a template.
+    async fn set_template(
+        &self,
+        _id: ObjectId,
+        _template: bool,
+        _expect: Expect,
+    ) -> Result<TextEntry> {
+        not_possible("text.template")
+    }
+    /// `text.template`: a new text with a copy of the template's document.
+    async fn create_from_template(&self, _template: ObjectId, _path: &str) -> Result<TextEntry> {
+        not_possible("text.template")
+    }
+    /// `text.redirect`: make a text forward to `target` (empty clears it).
+    async fn set_redirect(
+        &self,
+        _id: ObjectId,
+        _target: &str,
+        _expect: Expect,
+    ) -> Result<TextEntry> {
+        not_possible("text.redirect")
+    }
+    /// `text.redirect`: follow redirects from `path`, at most 8.
+    async fn resolve(&self, _path: &str) -> Result<Resolution> {
+        not_possible("text.redirect")
+    }
+    /// `text.search`: words, snippets and filters; hits come after `after` in the order of the result.
+    async fn search(
+        &self,
+        _query: &SearchQuery,
+        _after: Option<&SearchPlace>,
+        _size: usize,
+    ) -> Result<SearchPage> {
+        not_possible("text.search")
     }
 }
