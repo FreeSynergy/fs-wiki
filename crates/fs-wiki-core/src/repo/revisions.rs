@@ -157,21 +157,22 @@ impl WikiRepo {
     pub(super) async fn purge_revision_locked(&self, id: ObjectId, number: u64) -> Result<()> {
         let text = self.text_any(id).await?;
         let purger = self.purger("text.history")?;
-        let next = self.next_number(id, true).await?;
-        self.record_late(&text, next).await?;
         let gone = || Error::NoSuchRevision { id, number };
         let record = self.revision_record(id, number).await?.ok_or_else(gone)?;
         // A removal that was started and not finished is completed by a retry.
         if record.document.is_none() && !record.pending_purge {
             return Err(gone());
         }
-        if record.revision == text.revision || number == self.latest_number(id).await? {
+        if record.revision == text.revision {
             return Err(Error::Invalid {
                 issue: "current-revision",
                 detail: "the current revision cannot be removed; edit the text first".into(),
             });
         }
         let rev = revision_id(id, number);
+        // The state of the text has a record of its own before anything is purged.
+        let next = self.next_number(id, true).await?;
+        self.record_late(&text, next).await?;
         // First the record loses its document (the old one stays in the log, marked as pending), then
         // the log of the record and of the text is purged, then the record is final.
         let pending = RevisionRecord {

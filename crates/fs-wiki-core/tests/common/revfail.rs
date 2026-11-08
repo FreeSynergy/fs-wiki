@@ -22,6 +22,8 @@ pub struct RevFail {
     /// Revision records still accepted; the one after that fails (`usize::MAX` = all).
     pub revisions_left: AtomicUsize,
     pub fail_delete: AtomicBool,
+    /// Deletes still accepted; the one after that fails (`usize::MAX` = all).
+    pub deletes_left: AtomicUsize,
     pub delay_ms: AtomicUsize,
 }
 
@@ -78,6 +80,13 @@ impl ObjectRepository for RevFail {
         if self.fail_delete.swap(false, Ordering::SeqCst) {
             return Err(StoreError::Backend("injected delete failure".into()));
         }
+        let left = self.deletes_left.load(Ordering::SeqCst);
+        if left == 0 {
+            return Err(StoreError::Backend("injected delete failure".into()));
+        }
+        if left != usize::MAX {
+            self.deletes_left.store(left - 1, Ordering::SeqCst);
+        }
         ObjectRepository::delete(&*self.inner, id, actor).await
     }
 }
@@ -89,6 +98,7 @@ pub async fn make() -> (Arc<RevFail>, Arc<WikiRepo>, Arc<TursoStore>) {
         inner: store.clone(),
         revisions_left: AtomicUsize::new(usize::MAX),
         fail_delete: AtomicBool::new(false),
+        deletes_left: AtomicUsize::new(usize::MAX),
         delay_ms: AtomicUsize::new(0),
     });
     let reads: Arc<dyn ObjectQuery> = store.clone();

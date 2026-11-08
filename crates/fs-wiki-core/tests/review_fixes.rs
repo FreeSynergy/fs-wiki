@@ -199,3 +199,89 @@ async fn a_decomposed_letter_finds_a_composed_one() {
     assert_eq!(w.search(&q, None, 10).await.unwrap().items.len(), 2);
     let _ = Expect::Any;
 }
+
+/// Every document and every log entry of the store, as one text.
+async fn everything(store: &fs_objects::TursoStore) -> String {
+    let mut all = log_text(store).await;
+    let objects = fs_objects::traits::ObjectQuery::query(store, &fs_objects::Query::new())
+        .await
+        .unwrap();
+    for o in objects {
+        all.push_str(&o.content.to_string());
+    }
+    all
+}
+
+/// Five writes, a store undo of three (the hint goes back, the newer records stay), then the trash.
+async fn undone_and_trashed() -> (
+    std::sync::Arc<common::revfail::RevFail>,
+    std::sync::Arc<fs_wiki_core::WikiRepo>,
+    std::sync::Arc<fs_objects::TursoStore>,
+    fs_objects::ObjectId,
+) {
+    let (rf, w, store) = make().await;
+    let mut t = w.create("a", "SECRET0\n").await.unwrap();
+    for i in 1..5 {
+        t = say(&w, &t, &format!("SECRET{i}\n")).await;
+    }
+    store.undo(common::ME, 3).await.unwrap();
+    w.trash(t.id).await.unwrap();
+    (rf, w, store, t.id)
+}
+
+fn left(all: &str) -> Vec<usize> {
+    (0..5)
+        .filter(|i| all.contains(&format!("SECRET{i}")))
+        .collect()
+}
+
+#[tokio::test]
+async fn purge_after_a_store_undo_leaves_no_record_above_the_hint() {
+    let (_, w, store, id) = undone_and_trashed().await;
+    w.purge(id).await.unwrap();
+    assert_eq!(left(&everything(&store).await), Vec::<usize>::new());
+}
+
+#[tokio::test]
+async fn a_retried_purge_after_a_store_undo_reaches_the_records_above_a_gap() {
+    let (rf, w, store, id) = undone_and_trashed().await;
+    rf.deletes_left.store(2, Ordering::SeqCst);
+    assert!(w.purge(id).await.is_err(), "the third delete fails");
+    rf.deletes_left.store(usize::MAX, Ordering::SeqCst);
+    w.purge(id).await.unwrap();
+    assert_eq!(left(&everything(&store).await), Vec::<usize>::new());
+}
+
+#[tokio::test]
+async fn a_request_that_is_refused_writes_nothing() {
+    let (rf, w, _) = make().await;
+    let t = w.create("a", "x\n").await.unwrap();
+    let t = say(&w, &t, "y\n").await;
+    rf.revisions_left.store(0, Ordering::SeqCst);
+    assert!(
+        w.edit(t.id, doc_with(&t, "z\n")).await.is_err(),
+        "its record fails: the state is unrecorded"
+    );
+    rf.revisions_left.store(usize::MAX, Ordering::SeqCst);
+    assert!(matches!(
+        w.purge_revision(t.id, 9).await,
+        Err(Error::NoSuchRevision { .. })
+    ));
+    assert!(
+        matches!(w.purge_revision(t.id, 2).await, Ok(())),
+        "an old one can go"
+    );
+    let numbers: Vec<u64> = w
+        .history(t.id, None, 10)
+        .await
+        .unwrap()
+        .items
+        .iter()
+        .map(|i| i.number)
+        .collect();
+    assert_eq!(
+        numbers,
+        [3, 1],
+        "the late record came with the valid request only"
+    );
+}

@@ -11,7 +11,7 @@ use super::handle::{WikiRepo, CONTEXT, TEXT_TYPE, TRASH_CONTEXT};
 use super::ids::revision_id;
 use super::keys::{ID_KEY, TRASH_PATH};
 use super::record::{record_of, Flags};
-use super::revise::How;
+use super::revise::{How, REVISION_CONTEXT, REVISION_TYPE};
 use crate::error::{Error, Result};
 use crate::feed::TextChange;
 use crate::path::TextPath;
@@ -119,19 +119,44 @@ impl WikiRepo {
     }
 
     pub(super) async fn purge_locked(&self, id: ObjectId) -> Result<()> {
-        let object = self.trashed_object(id).await?;
+        let mut object = self.trashed_object(id).await?;
         let purger = self.purger("text.trash")?;
-        // Up to the highest number the text ever had; a retry after a stop half way goes the same way,
-        // and purges the log of a record that is already gone.
-        let hint = object.content["hint"].as_u64().unwrap_or(0);
-        let upper = hint.max(self.next_number(id, true).await?.saturating_sub(1));
+        // Every record of the text, found by name (`<text>#<number>`), not by counting up from a hint:
+        // a store undo moves the hint back and a late record does not raise it, so records can lie above
+        // a gap. The highest number seen is written into the trashed text before anything is deleted, so
+        // a retry purges the log of records that are already gone.
+        let q = Query::new()
+            .of_type(REVISION_TYPE)
+            .in_context(REVISION_CONTEXT)
+            .name_prefix(format!("{id}#"));
+        let found = self.reads.query(&q).await?;
+        let seen = found
+            .iter()
+            .filter_map(|o| o.content["number"].as_u64())
+            .max();
+        let before = object.content["high"].as_u64().unwrap_or(0);
+        let probe = self.next_number(id, true).await?.saturating_sub(1);
+        let high = [
+            before,
+            object.content["hint"].as_u64().unwrap_or(0),
+            probe,
+            seen.unwrap_or(0),
+        ]
+        .into_iter()
+        .max()
+        .unwrap_or(0);
+        if high > before {
+            object.content["high"] = high.into();
+            self.objects.put(object, &self.actor).await?;
+        }
+        for o in &found {
+            self.objects
+                .delete(o.envelope.id, &self.aux_actor())
+                .await?;
+        }
         let mut cleaned = true;
-        for number in 1..=upper {
-            let rev = revision_id(id, number);
-            if self.objects.get(rev).await?.is_some() {
-                self.objects.delete(rev, &self.aux_actor()).await?;
-            }
-            cleaned &= purger.purge_log(rev).await?;
+        for number in 1..=high {
+            cleaned &= purger.purge_log(revision_id(id, number)).await?;
         }
         // The log of the text first: the delete after it is logged without images (the object is marked
         // purged), and a stop between the two leaves a text that purge can still be repeated on.
