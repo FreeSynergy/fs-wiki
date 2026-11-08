@@ -3,7 +3,7 @@
 //! Pattern: Read model + Command — a node's parent is derived from paths (the folder with the longest
 //! prefix; a space has none), so nothing but the order is stored for a page. `siblings` is the one
 //! place that assembles the children of a parent; `children`, `get_folder` and `reorder` read it.
-//! It costs the texts below the parent (read light, without their documents), not the whole wiki,
+//! It costs the texts below the parent (the store still hands back each whole record; only the parsing of the document is skipped), not the whole wiki,
 //! unless the parent is the top level.
 
 use fs_objects::ObjectId;
@@ -17,7 +17,7 @@ use crate::limits::MAX_CHILDREN_PAGE;
 use crate::nodes::{Node, NodeKind, NodePage};
 use crate::texts::Paging;
 
-/// A text as the tree needs it: no document.
+/// A text as the tree needs it: the document is not parsed.
 pub(super) struct Light {
     pub id: ObjectId,
     pub path: String,
@@ -72,7 +72,7 @@ fn node_of_page(folders: &[Folder], l: &Light) -> Node {
 }
 
 impl WikiRepo {
-    /// The texts below `prefix/` (all texts for none), without their documents; at most `limit`.
+    /// The texts below `prefix/` (all texts for none), documents not parsed; at most `limit`.
     pub(super) async fn pages_below(
         &self,
         prefix: Option<&str>,

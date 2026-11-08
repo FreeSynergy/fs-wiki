@@ -34,6 +34,9 @@ pub(super) struct RevisionRecord {
     pub path: String,
     pub restored_from: u64,
     pub document: Option<serde_json::Value>,
+    /// A removal that was started and not finished (the log is not yet purged): a retry completes it.
+    #[serde(default)]
+    pub pending_purge: bool,
 }
 
 /// What a write says about itself.
@@ -64,7 +67,13 @@ impl WikiRepo {
         doc: &Document,
         how: How<'_>,
     ) -> Result<()> {
-        let number = self.next_number(id, prior.is_some()).await?;
+        let mut number = self.next_number(id, prior.is_some()).await?;
+        if let Some(p) = prior {
+            // A state no record has (written before history existed, or whose record failed): keep it.
+            if self.record_late(p, number).await? {
+                number += 1;
+            }
+        }
         let flags = how.flags.unwrap_or_else(|| Flags::of(prior));
         let obj = self.build_object(id, prior, path, doc, (flags, number))?;
         let revision = obj.content["revision"].as_u64().unwrap_or(0);
@@ -80,8 +89,40 @@ impl WikiRepo {
             path: path.to_string(),
             restored_from: how.restored_from,
             document: Some(serde_json::to_value(doc)?),
+            pending_purge: false,
         };
         self.put_revision(&record).await
+    }
+
+    /// Record `text` as revision `next` if the newest record (`next - 1`) is not its state: none at all
+    /// (a text from before history), or another revision (a failed write, a store undo). True if written.
+    pub(super) async fn record_late(&self, text: &TextEntry, next: u64) -> Result<bool> {
+        let newest = match next.checked_sub(1).filter(|n| *n >= 1) {
+            Some(n) => self.revision_record(text.id, n).await?,
+            None => None,
+        };
+        let summary = match &newest {
+            None => "state before history began",
+            Some(r) if r.revision != text.revision => {
+                "state recorded late (a failed write, or brought back by a store undo)"
+            }
+            Some(_) => return Ok(false),
+        };
+        let record = RevisionRecord {
+            text: text.id,
+            number: next,
+            revision: text.revision,
+            author: String::new(),
+            at_ms: chrono::Utc::now().timestamp_millis(),
+            size: serde_json::to_string(&text.document)?.len() as u64,
+            summary: summary.into(),
+            path: text.path.clone(),
+            restored_from: 0,
+            document: Some(serde_json::to_value(&text.document)?),
+            pending_purge: false,
+        };
+        self.put_revision(&record).await?;
+        Ok(true)
     }
 
     /// The first revision number of `id` that has no record yet, starting from the hint the text

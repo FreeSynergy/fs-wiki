@@ -23,7 +23,7 @@ use crate::trash::{TrashItem, TrashPage, TrashPlace};
 #[async_trait]
 impl Texts for WikiRepo {
     fn capabilities(&self) -> Capabilities {
-        super::caps::capabilities()
+        super::caps::capabilities(self.purger.is_some())
     }
     fn identity(&self) -> Option<StoreId> {
         self.info.as_ref().map(|info| info.identity())

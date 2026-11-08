@@ -121,3 +121,26 @@ async fn the_report_of_the_server_is_the_report_of_the_client() {
         );
     }
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_client_does_not_offer_what_it_cannot_call_yet() {
+    let served = Served::in_memory().await;
+    let texts = served.client();
+    let caps = texts.capabilities();
+    for id in [
+        "text.editSummary",
+        "text.history",
+        "text.trash",
+        "text.space",
+        "text.template",
+        "text.redirect",
+        "text.search",
+    ] {
+        assert!(!caps.is_supported(id), "{id}");
+        assert!(caps.why_not(id).is_some(), "{id} is listed, with a reason");
+    }
+    assert!(texts
+        .history(fs_objects::ObjectId::new(), None, 5)
+        .await
+        .is_err());
+}

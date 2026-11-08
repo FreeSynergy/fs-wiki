@@ -89,10 +89,13 @@ fn decode<T: DeserializeOwned>(object: StoredObject) -> Result<(ObjectId, T)> {
 
 impl WikiRepo {
     /// What removes an object from the log, or the explicit "not possible" of a backend without it.
-    pub(super) fn purger(&self) -> Result<&std::sync::Arc<dyn super::backend::LogPurge>> {
+    pub(super) fn purger(
+        &self,
+        capability: &str,
+    ) -> Result<&std::sync::Arc<dyn super::backend::LogPurge>> {
         self.purger.as_ref().ok_or_else(|| {
             fs_interfaces::Unsupported::new(
-                "text.history",
+                capability,
                 "this backend cannot remove an object from its log",
             )
             .into()

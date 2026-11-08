@@ -106,6 +106,7 @@ async fn a_folder_with_a_bad_name_or_path_is_a_typed_problem() {
         }
         let err = folder(&root, None, "Again", "docs").await.err().unwrap();
         assert_eq!((short(&err).as_str(), p(&err).status), ("path-taken", 409));
+        assert_eq!(p(&err).ext("kind"), Some("folder"));
         let err = folder(&root, None, &"n".repeat(256), "long")
             .await
             .err()

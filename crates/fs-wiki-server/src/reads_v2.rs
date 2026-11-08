@@ -1,7 +1,7 @@
 //! The read methods added by texts 0.2: one call of the provider each, nothing is written.
 //!
-//! Pattern: Adapter — wire request in, `Texts` call, wire response out. Pages are cut by weight so an
-//! answer always fits a message; a cursor is the place the page ended at (`cursors.rs`).
+//! Pattern: Adapter — wire request in, `Texts` call, wire response out. A page is at most the size
+//! the contract allows and the answer is checked against the message size; a cursor is the place the page ended at (`cursors.rs`).
 
 use std::sync::Arc;
 
@@ -117,7 +117,7 @@ pub(crate) async fn children(
 ) -> Done {
     let p = params.get()?;
     let parent = optional_id(p.get_parent()?)?;
-    let offset = cursors::read_number(p.get_cursor()?.get_opaque()?)?.unwrap_or(0);
+    let offset = cursors::read_offset(p.get_cursor()?.get_opaque()?)?.unwrap_or(0);
     let offset = usize::try_from(offset).unwrap_or(usize::MAX);
     let page = texts
         .children(parent, offset, size.min(MAX_CHILDREN_PAGE))
@@ -130,7 +130,7 @@ pub(crate) async fn children(
         write_node(rows.reborrow().get(i), node);
     }
     let next = if page.more {
-        cursors::number((offset + page.items.len()) as u64)
+        cursors::offset((offset + page.items.len()) as u64)
     } else {
         Vec::new()
     };

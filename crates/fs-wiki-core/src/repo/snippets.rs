@@ -24,6 +24,20 @@ pub(super) fn snippet(
     matches: &[(usize, usize)],
 ) -> Option<Snippet> {
     let first = matches.first()?;
+    if first.1 - first.0 > MAX_SNIPPET_BYTES {
+        // A word longer than a snippet: the snippet is its beginning, all of it highlighted.
+        let to = floor(text, first.0 + MAX_SNIPPET_BYTES);
+        return Some(Snippet {
+            field,
+            text: text[first.0..to].to_string(),
+            highlights: vec![Highlight {
+                start: 0,
+                end: u32::try_from(to - first.0).unwrap_or(u32::MAX),
+            }],
+            cut_before: first.0 > 0,
+            cut_after: to < text.len(),
+        });
+    }
     let from = floor(text, first.0.saturating_sub(LEAD));
     let mut to = floor(text, from + MAX_SNIPPET_BYTES);
     // Do not end inside a match: end where that match starts.

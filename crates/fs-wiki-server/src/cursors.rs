@@ -10,6 +10,7 @@ use fs_objects::ObjectId;
 use fs_wiki_core::{SearchPlace, TrashPlace};
 
 const NUMBER: u8 = 3;
+const OFFSET: u8 = 6;
 const TRASH: u8 = 4;
 const SEARCH: u8 = 5;
 
@@ -26,14 +27,32 @@ fn body(cursor: &[u8], form: u8) -> capnp::Result<Option<&[u8]>> {
     }
 }
 
+fn with_form(form: u8, n: u64) -> Vec<u8> {
+    [&[form][..], &n.to_be_bytes()].concat()
+}
+
+fn read_form(cursor: &[u8], form: u8) -> capnp::Result<Option<u64>> {
+    body(cursor, form)?
+        .map(|b| Ok(u64::from_be_bytes(b.try_into().map_err(|_| bad())?)))
+        .transpose()
+}
+
+/// History: continue below this revision number.
 pub(crate) fn number(n: u64) -> Vec<u8> {
-    [&[NUMBER][..], &n.to_be_bytes()].concat()
+    with_form(NUMBER, n)
 }
 
 pub(crate) fn read_number(cursor: &[u8]) -> capnp::Result<Option<u64>> {
-    body(cursor, NUMBER)?
-        .map(|b| Ok(u64::from_be_bytes(b.try_into().map_err(|_| bad())?)))
-        .transpose()
+    read_form(cursor, NUMBER)
+}
+
+/// Children: skip this many.
+pub(crate) fn offset(n: u64) -> Vec<u8> {
+    with_form(OFFSET, n)
+}
+
+pub(crate) fn read_offset(cursor: &[u8]) -> capnp::Result<Option<u64>> {
+    read_form(cursor, OFFSET)
 }
 
 fn id_of(bytes: &[u8]) -> capnp::Result<ObjectId> {
@@ -106,6 +125,7 @@ mod tests {
         };
         assert_eq!(read_search(&search(&s)).unwrap(), Some(s));
         assert!(read_number(&trash(&t)).is_err());
+        assert!(read_number(&offset(1)).is_err() && read_offset(&number(1)).is_err());
         assert!(read_search(&number(1)).is_err());
         assert!(read_trash(&[TRASH, 1, 2]).is_err());
     }

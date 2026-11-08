@@ -119,19 +119,24 @@ impl WikiRepo {
     }
 
     pub(super) async fn purge_locked(&self, id: ObjectId) -> Result<()> {
-        self.trashed_object(id).await?;
-        let purger = self.purger()?;
-        let latest = self.next_number(id, true).await?.saturating_sub(1);
+        let object = self.trashed_object(id).await?;
+        let purger = self.purger("text.trash")?;
+        // Up to the highest number the text ever had; a retry after a stop half way goes the same way,
+        // and purges the log of a record that is already gone.
+        let hint = object.content["hint"].as_u64().unwrap_or(0);
+        let upper = hint.max(self.next_number(id, true).await?.saturating_sub(1));
         let mut cleaned = true;
-        for number in 1..=latest {
+        for number in 1..=upper {
             let rev = revision_id(id, number);
             if self.objects.get(rev).await?.is_some() {
                 self.objects.delete(rev, &self.aux_actor()).await?;
-                cleaned &= purger.purge_log(rev).await?;
             }
+            cleaned &= purger.purge_log(rev).await?;
         }
-        self.objects.delete(id, &self.actor).await?;
+        // The log of the text first: the delete after it is logged without images (the object is marked
+        // purged), and a stop between the two leaves a text that purge can still be repeated on.
         cleaned &= purger.purge_log(id).await?;
+        self.objects.delete(id, &self.actor).await?;
         if !cleaned {
             purger.clean_files().await?;
         }

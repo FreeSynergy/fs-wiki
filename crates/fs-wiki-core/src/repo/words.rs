@@ -3,6 +3,12 @@
 //! Pattern: Strategy (pure functions) — a word is a run of letters and digits; matching ignores case
 //! (Unicode lowercase). The last word of a search may match as a prefix. Offsets are UTF-8 bytes.
 
+/// `text` in normalisation form C, as the store compares texts: `a` + U+0308 is `ä`.
+pub(super) fn nfc(text: &str) -> String {
+    use unicode_normalization::UnicodeNormalization;
+    text.nfc().collect()
+}
+
 /// The byte ranges of the words of `text`.
 pub(super) fn word_spans(text: &str) -> Vec<(usize, usize)> {
     let mut spans = vec![];
@@ -25,7 +31,8 @@ pub(super) fn word_spans(text: &str) -> Vec<(usize, usize)> {
 
 /// The words of a search term, lowercased, in order.
 pub(super) fn query_words(term: &str) -> Vec<String> {
-    word_spans(term)
+    let term = nfc(term);
+    word_spans(&term)
         .into_iter()
         .map(|(s, e)| term[s..e].to_lowercase())
         .collect()

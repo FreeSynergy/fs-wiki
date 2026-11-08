@@ -3,6 +3,7 @@
 #![allow(dead_code)] // each test file uses a different subset
 
 pub mod counting;
+pub mod revfail;
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;

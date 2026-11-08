@@ -14,7 +14,7 @@ use super::handle::WikiRepo;
 use super::read::all_texts;
 use super::record::entry_of;
 use super::snippets::snippet;
-use super::words::{query_words, Needles};
+use super::words::{nfc, query_words, Needles};
 use crate::error::{Error, Result};
 use crate::hidden::is_hidden_block;
 use crate::limits::{
@@ -79,7 +79,7 @@ fn blocks(t: &TextEntry) -> Vec<String> {
         .blocks
         .iter()
         .filter(|b| !is_hidden_block(b))
-        .map(|b| b.text.to_string())
+        .map(|b| nfc(&b.text.to_string()))
         .filter(|s| !s.trim().is_empty())
         .collect()
 }
@@ -100,18 +100,20 @@ fn hit_of(t: &TextEntry, n: &Needles) -> Option<SearchHit> {
     if n.words.is_empty() {
         return Some(hit);
     }
+    // Matching and snippets read the normalised text, so a decomposed `ä` finds a composed one.
+    let (name, path) = (nfc(&hit.name), nfc(&hit.path));
     let body = blocks(t);
     let all = body.join("\n");
     let covered = (0..n.words.len()).all(|i| {
         let one = n.only(i);
-        one.hits(&hit.name) + one.hits(&hit.path) + one.hits(&all) > 0
+        one.hits(&name) + one.hits(&path) + one.hits(&all) > 0
     });
     if !covered {
         return None;
     }
     let fields: [(&'static str, Vec<&str>, usize); 3] = [
-        ("name", vec![hit.name.as_str()], 3),
-        ("path", vec![hit.path.as_str()], 2),
+        ("name", vec![name.as_str()], 3),
+        ("path", vec![path.as_str()], 2),
         ("body", body.iter().map(String::as_str).collect(), 1),
     ];
     let mut snippets: Vec<Snippet> = vec![];

@@ -91,3 +91,14 @@ pub(crate) fn rpc_error_v2(e: Error) -> capnp::Error {
         _ => rpc_error(e),
     }
 }
+
+/// Like [`rpc_error_v2`], for `createFolder`: a taken path is the path of a folder.
+pub(crate) fn rpc_error_folder(e: Error) -> capnp::Error {
+    match &e {
+        Error::PathTaken(path) => problem(&e, c::PATH_TAKEN_PROBLEM_TYPE, "Path taken", 409)
+            .with_ext(keys::KIND, FOLDER)
+            .with_ext(PATH, path)
+            .into_error(),
+        _ => rpc_error_v2(e),
+    }
+}

@@ -124,7 +124,9 @@ pub(crate) async fn create_folder(
     let name = required(p.get_name()?, "name")?.to_string();
     let path = text_arg(p.get_path()?)?.to_string();
     let texts = texts.clone();
-    let node = run(async move { texts.create_folder(parent, &name, &path).await }).await?;
+    let node = run_to_end(async move { texts.create_folder(parent, &name, &path).await })
+        .await?
+        .map_err(crate::errors_v2::rpc_error_folder)?;
     write_node(results.get().init_node(), &node);
     Ok(())
 }

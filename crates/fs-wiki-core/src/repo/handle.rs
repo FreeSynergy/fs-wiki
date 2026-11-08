@@ -67,6 +67,14 @@ impl WikiRepo {
         }
     }
 
+    /// Say that `store` can remove an object from its log: `purge` and `purgeRevision` need it. A wiki made
+    /// with [`WikiRepo::new`] has it already; one made with [`WikiRepo::with_backend`] does not.
+    #[must_use]
+    pub fn with_log_purge(mut self, store: Arc<dyn Store>) -> Self {
+        self.purger = Some(Arc::new(StoreAdapter(store)));
+        self
+    }
+
     /// Say whose store this is: [`Texts::identity`](crate::Texts::identity) answers from it.
     #[must_use]
     pub fn with_info(mut self, info: Arc<dyn StoreInfo>) -> Self {

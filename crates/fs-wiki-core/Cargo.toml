@@ -18,6 +18,7 @@ async-trait = "0.1"
 tokio = { version = "1", features = ["sync"] }
 # Ids of the revision records (derived from the text id) and the time of a write.
 uuid = { version = "1", features = ["v5"] }
+unicode-normalization = "0.1"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 
 [dev-dependencies]

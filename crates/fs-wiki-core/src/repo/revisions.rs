@@ -70,34 +70,22 @@ impl WikiRepo {
         Ok(RevisionPage { items, more })
     }
 
-    /// A store undo (outside this API) can bring an older record of the text back: then the newest
-    /// revision is not what the text says. History says so with a revision of its own, written as a
-    /// record only (the text is not touched, so no `expect` of a writer is spoiled).
-    async fn catch_up(&self, text: &TextEntry) -> Result<()> {
-        let stale =
-            |r: &Option<RevisionRecord>| r.as_ref().is_some_and(|r| r.revision != text.revision);
-        let latest = self.latest_number(text.id).await?;
-        if !stale(&self.revision_record(text.id, latest).await?) {
+    /// A state of the text no revision record has (written before history existed, a failed write of
+    /// a record, or an older record brought back by a store undo outside this interface) gets a record
+    /// of its own. Only the record is written, the text is not touched, so no `expect` of a writer is
+    /// spoiled. The text is read again after the lock is taken: a writer that ran meanwhile has
+    /// recorded its own state.
+    async fn catch_up(&self, seen: &TextEntry) -> Result<()> {
+        let id = seen.id;
+        let recorded = |r: Option<RevisionRecord>, rev: u64| r.is_some_and(|r| r.revision == rev);
+        let latest = self.latest_number(id).await?;
+        if recorded(self.revision_record(id, latest).await?, seen.revision) {
             return Ok(());
         }
         let _write = self.write_lock.lock().await;
-        let latest = self.latest_number(text.id).await?;
-        if !stale(&self.revision_record(text.id, latest).await?) {
-            return Ok(());
-        }
-        let record = RevisionRecord {
-            text: text.id,
-            number: latest + 1,
-            revision: text.revision,
-            author: String::new(),
-            at_ms: chrono::Utc::now().timestamp_millis(),
-            size: serde_json::to_string(&text.document)?.len() as u64,
-            summary: "state brought back outside this interface (store undo)".into(),
-            path: text.path.clone(),
-            restored_from: 0,
-            document: Some(serde_json::to_value(&text.document)?),
-        };
-        self.put_revision(&record).await
+        let now = self.text_any(id).await?;
+        let next = self.next_number(id, true).await?;
+        self.record_late(&now, next).await.map(|_| ())
     }
 
     pub(super) async fn revision_of(
@@ -167,30 +155,40 @@ impl WikiRepo {
     }
 
     pub(super) async fn purge_revision_locked(&self, id: ObjectId, number: u64) -> Result<()> {
-        self.text_any(id).await?;
+        let text = self.text_any(id).await?;
+        let purger = self.purger("text.history")?;
+        let next = self.next_number(id, true).await?;
+        self.record_late(&text, next).await?;
         let gone = || Error::NoSuchRevision { id, number };
         let record = self.revision_record(id, number).await?.ok_or_else(gone)?;
-        if record.document.is_none() {
+        // A removal that was started and not finished is completed by a retry.
+        if record.document.is_none() && !record.pending_purge {
             return Err(gone());
         }
-        if number == self.latest_number(id).await? {
+        if record.revision == text.revision || number == self.latest_number(id).await? {
             return Err(Error::Invalid {
                 issue: "current-revision",
                 detail: "the current revision cannot be removed; edit the text first".into(),
             });
         }
-        let purger = self.purger()?;
         let rev = revision_id(id, number);
-        self.objects.delete(rev, &self.aux_actor()).await?;
+        // First the record loses its document (the old one stays in the log, marked as pending), then
+        // the log of the record and of the text is purged, then the record is final.
+        let pending = RevisionRecord {
+            document: None,
+            summary: String::new(),
+            pending_purge: true,
+            ..record
+        };
+        self.put_revision(&pending).await?;
         let mut cleaned = purger.purge_log(rev).await?;
         // The text's own log keeps the old document as an image of each change.
         cleaned &= purger.purge_log(id).await?;
-        let tombstone = RevisionRecord {
-            document: None,
-            summary: String::new(),
-            ..record
-        };
-        self.put_revision(&tombstone).await?;
+        self.put_revision(&RevisionRecord {
+            pending_purge: false,
+            ..pending
+        })
+        .await?;
         if !cleaned {
             purger.clean_files().await?;
         }
