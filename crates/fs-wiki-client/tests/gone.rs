@@ -5,11 +5,14 @@
 
 mod common;
 
+#[cfg(unix)]
 use std::os::unix::net::UnixListener;
 use std::time::Duration;
 
 use common::{make, ClientOf, Served};
-use fs_wiki_client::{RpcTexts, Timeouts, CALL_TIMEOUT, CONNECT_TIMEOUT};
+#[cfg(unix)]
+use fs_wiki_client::Timeouts;
+use fs_wiki_client::{RpcTexts, CALL_TIMEOUT, CONNECT_TIMEOUT};
 use fs_wiki_core::{Error, Paging, Texts};
 
 #[test]
@@ -35,6 +38,9 @@ async fn a_server_that_stopped_answers_with_an_error_every_time() {
     }
 }
 
+// A listener that accepts and says nothing: a Unix socket here; a named pipe has no such stand-in in std, so Windows
+// has the same case only through the real server (`a_server_that_stopped_answers_with_an_error_every_time`).
+#[cfg(unix)]
 #[test]
 fn a_listener_that_never_answers_ends_connect_with_the_deadline() {
     let dir = tempfile::tempdir().unwrap();

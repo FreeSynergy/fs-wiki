@@ -88,7 +88,7 @@ fn collaboration(d: TypeDescription) -> TypeDescription {
         "wiki.page.file",
     )))
     .command(
-        command(T, "setLabels", K::Change)
+        command(T, "setLabels", K::Other)
             .input(id())
             .input(field(T, "labels", B::Keywords)),
     )
@@ -120,7 +120,7 @@ fn knowledge(d: TypeDescription) -> TypeDescription {
             .result(field(T, "content", B::MultilineText)),
     )
     .command(
-        command(T, "applyTag", K::Change)
+        command(T, "applyTag", K::Other)
             .input(id())
             .input(field(T, "tag", B::Text).required()),
     )

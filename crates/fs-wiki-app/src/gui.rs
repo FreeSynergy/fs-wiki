@@ -7,6 +7,7 @@
 
 use std::path::Path;
 
+use fs_interfaces::rpc::{FACET_FLAG, companion_path};
 use fs_wiki_client::RpcTexts;
 
 use crate::args::{HELP, parse};
@@ -24,7 +25,7 @@ pub fn run(words: &[String]) -> Result<(), String> {
         return Ok(());
     }
     let socket = socket_path(args.socket.as_deref())?;
-    let texts = connect_or_start(&socket, args.socket.is_none())?;
+    let texts = connect_or_start(&socket, args.socket.is_none(), args.facet.as_deref())?;
     if args.reader {
         crate::mode_reader::run(&args, texts)
     } else {
@@ -41,10 +42,14 @@ fn connect_error(socket: &Path, e: &std::io::Error) -> String {
 
 /// Connect; if none answers on the user's own socket, start `<this program> serve` (detached, so other windows use it
 /// too) and wait for it.
-fn connect_or_start(socket: &Path, may_start: bool) -> Result<RpcTexts, String> {
+fn connect_or_start(
+    socket: &Path,
+    may_start: bool,
+    facet: Option<&str>,
+) -> Result<RpcTexts, String> {
     // This window is a user of the server for as long as it lives: the shared lock is let go by the system when the
     // process ends. A server this window starts ends itself when no window holds the lease.
-    let lease = socket.with_extension("lease");
+    let lease = companion_path(socket, "lease");
     if may_start {
         hold_lease(&lease);
     }
@@ -54,7 +59,7 @@ fn connect_or_start(socket: &Path, may_start: bool) -> Result<RpcTexts, String> 
     }
     let me = std::env::current_exe().map_err(|e| e.to_string())?;
     // What the server says when it cannot start goes to a file next to the socket, so the window can tell the person.
-    let log = socket.with_extension("log");
+    let log = companion_path(socket, "log");
     let log_file = std::fs::File::create(&log).ok();
     let mut server = server_command(&me);
     server
@@ -63,7 +68,10 @@ fn connect_or_start(socket: &Path, may_start: bool) -> Result<RpcTexts, String> 
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(log_file.map_or_else(std::process::Stdio::null, std::process::Stdio::from));
-    std::os::unix::process::CommandExt::process_group(&mut server, 0);
+    if let Some(facet) = facet {
+        server.arg(FACET_FLAG).arg(facet);
+    }
+    crate::detach::current().apply(&mut server);
     let mut child = server
         .spawn()
         .map_err(|e| format!("could not start the wiki server: {e}"))?;
@@ -105,9 +113,12 @@ fn server_command(me: &Path) -> std::process::Command {
 /// Hold the shared lock on `path` until this process ends.
 fn hold_lease(path: &Path) {
     static HELD: std::sync::OnceLock<std::fs::File> = std::sync::OnceLock::new();
+    // Read and write, not append: Windows takes a lock only on a handle that can read or write data.
     match std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
         .create(true)
-        .append(true)
+        .truncate(false)
         .open(path)
     {
         Ok(file) => match file.lock_shared() {

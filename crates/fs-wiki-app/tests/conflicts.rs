@@ -116,13 +116,20 @@ fn nothing_unchanged_is_parsed_again_and_what_is_not_looked_at_is_listed() {
         &docs,
         &[("p.md", "p\n"), ("UPPER.MD", "x\n"), ("real.md", "r\n")],
     );
-    std::os::unix::fs::symlink(docs.join("real.md"), docs.join("link.md")).unwrap();
-    std::os::unix::fs::symlink(&docs, docs.join("loop")).unwrap();
+    // Links need a right on Windows that a test must not assume; there the case is the other files only.
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink(docs.join("real.md"), docs.join("link.md")).unwrap();
+        std::os::unix::fs::symlink(&docs, docs.join("loop")).unwrap();
+    }
     let (rt, w) = wiki_in_file(&store);
     let first = rt.block_on(import_folder(&**w, &docs));
     let mut skipped: Vec<_> = first.skipped.iter().map(|s| s.path.as_str()).collect();
     skipped.sort_unstable();
+    #[cfg(unix)]
     assert_eq!(skipped, ["UPPER.MD", "link.md", "loop"]);
+    #[cfg(not(unix))]
+    assert_eq!(skipped, ["UPPER.MD"]);
     let before = rt
         .block_on(w.list("", fs_wiki_core::Paging::default()))
         .unwrap();

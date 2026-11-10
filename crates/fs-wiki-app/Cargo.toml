@@ -17,8 +17,8 @@ fs-components-app = { git = "https://github.com/FreeSynergy/fs-components", rev 
 fs-components-fields = { git = "https://github.com/FreeSynergy/fs-components", rev = "4688cee" }
 fs-components-styles = { git = "https://github.com/FreeSynergy/fs-components", rev = "4688cee" }
 fs-admin-frontend = { git = "https://github.com/FreeSynergy/fs-components", rev = "4688cee" }
-# The descriptions as the server sends them (v0.0.7) and as the frontend reads them (v0.0.2, see admin/convert.rs).
-fs-types = { git = "https://github.com/FreeSynergy/fs-interfaces", tag = "v0.0.7" }
+# The descriptions as the server sends them (v0.0.16) and as the frontend reads them (v0.0.2, see admin/convert.rs).
+fs-types = { git = "https://github.com/FreeSynergy/fs-interfaces", tag = "v0.0.16" }
 fs-types-admin = { package = "fs-types", git = "https://github.com/FreeSynergy/fs-interfaces", tag = "v0.0.2" }
 async-trait = "0.1"
 futures = "0.3"
@@ -26,8 +26,14 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
 chrono = { version = "0.4", default-features = false, features = ["std"] }
-rustix = { version = "1", default-features = false, features = ["std", "fs"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
+cap-std = "3"
+cap-fs-ext = "3"
+fs-interfaces = { git = "https://github.com/FreeSynergy/fs-interfaces", tag = "v0.0.16", features = ["rpc"] }
+
+[target.'cfg(unix)'.dependencies]
+# Owner and folder sync of the export, on the handle that cap-std gives (Unix only).
+rustix = { version = "1", default-features = false, features = ["std", "fs"] }
 
 [dev-dependencies]
 # The real server, started inside the tests; the app code itself uses no store.

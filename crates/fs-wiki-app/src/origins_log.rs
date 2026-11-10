@@ -3,15 +3,12 @@
 //! Pattern: none — free functions on a file.
 
 use std::collections::{BTreeMap, HashMap};
-use std::fs::{File, OpenOptions};
+use std::fs::{File, OpenOptions, TryLockError};
 use std::io::{self, Write};
-use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 
 use fs_objects::StoreId;
 use fs_wiki_core::FileOrigin;
-use rustix::fs::{FlockOperation, flock};
-use rustix::io::Errno;
 use serde::{Deserialize, Serialize};
 
 /// The line that starts the records of one store; the records after it are that store's.
@@ -95,11 +92,10 @@ pub(crate) fn rewrite(
     current: Option<StoreId>,
 ) -> io::Result<(File, Option<StoreId>)> {
     let temporary = sibling(path, ".tmp");
-    let mut file = OpenOptions::new()
+    let mut file = private_options()
         .write(true)
         .create(true)
         .truncate(true)
-        .mode(0o600)
         .open(&temporary)?;
     for record in book.legacy.values() {
         file.write_all(&line(record)?)?;
@@ -124,7 +120,11 @@ pub(crate) fn rewrite(
     file.sync_all()?;
     std::fs::rename(&temporary, path)?;
     if let Some(dir) = path.parent().filter(|d| !d.as_os_str().is_empty()) {
+        // A folder is synced on Unix; Windows cannot open one as a file, and its rename is durable on its own.
+        #[cfg(unix)]
         File::open(dir)?.sync_all()?;
+        #[cfg(not(unix))]
+        let _ = dir;
     }
     Ok((OpenOptions::new().append(true).open(path)?, tail))
 }
@@ -140,15 +140,24 @@ pub(crate) fn lock_path(path: &Path) -> PathBuf {
 /// # Errors
 /// `WouldBlock`: another program holds it.
 pub(crate) fn lock(path: &Path) -> io::Result<File> {
-    let file = OpenOptions::new()
+    // Read and write: Windows takes a lock only on a handle that can read or write data.
+    let file = private_options()
+        .read(true)
         .write(true)
         .create(true)
         .truncate(false)
-        .mode(0o600)
         .open(lock_path(path))?;
-    match flock(&file, FlockOperation::NonBlockingLockExclusive) {
+    match file.try_lock() {
         Ok(()) => Ok(file),
-        Err(Errno::WOULDBLOCK) => Err(io::ErrorKind::WouldBlock.into()),
-        Err(e) => Err(e.into()),
+        Err(TryLockError::WouldBlock) => Err(io::ErrorKind::WouldBlock.into()),
+        Err(TryLockError::Error(e)) => Err(e),
     }
+}
+
+/// Options for a file only the user may read (mode 0600 on Unix; elsewhere the folder's rights).
+fn private_options() -> OpenOptions {
+    let mut options = OpenOptions::new();
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+    options
 }

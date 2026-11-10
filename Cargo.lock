@@ -104,6 +104,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c880a97d28a3681c0267bd29cff89621202715b065127cd445fa0f0fe0aa2880"
 
 [[package]]
+name = "ambient-authority"
+version = "0.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e9d4ee0d472d1cd2e28c97dfa124b3d8d992e10eb0a035f33f5d12e3a177ba3b"
+
+[[package]]
 name = "android-activity"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -813,6 +819,48 @@ dependencies = [
  "rustix 0.38.44",
  "wayland-backend",
  "wayland-client",
+]
+
+[[package]]
+name = "cap-fs-ext"
+version = "3.4.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "476f0d0003a760918ed4b1e039a59e11769030416f79c8222551d22785f7f70d"
+dependencies = [
+ "cap-primitives",
+ "cap-std",
+ "io-lifetimes",
+ "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "cap-primitives"
+version = "3.4.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8e0bf07d379916947be6c4a07f43684153d710a2896c31f9e97781362895596c"
+dependencies = [
+ "ambient-authority",
+ "fs-set-times",
+ "io-extras",
+ "io-lifetimes",
+ "ipnet",
+ "maybe-owned",
+ "rustix 1.1.6",
+ "rustix-linux-procfs",
+ "windows-sys 0.59.0",
+ "winx",
+]
+
+[[package]]
+name = "cap-std"
+version = "3.4.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a59e59fa26472d29680ece6a9f8ee8b0551a719a33df2f5240bde065ecbddfd7"
+dependencies = [
+ "cap-primitives",
+ "io-extras",
+ "io-lifetimes",
+ "rustix 1.1.6",
 ]
 
 [[package]]
@@ -1625,16 +1673,7 @@ dependencies = [
 [[package]]
 name = "fs-interfaces"
 version = "0.0.1"
-source = "git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.2#a8c28ea86f863db92f0d333fcf27b0d012fd8832"
-dependencies = [
- "capnp",
- "idna",
-]
-
-[[package]]
-name = "fs-interfaces"
-version = "0.0.1"
-source = "git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.7#e989a3a6cf8ba0a172139dad6adb5f293c1f501d"
+source = "git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.16#57f7c3bcb434c4a72711ef268f192af5af989628"
 dependencies = [
  "capnp",
  "capnp-rpc",
@@ -1646,6 +1685,16 @@ dependencies = [
  "tokio",
  "tokio-util",
  "uuid",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "fs-interfaces"
+version = "0.0.1"
+source = "git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.2#a8c28ea86f863db92f0d333fcf27b0d012fd8832"
+dependencies = [
+ "capnp",
+ "idna",
 ]
 
 [[package]]
@@ -1667,6 +1716,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "fs-set-times"
+version = "0.20.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "94e7099f6313ecacbe1256e8ff9d617b75d1bcb16a6fddef94866d225a01a14a"
+dependencies = [
+ "io-lifetimes",
+ "rustix 1.1.6",
+ "windows-sys 0.59.0",
+]
+
+[[package]]
 name = "fs-text"
 version = "0.0.6"
 dependencies = [
@@ -1684,11 +1744,12 @@ dependencies = [
 [[package]]
 name = "fs-types"
 version = "0.0.1"
-source = "git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.2#a8c28ea86f863db92f0d333fcf27b0d012fd8832"
+source = "git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.16#57f7c3bcb434c4a72711ef268f192af5af989628"
 dependencies = [
  "capnp",
+ "capnp-rpc",
  "chrono",
- "fs-interfaces 0.0.1 (git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.2)",
+ "fs-interfaces 0.0.1 (git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.16)",
  "geo-uri",
  "iri-string",
  "oxilangtag",
@@ -1698,12 +1759,11 @@ dependencies = [
 [[package]]
 name = "fs-types"
 version = "0.0.1"
-source = "git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.7#e989a3a6cf8ba0a172139dad6adb5f293c1f501d"
+source = "git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.2#a8c28ea86f863db92f0d333fcf27b0d012fd8832"
 dependencies = [
  "capnp",
- "capnp-rpc",
  "chrono",
- "fs-interfaces 0.0.1 (git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.7)",
+ "fs-interfaces 0.0.1 (git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.2)",
  "geo-uri",
  "iri-string",
  "oxilangtag",
@@ -1723,6 +1783,8 @@ name = "fs-wiki-app"
 version = "0.0.6"
 dependencies = [
  "async-trait",
+ "cap-fs-ext",
+ "cap-std",
  "chrono",
  "fs-admin-frontend",
  "fs-components-app",
@@ -1730,10 +1792,11 @@ dependencies = [
  "fs-components-styles",
  "fs-components-widgets",
  "fs-components-workbenches",
+ "fs-interfaces 0.0.1 (git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.16)",
  "fs-objects",
  "fs-text",
+ "fs-types 0.0.1 (git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.16)",
  "fs-types 0.0.1 (git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.2)",
- "fs-types 0.0.1 (git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.7)",
  "fs-wiki-client",
  "fs-wiki-core",
  "fs-wiki-testserver",
@@ -1753,10 +1816,10 @@ dependencies = [
  "async-trait",
  "capnp",
  "capnp-rpc",
- "fs-interfaces 0.0.1 (git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.7)",
+ "fs-interfaces 0.0.1 (git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.16)",
  "fs-objects",
  "fs-text",
- "fs-types 0.0.1 (git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.7)",
+ "fs-types 0.0.1 (git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.16)",
  "fs-wiki-core",
  "fs-wiki-server",
  "fs-wiki-testserver",
@@ -1772,10 +1835,10 @@ version = "0.0.6"
 dependencies = [
  "async-trait",
  "chrono",
- "fs-interfaces 0.0.1 (git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.7)",
+ "fs-interfaces 0.0.1 (git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.16)",
  "fs-objects",
  "fs-text",
- "fs-types 0.0.1 (git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.7)",
+ "fs-types 0.0.1 (git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.16)",
  "serde",
  "serde_json",
  "tempfile",
@@ -1794,12 +1857,11 @@ dependencies = [
  "capnp-rpc",
  "fs-hub",
  "fs-hub-client",
- "fs-interfaces 0.0.1 (git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.7)",
+ "fs-interfaces 0.0.1 (git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.16)",
  "fs-objects",
  "fs-text",
- "fs-types 0.0.1 (git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.7)",
+ "fs-types 0.0.1 (git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.16)",
  "fs-wiki-core",
- "rustix 1.1.6",
  "serde_json",
  "tempfile",
  "tokio",
@@ -1810,7 +1872,7 @@ dependencies = [
 name = "fs-wiki-testserver"
 version = "0.0.6"
 dependencies = [
- "fs-interfaces 0.0.1 (git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.7)",
+ "fs-interfaces 0.0.1 (git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.16)",
  "fs-objects",
  "fs-wiki-core",
  "fs-wiki-server",
@@ -2479,6 +2541,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "io-extras"
+version = "0.18.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2285ddfe3054097ef4b2fe909ef8c3bcd1ea52a8f0d274416caebeef39f04a65"
+dependencies = [
+ "io-lifetimes",
+ "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "io-lifetimes"
+version = "2.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "06432fb54d3be7964ecd3649233cddf80db2832f47fec34c01f65b3d9d774983"
+
+[[package]]
 name = "io-uring"
 version = "0.7.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2488,6 +2566,12 @@ dependencies = [
  "cfg-if",
  "libc",
 ]
+
+[[package]]
+name = "ipnet"
+version = "2.12.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "791930b43c0d5973160d90a8f3894509f2b273430f5c5c73b668636d0287c5c0"
 
 [[package]]
 name = "iri-string"
@@ -2845,6 +2929,12 @@ checksum = "d1525a2a28c7f4fa0fc98bb91ae755d1e2d1505079e05539e35bc876b5d65ae9"
 dependencies = [
  "regex-automata",
 ]
+
+[[package]]
+name = "maybe-owned"
+version = "0.3.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4facc753ae494aeb6e3c22f839b158aebd4f9270f55cd3c79906c45476c47ab4"
 
 [[package]]
 name = "memchr"
@@ -4090,6 +4180,16 @@ dependencies = [
  "libc",
  "linux-raw-sys 0.12.1",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "rustix-linux-procfs"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2fc84bf7e9aa16c4f2c758f27412dc9841341e16aa682d9c7ac308fe3ee12056"
+dependencies = [
+ "once_cell",
+ "rustix 1.1.6",
 ]
 
 [[package]]
@@ -6096,6 +6196,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8c3b93199df0ab874cdf0c6a94f0a0dc3423fe41f1cafb62b8bd7b1deb277aef"
 dependencies = [
  "memchr",
+]
+
+[[package]]
+name = "winx"
+version = "0.36.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f3fd376f71958b862e7afb20cfe5a22830e1963462f3a17f49d82a6c1d1f42d"
+dependencies = [
+ "bitflags 2.13.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

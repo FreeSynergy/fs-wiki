@@ -8,12 +8,12 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::{HubPurge, TextsServer};
-use fs_interfaces::rpc::{prepare_data_dir, run_until_signal, ServerOptions};
+use fs_interfaces::rpc::{prepare_data_dir, run_until_signal, stop_self, ServerOptions};
 use fs_objects::{Store, TursoStore};
 use fs_wiki_core::WikiRepo;
 
 /// The help text.
-pub const HELP: &str = "fs-wiki serve [--socket PATH] [--data DIR] [--actor IRI] [--instance DOMAIN] [--hub-socket PATH] [--lease FILE]\nDefaults: $XDG_RUNTIME_DIR/freesynergy/wiki.sock, $XDG_DATA_HOME/freesynergy/wiki, the local owner; the hub at its default socket (only `purge` and `purgeRevision` need it)\n--lease FILE: end when no window holds this lock any more (started by a window, not by hand)";
+pub const HELP: &str = "fs-wiki serve [--socket PATH] [--data DIR] [--actor IRI] [--instance DOMAIN] [--facet NAME] [--hub-socket PATH] [--lease FILE]\nDefaults: $XDG_RUNTIME_DIR/freesynergy/wiki.sock, $XDG_DATA_HOME/freesynergy/wiki, the local owner; the hub at its default socket (only `purge` and `purgeRevision` need it)\n--lease FILE: end when no window holds this lock any more (started by a window, not by hand)";
 
 /// Why `serve` ended without serving.
 #[derive(Debug, PartialEq, Eq)]
@@ -37,19 +37,17 @@ pub fn serve(args: impl IntoIterator<Item = OsString>) -> Result<(), ServeError>
         data,
         actor,
         instance,
+        // The facet is read by the shared parser; this server serves one wiki whatever the link says.
+        facet: _,
     }) = ServerOptions::parse("wiki", args).map_err(ServeError::Usage)?
     else {
         println!("{HELP}");
         return Ok(());
     };
     if let Some(lease) = lease {
-        // The window that started this server holds the lease; when none does, end as a signal would.
-        crate::lease::watch(lease, || {
-            let _ = rustix::process::kill_process(
-                rustix::process::getpid(),
-                rustix::process::Signal::TERM,
-            );
-        });
+        // The window that started this server holds the lease; when none does, end as a signal would (Windows has no
+        // signal to send, so the server is asked from inside).
+        crate::lease::watch(lease, stop_self);
     }
     run_until_signal(&socket, || async move {
         let data = prepare_data_dir(&data)?;

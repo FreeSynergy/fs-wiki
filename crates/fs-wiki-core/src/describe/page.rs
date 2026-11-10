@@ -44,31 +44,31 @@ fn writing(d: TypeDescription) -> TypeDescription {
             .input(field(T, "path", B::Text).required()),
     )
     .command(
-        command(T, "change", K::Change)
+        command(T, "change", K::Other)
             .input(id())
             .input(field(T, "content", B::MultilineText))
             .input(field(T, "summary", B::Text))
             .input(field(T, "revision", B::Text).required()),
     )
     .command(
-        command(T, "move", K::Change)
+        command(T, "move", K::Other)
             .input(id())
             .input(field(T, "path", B::Text).required()),
     )
     .command(
-        command(T, "setTemplate", K::Change).input(id()).input(
+        command(T, "setTemplate", K::Other).input(id()).input(
             field(T, "kind", B::Choice)
                 .choices(&["page", "template"])
                 .required(),
         ),
     )
     .command(
-        command(T, "setRedirect", K::Change)
+        command(T, "setRedirect", K::Other)
             .input(id())
             .input(field(T, "redirectTo", B::Text)),
     )
     .command(
-        command(T, "reorder", K::Change)
+        command(T, "reorder", K::Other)
             .input(id())
             .input(
                 field(T, "placement", B::Choice)

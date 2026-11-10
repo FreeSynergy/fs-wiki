@@ -13,6 +13,7 @@
 pub mod admin;
 pub mod args;
 mod check;
+mod detach;
 pub mod drafts;
 mod drafts_orphans;
 pub mod gui;

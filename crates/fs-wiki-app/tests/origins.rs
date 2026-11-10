@@ -5,8 +5,6 @@
 
 mod common;
 
-use std::os::unix::fs::PermissionsExt;
-
 use common::temp_dir;
 use fs_objects::ObjectId;
 use fs_wiki_app::{FileOrigins, OriginsError};
@@ -62,8 +60,13 @@ async fn the_file_holds_each_record_once_after_a_start_and_is_private() {
     let origins = FileOrigins::open(&file).unwrap();
     assert_eq!(std::fs::read_to_string(&file).unwrap().lines().count(), 1);
     assert_eq!(origins.origins().await.unwrap()[0].hash, "19");
-    let mode = std::fs::metadata(&file).unwrap().permissions().mode();
-    assert_eq!(mode & 0o777, 0o600);
+    // Only the user reads the records: by mode on Unix (Windows keeps them in the user's profile).
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = std::fs::metadata(&file).unwrap().permissions().mode();
+        assert_eq!(mode & 0o777, 0o600);
+    }
     assert!(
         !file.with_extension("tmp").exists(),
         "no temporary file left"

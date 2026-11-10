@@ -36,9 +36,16 @@ fn folder_file(data: &Path, docs: &Path, extension: &str) -> PathBuf {
         .join(format!("{name}-{}.{extension}", &hash[..16]))
 }
 
-/// The user's data directory, if the environment names one.
+/// The user's data directory, if the environment names one (Windows: `%LOCALAPPDATA%`).
 pub fn data_dir() -> Option<PathBuf> {
-    data_dir_from(std::env::var_os("XDG_DATA_HOME"), std::env::var_os("HOME"))
+    #[cfg(windows)]
+    {
+        Some(PathBuf::from(std::env::var_os("LOCALAPPDATA")?)).filter(|p| p.is_absolute())
+    }
+    #[cfg(not(windows))]
+    {
+        data_dir_from(std::env::var_os("XDG_DATA_HOME"), std::env::var_os("HOME"))
+    }
 }
 
 /// `xdg` (`$XDG_DATA_HOME`) or else `home/.local/share`. As the XDG specification says, a value

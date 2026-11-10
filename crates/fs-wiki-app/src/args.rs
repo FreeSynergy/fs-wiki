@@ -31,6 +31,8 @@ pub struct Args {
     pub reader: bool,
     /// Do not open a window: connect, read the descriptions, list the pages and say what was found.
     pub check: bool,
+    /// The facet to show (`--facet NAME`, the link `fs-<facet>`, ADR 0063), read by the parser of `fs-interfaces`.
+    pub facet: Option<String>,
     /// `--help` was given.
     pub help: bool,
 }
@@ -70,6 +72,7 @@ pub fn parse(args: &[String]) -> Result<Args, String> {
             "--size" => out.size = size(&value("--size")?)?,
             "--reader" => out.reader = true,
             "--check" => out.check = true,
+            "--facet" => out.facet = Some(fs_interfaces::rpc::parse_facet(&value("--facet")?)?),
             "-h" | "--help" => out.help = true,
             other => return Err(format!("unknown option {other}")),
         }
@@ -87,6 +90,7 @@ fn size(text: &str) -> Result<(u32, u32), String> {
 pub const HELP: &str = "fs-wiki-app: the wiki in a window (Admin view of pages, folders, history, trash and links)
 
   --reader            open the documentation reader and editor instead (the options below belong to it)
+  --facet <name>      the facet to show (the link fs-<facet> sets it); the server it starts gets it too
   --check             no window: connect, read the descriptions and the pages, and say what was found
 
   --socket <path>     socket of the running fs-wiki-server (default $XDG_RUNTIME_DIR/freesynergy/wiki.sock);

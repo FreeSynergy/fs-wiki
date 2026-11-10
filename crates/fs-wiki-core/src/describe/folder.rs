@@ -41,17 +41,17 @@ fn describe() -> TypeDescription {
             .input(field(T, "path", B::Text)),
     )
     .command(
-        command(T, "rename", K::Change)
+        command(T, "rename", K::Other)
             .input(id())
             .input(field(T, "name", B::Text).required()),
     )
     .command(
-        command(T, "move", K::Change)
+        command(T, "move", K::Other)
             .input(id())
             .input(field(T, "path", B::Text).required()),
     )
     .command(
-        command(T, "reorder", K::Change)
+        command(T, "reorder", K::Other)
             .input(id())
             .input(
                 field(T, "placement", B::Choice)

@@ -1,12 +1,11 @@
 //! The real program started on a database written by 0.2.0: it completes the index at start, and
 //! every text is listed, page by page.
 
-use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::time::Duration;
 
-use fs_interfaces::rpc::connect;
+use fs_interfaces::rpc::{connect, stop_server};
 use fs_interfaces::texts_capnp::texts;
 
 /// Kills the program when the test ends, also when it fails.
@@ -27,7 +26,9 @@ async fn the_program_repairs_an_old_database_at_start_and_lists_every_text() {
             let dir = tempfile::tempdir().unwrap();
             let (socket, data) = (dir.path().join("wiki.sock"), dir.path().join("data"));
             std::fs::create_dir_all(&data).unwrap();
-            std::fs::set_permissions(&data, std::fs::Permissions::from_mode(0o700)).unwrap();
+            #[cfg(unix)]
+            std::fs::set_permissions(&data, std::os::unix::fs::PermissionsExt::from_mode(0o700))
+                .unwrap();
             let fixtures =
                 Path::new(env!("CARGO_MANIFEST_DIR")).join("../fs-wiki-core/tests/fixtures");
             for (from, to) in [("v020.db", "objects.db"), ("v020.db-wal", "objects.db-wal")] {
@@ -43,7 +44,7 @@ async fn the_program_repairs_an_old_database_at_start_and_lists_every_text() {
                 .unwrap();
             let mut child = Program(child);
             for _ in 0..400 {
-                if tokio::net::UnixStream::connect(&socket).await.is_ok() {
+                if connect::<texts::Client>(&socket).await.is_ok() {
                     break;
                 }
                 tokio::time::sleep(Duration::from_millis(25)).await;
@@ -73,11 +74,7 @@ async fn the_program_repairs_an_old_database_at_start_and_lists_every_text() {
             }
             assert_eq!(paths.len(), 5, "{paths:?}");
             drop(connection);
-            assert!(Command::new("kill")
-                .args(["-TERM", &child.0.id().to_string()])
-                .status()
-                .unwrap()
-                .success());
+            stop_server(&socket).await.unwrap();
             let mut said = String::new();
             child.0.wait().unwrap();
             std::io::Read::read_to_string(&mut child.0.stderr.take().unwrap(), &mut said).unwrap();

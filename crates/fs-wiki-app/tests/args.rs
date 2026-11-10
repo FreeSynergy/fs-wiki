@@ -71,3 +71,12 @@ fn the_old_store_file_of_a_folder_is_found_and_only_when_it_is_there() {
     assert_eq!(old_store_file(&data, &docs), Some(old));
     std::fs::remove_dir_all(dir).unwrap();
 }
+
+#[test]
+fn the_facet_is_read_by_the_shared_parser_of_fs_interfaces() {
+    assert_eq!(parse(&args(&[])).unwrap().facet, None);
+    let some = parse(&args(&["--facet", "identity"])).unwrap();
+    assert_eq!(some.facet.as_deref(), Some("identity"));
+    assert!(parse(&args(&["--facet"])).is_err(), "needs a value");
+    assert!(parse(&args(&["--facet", "Not A Name"])).is_err());
+}
