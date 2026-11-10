@@ -8,21 +8,20 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use fs_components_workbenches::{DraftStore, Labels, Options, Picture, Step, launch, snapshot};
-use fs_wiki_app::args::Args;
-use fs_wiki_app::server::{connect, socket_path};
-use fs_wiki_app::store_path::{data_dir, old_store_file, origins_file};
-use fs_wiki_app::{Conflict, FileDraftStore, FileOrigins, Wiki, WikiSource, import_folder, words};
+use crate::store_path::{data_dir, old_store_file, origins_file};
+use crate::{Conflict, FileDraftStore, FileOrigins, Wiki, WikiSource, import_folder, words};
+use fs_wiki_client::RpcTexts;
 use fs_wiki_core::Texts;
+
+use crate::args::Args;
 
 /// Run the reader.
 ///
 /// # Errors
 /// A message for the person.
-pub fn run(args: &Args) -> Result<(), String> {
+pub fn run(args: &Args, texts: RpcTexts) -> Result<(), String> {
     let runtime = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
     let started = Instant::now();
-    let socket = socket_path(args.socket.as_deref())?;
-    let texts = connect(&socket)?;
     let records = if let Some(file) = &args.origins {
         file.clone()
     } else {
@@ -36,11 +35,7 @@ pub fn run(args: &Args) -> Result<(), String> {
         }
         origins_file(&data, &args.docs)
     };
-    eprintln!(
-        "server: {}, records: {}",
-        socket.display(),
-        records.display()
-    );
+    eprintln!("records: {}", records.display());
     let origins = FileOrigins::open(&records).map_err(|e| e.to_string())?;
     let wiki = Arc::new(Wiki::new(Arc::new(texts), Arc::new(origins)));
     let report = runtime.block_on(import_folder(wiki.as_ref(), &args.docs));
@@ -48,7 +43,7 @@ pub fn run(args: &Args) -> Result<(), String> {
     let drafts = args
         .drafts
         .clone()
-        .or_else(fs_wiki_app::drafts::default_dir)
+        .or_else(crate::drafts::default_dir)
         .map(|dir| FileDraftStore::new(dir, &args.docs))
         .transpose()?;
     let mut report = report;
@@ -98,7 +93,7 @@ pub fn run(args: &Args) -> Result<(), String> {
 }
 
 /// One line of counts, then a word for what was ignored or is missing.
-fn print_summary(report: &fs_wiki_app::Report, started: Instant) {
+fn print_summary(report: &crate::Report, started: Instant) {
     eprintln!(
         "{} new, {} updated, {} unchanged, {} failed, {} conflict(s), {} gone, {} skipped, in {:.1?}",
         report.imported,

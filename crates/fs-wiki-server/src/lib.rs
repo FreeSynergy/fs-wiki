@@ -17,8 +17,10 @@ mod errors_v2;
 mod facts;
 mod feed;
 mod hub_purge;
+pub mod lease;
 mod links;
 mod paging;
+mod program;
 mod reads;
 mod reads_v2;
 mod texts_service;
@@ -29,6 +31,7 @@ mod wire_search;
 mod writes;
 mod writes_v2;
 
+pub use program::{serve, ServeError, HELP};
 pub use hub_purge::{manifest, HubPurge, PROGRAM};
 pub use texts_service::{TextsServer, CONTRACT_VERSION};
 pub use wire::MAX_SOURCE_BYTES;

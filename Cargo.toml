@@ -1,13 +1,17 @@
 [workspace]
 resolver = "2"
-members = ["crates/fs-text", "crates/fs-wiki-core", "crates/fs-wiki-server", "crates/fs-wiki-client", "crates/fs-wiki-testserver", "crates/fs-wiki-app"]
+members = ["crates/fs-text", "crates/fs-wiki-core", "crates/fs-wiki-server", "crates/fs-wiki-client", "crates/fs-wiki-testserver", "crates/fs-wiki-app", "crates/fs-wiki"]
 
 [workspace.package]
 edition = "2021"
 license = "MIT OR Apache-2.0"
-version = "0.0.1"
+version = "0.0.2"
+authors = ["FreeSynergy <support@freesynergy.net>"]
+repository = "https://github.com/FreeSynergy/fs-wiki"
+rust-version = "1.89"
 
-# Window resize crash (wgpu validation error when the window is enlarged): compositor cache sized by the window,
-# not by the target texture. Pinned to a commit (coding.md section 8).
+# Window resize crash (wgpu validation error when the window is enlarged) and the incremental restyle: blinc-app-fix
+# and blinc-layout-fix, pinned to commits (coding.md section 8). Same pins as fs-tasks, fs-calendar and fs-files.
 [patch.crates-io]
-blinc_app = { git = "https://github.com/FreeSynergy/blinc-app-fix", rev = "1c5d217c3b07872b1de8c7959fe44f07b344783c" }
+blinc_app = { git = "https://github.com/FreeSynergy/blinc-app-fix", rev = "5180d4eae80034d851d98464861f098d69eceaf0" }
+blinc_layout = { git = "https://github.com/FreeSynergy/blinc-layout-fix", rev = "cb17db8111f2037473e6e02b6784628ca0dca151" }

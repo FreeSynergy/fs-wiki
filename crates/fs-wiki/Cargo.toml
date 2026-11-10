@@ -1,0 +1,22 @@
+[package]
+name = "fs-wiki"
+description = "FreeSynergy.Wiki: texts and pages, with history, trash, folders and search. Without arguments the window opens; `serve` runs the server."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "fs-wiki"
+path = "src/main.rs"
+
+[features]
+default = ["gui"]
+# The window (Blinc). Without it the binary has the server only: `cargo build --no-default-features`.
+gui = ["dep:fs-wiki-app"]
+
+[dependencies]
+fs-wiki-server = { path = "../fs-wiki-server" }
+fs-wiki-app = { path = "../fs-wiki-app", optional = true }

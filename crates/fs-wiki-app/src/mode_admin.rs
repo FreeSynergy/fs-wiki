@@ -1,23 +1,23 @@
 //! The Admin mode: the standard window with the generated frontend, or its headless check.
 //!
-//! Pattern: Facade — connect to the server, ask for its type descriptions, then open the window (`fs_wiki_app::admin`)
+//! Pattern: Facade — ask the (connected) server for its type descriptions, then open the window (`fs_wiki_app::admin`)
 //! or, with `--check`, list through the same backends without drawing anything.
 
 use std::sync::Arc;
 
 use fs_admin_frontend::Values;
-use fs_wiki_app::admin::{backend_for, open, Ctx};
-use fs_wiki_app::args::Args;
-use fs_wiki_app::server::{connect, socket_path};
+use fs_wiki_client::RpcTexts;
+
+use crate::admin::{backend_for, open, Ctx};
+use crate::args::Args;
 
 /// Run the Admin mode.
 ///
 /// # Errors
 /// A message for the person.
-pub fn run(args: &Args) -> Result<(), String> {
+pub fn run(args: &Args, texts: RpcTexts) -> Result<(), String> {
     let runtime = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
-    let socket = socket_path(args.socket.as_deref())?;
-    let texts = Arc::new(connect(&socket)?);
+    let texts = Arc::new(texts);
     let registry = runtime.block_on(texts.types()).map_err(|e| format!("the server gave no type description: {e}"))?;
     let ctx = Ctx::new(texts, runtime.handle().clone());
     if args.check {

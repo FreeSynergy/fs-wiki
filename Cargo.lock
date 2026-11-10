@@ -382,7 +382,7 @@ dependencies = [
 [[package]]
 name = "blinc_app"
 version = "0.6.0"
-source = "git+https://github.com/FreeSynergy/blinc-app-fix?rev=1c5d217c3b07872b1de8c7959fe44f07b344783c#1c5d217c3b07872b1de8c7959fe44f07b344783c"
+source = "git+https://github.com/FreeSynergy/blinc-app-fix?rev=5180d4eae80034d851d98464861f098d69eceaf0#5180d4eae80034d851d98464861f098d69eceaf0"
 dependencies = [
  "anyhow",
  "blinc_animation",
@@ -525,8 +525,7 @@ dependencies = [
 [[package]]
 name = "blinc_layout"
 version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab5b1b6d2419f33e4bbefee10d5e02819923a4df5977760c5ca45b855039e4d2"
+source = "git+https://github.com/FreeSynergy/blinc-layout-fix?rev=cb17db8111f2037473e6e02b6784628ca0dca151#cb17db8111f2037473e6e02b6784628ca0dca151"
 dependencies = [
  "arboard",
  "blinc_animation",
@@ -1669,7 +1668,7 @@ dependencies = [
 
 [[package]]
 name = "fs-text"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "proptest",
  "pulldown-cmark 0.13.6",
@@ -1712,8 +1711,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "fs-wiki"
+version = "0.0.2"
+dependencies = [
+ "fs-wiki-app",
+ "fs-wiki-server",
+]
+
+[[package]]
 name = "fs-wiki-app"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "async-trait",
  "fs-admin-frontend",
@@ -1740,7 +1747,7 @@ dependencies = [
 
 [[package]]
 name = "fs-wiki-client"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "async-trait",
  "capnp",
@@ -1760,7 +1767,7 @@ dependencies = [
 
 [[package]]
 name = "fs-wiki-core"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "async-trait",
  "chrono",
@@ -1779,7 +1786,7 @@ dependencies = [
 
 [[package]]
 name = "fs-wiki-server"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "async-trait",
  "capnp",
@@ -1791,6 +1798,7 @@ dependencies = [
  "fs-text",
  "fs-types 0.0.1 (git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.7)",
  "fs-wiki-core",
+ "rustix 1.1.6",
  "serde_json",
  "tempfile",
  "tokio",
@@ -1799,7 +1807,7 @@ dependencies = [
 
 [[package]]
 name = "fs-wiki-testserver"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "fs-interfaces 0.0.1 (git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.7)",
  "fs-objects",

@@ -12,12 +12,15 @@
 
 pub mod admin;
 pub mod args;
+pub mod gui;
 mod check;
 pub mod drafts;
 mod drafts_orphans;
 pub mod hash;
 pub mod import;
 pub mod map;
+mod mode_admin;
+mod mode_reader;
 pub mod origins;
 mod origins_log;
 pub mod report;
