@@ -31,6 +31,7 @@ mod quoted;
 mod read;
 mod remote;
 mod texts_impl;
+mod texts_v2;
 
 pub use fs_interfaces::rpc::client::{Timeouts, CALL_TIMEOUT, CONNECT_TIMEOUT};
 pub use peer::RpcTexts;

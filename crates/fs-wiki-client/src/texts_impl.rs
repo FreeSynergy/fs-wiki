@@ -12,13 +12,13 @@ use fs_objects::StoreId;
 use fs_text::Document;
 use fs_wiki_core::{
     Expect, LinkEntry, Node, NodePage, Paging, Place, Placement, Resolution, Result,
-    RevisionContent, RevisionPage, SearchHit, SearchPage, SearchPlace, SearchQuery, TextEntry,
-    TextPage, TextQuery, Texts, TrashItem, TrashPage, TrashPlace,
+    RevisionContent, RevisionPage, SearchPage, SearchPlace, SearchQuery, TextEntry, TextPage,
+    TextQuery, Texts, TrashItem, TrashPage, TrashPlace,
 };
 
 use crate::calls::pages::{collect, collect_after};
 use crate::calls::writes::document_json;
-use crate::calls::{reads, v2, v2_pages, writes};
+use crate::calls::{reads, writes};
 use crate::RpcTexts;
 
 #[async_trait]
@@ -148,7 +148,7 @@ impl Texts for RpcTexts {
             .await
     }
 
-    // ---- texts 0.2 ----------------------------------------------------------------------------------
+    // ---- texts 0.2 (the calls are in `texts_v2.rs`) ----
 
     async fn edit_with(
         &self,
@@ -157,11 +157,7 @@ impl Texts for RpcTexts {
         document: Document,
         summary: &str,
     ) -> Result<TextEntry> {
-        let (document, summary) = (document_json(&document)?, summary.to_string());
-        self.call(
-            move |r| async move { v2::edit_with(&r.texts, id, expect, document, summary).await },
-        )
-        .await
+        self.edit_with_call(id, expect, document, summary).await
     }
 
     async fn history(
@@ -170,21 +166,11 @@ impl Texts for RpcTexts {
         before: Option<u64>,
         size: usize,
     ) -> Result<RevisionPage> {
-        let page = self
-            .call(move |r| async move { v2::history(&r.texts, id, v2_pages::READ_LIMIT).await })
-            .await?;
-        let kept: Vec<_> = page
-            .items
-            .into_iter()
-            .filter(|i| before.is_none_or(|b| i.number < b))
-            .collect();
-        let (items, more) = v2_pages::cut(kept, page.more, None::<fn(&_) -> bool>, size);
-        Ok(RevisionPage { items, more })
+        self.history_call(id, before, size).await
     }
 
     async fn get_revision(&self, id: ObjectId, number: u64) -> Result<Option<RevisionContent>> {
-        self.call(move |r| async move { v2::get_revision(&r.texts, id, number).await })
-            .await
+        self.get_revision_call(id, number).await
     }
 
     async fn restore_revision(
@@ -193,43 +179,27 @@ impl Texts for RpcTexts {
         number: u64,
         expect: Expect,
     ) -> Result<TextEntry> {
-        self.call(move |r| async move { v2::restore_revision(&r.texts, id, number, expect).await })
-            .await
+        self.restore_revision_call(id, number, expect).await
     }
 
     async fn purge_revision(&self, id: ObjectId, number: u64) -> Result<()> {
-        self.call(move |r| async move { v2::purge_revision(&r.texts, id, number).await })
-            .await
+        self.purge_revision_call(id, number).await
     }
 
     async fn trash(&self, id: ObjectId) -> Result<TrashItem> {
-        self.call(move |r| async move { v2::trash(&r.texts, id).await })
-            .await
+        self.trash_call(id).await
     }
 
     async fn list_trash(&self, after: Option<&TrashPlace>, size: usize) -> Result<TrashPage> {
-        let page = self
-            .call(|r| async move { v2::list_trash(&r.texts, v2_pages::READ_LIMIT).await })
-            .await?;
-        let after = after.copied();
-        let (items, more) = v2_pages::cut(
-            page.items,
-            page.more,
-            after.map(|a| move |i: &TrashItem| i.place() == a),
-            size,
-        );
-        Ok(TrashPage { items, more })
+        self.list_trash_call(after, size).await
     }
 
     async fn restore_from_trash(&self, id: ObjectId, path: &str) -> Result<TextEntry> {
-        let path = path.to_string();
-        self.call(move |r| async move { v2::restore_from_trash(&r.texts, id, path).await })
-            .await
+        self.restore_from_trash_call(id, path).await
     }
 
     async fn purge(&self, id: ObjectId) -> Result<()> {
-        self.call(move |r| async move { v2::purge(&r.texts, id).await })
-            .await
+        self.purge_call(id).await
     }
 
     async fn create_folder(
@@ -238,25 +208,19 @@ impl Texts for RpcTexts {
         name: &str,
         path: &str,
     ) -> Result<Node> {
-        let (name, path) = (name.to_string(), path.to_string());
-        self.call(move |r| async move { v2::create_folder(&r.texts, parent, name, path).await })
-            .await
+        self.create_folder_call(parent, name, path).await
     }
 
     async fn rename_folder(&self, id: ObjectId, name: &str) -> Result<Node> {
-        let name = name.to_string();
-        self.call(move |r| async move { v2::rename_folder(&r.texts, id, name).await })
-            .await
+        self.rename_folder_call(id, name).await
     }
 
     async fn delete_folder(&self, id: ObjectId) -> Result<()> {
-        self.call(move |r| async move { v2::delete_folder(&r.texts, id).await })
-            .await
+        self.delete_folder_call(id).await
     }
 
     async fn get_folder(&self, id: ObjectId) -> Result<Option<Node>> {
-        self.call(move |r| async move { v2::get_folder(&r.texts, id).await })
-            .await
+        self.get_folder_call(id).await
     }
 
     async fn children(
@@ -265,8 +229,7 @@ impl Texts for RpcTexts {
         offset: usize,
         size: usize,
     ) -> Result<NodePage> {
-        self.call(move |r| async move { v2::children(&r.texts, parent, offset, size).await })
-            .await
+        self.children_call(parent, offset, size).await
     }
 
     async fn reorder(
@@ -275,8 +238,7 @@ impl Texts for RpcTexts {
         placement: Placement,
         anchor: Option<ObjectId>,
     ) -> Result<Node> {
-        self.call(move |r| async move { v2::reorder(&r.texts, id, placement, anchor).await })
-            .await
+        self.reorder_call(id, placement, anchor).await
     }
 
     async fn set_template(
@@ -285,26 +247,19 @@ impl Texts for RpcTexts {
         template: bool,
         expect: Expect,
     ) -> Result<TextEntry> {
-        self.call(move |r| async move { v2::set_template(&r.texts, id, template, expect).await })
-            .await
+        self.set_template_call(id, template, expect).await
     }
 
     async fn create_from_template(&self, template: ObjectId, path: &str) -> Result<TextEntry> {
-        let path = path.to_string();
-        self.call(move |r| async move { v2::create_from_template(&r.texts, template, path).await })
-            .await
+        self.create_from_template_call(template, path).await
     }
 
     async fn set_redirect(&self, id: ObjectId, target: &str, expect: Expect) -> Result<TextEntry> {
-        let target = target.to_string();
-        self.call(move |r| async move { v2::set_redirect(&r.texts, id, target, expect).await })
-            .await
+        self.set_redirect_call(id, target, expect).await
     }
 
     async fn resolve(&self, path: &str) -> Result<Resolution> {
-        let path = path.to_string();
-        self.call(move |r| async move { v2::resolve(&r.texts, path).await })
-            .await
+        self.resolve_call(path).await
     }
 
     async fn search(
@@ -313,18 +268,6 @@ impl Texts for RpcTexts {
         after: Option<&SearchPlace>,
         size: usize,
     ) -> Result<SearchPage> {
-        let query = query.clone();
-        let page = self
-            .call(move |r| async move { v2::search(&r.texts, query, v2_pages::READ_LIMIT).await })
-            .await?;
-        // The relevance is not on the wire: a client continues a search by the id of the last hit it saw.
-        let after = after.map(|a| a.id);
-        let (items, more) = v2_pages::cut(
-            page.items,
-            page.more,
-            after.map(|id| move |h: &SearchHit| h.id == id),
-            size,
-        );
-        Ok(SearchPage { items, more })
+        self.search_call(query, after, size).await
     }
 }
