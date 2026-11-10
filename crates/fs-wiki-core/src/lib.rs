@@ -19,6 +19,7 @@
 )]
 
 mod definitions;
+pub mod describe;
 mod entry;
 mod error;
 mod feed;

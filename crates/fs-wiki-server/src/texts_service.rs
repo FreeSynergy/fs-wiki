@@ -11,6 +11,7 @@ use std::sync::Arc;
 use capnp_rpc::new_client;
 use fs_interfaces::rpc::{write_uuid, DEFAULT_PAGE_SIZE};
 use fs_interfaces::texts_capnp::texts;
+use fs_types::describe::CatalogServer;
 use fs_wiki_core::{TextFeed, Texts};
 
 use crate::feed::subscribe;
@@ -83,6 +84,20 @@ impl texts::Server for TextsServer {
             out.init_instance(),
             self.texts.identity().map(|id| id.as_uuid()),
         );
+        Ok(())
+    }
+
+    /// The data types of the wiki (`Page`, `Folder`, `Revision`, `TrashEntry`, `Link`), for a generated frontend (ADR 0066).
+    async fn types(
+        self: Rc<Self>,
+        _: texts::TypesParams,
+        mut results: texts::TypesResults,
+    ) -> Done {
+        let registry = fs_wiki_core::describe::registry()
+            .map_err(|e| capnp::Error::failed(format!("type description: {e:?}")))?;
+        results
+            .get()
+            .set_catalog(new_client(CatalogServer::new(registry)));
         Ok(())
     }
 
