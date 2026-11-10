@@ -1446,21 +1446,64 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aa9a19cbb55df58761df49b23516a86d432839add4af60fc256da840f66ed35b"
 
 [[package]]
-name = "fs-components-primitives"
-version = "0.0.1"
-source = "git+https://github.com/FreeSynergy/fs-components?tag=v0.0.1#320de5f62953b1b3c259aa4746e606f3ece9a8dc"
+name = "fs-admin-frontend"
+version = "0.0.2"
+source = "git+https://github.com/FreeSynergy/fs-components?rev=4688cee#4688ceef35d0f1a1c131d392a9da9f88e4bb9379"
 dependencies = [
  "blinc_cn",
  "blinc_core",
  "blinc_layout",
  "blinc_theme",
- "fs-interfaces 0.52.0",
+ "fs-components-app",
+ "fs-components-fields",
+ "fs-components-primitives",
+ "fs-components-styles",
+ "fs-components-widgets",
+ "fs-types 0.0.1 (git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.2)",
+]
+
+[[package]]
+name = "fs-components-app"
+version = "0.0.2"
+source = "git+https://github.com/FreeSynergy/fs-components?rev=4688cee#4688ceef35d0f1a1c131d392a9da9f88e4bb9379"
+dependencies = [
+ "blinc_app",
+ "blinc_cn",
+ "blinc_core",
+ "blinc_layout",
+ "blinc_theme",
+ "fs-components-render",
+ "fs-components-widgets",
+]
+
+[[package]]
+name = "fs-components-fields"
+version = "0.0.2"
+source = "git+https://github.com/FreeSynergy/fs-components?rev=4688cee#4688ceef35d0f1a1c131d392a9da9f88e4bb9379"
+dependencies = [
+ "blinc_core",
+ "blinc_layout",
+ "fs-components-styles",
+ "fs-components-widgets",
+ "fs-interfaces 0.0.1 (git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.1)",
+]
+
+[[package]]
+name = "fs-components-primitives"
+version = "0.0.2"
+source = "git+https://github.com/FreeSynergy/fs-components?rev=4688cee#4688ceef35d0f1a1c131d392a9da9f88e4bb9379"
+dependencies = [
+ "blinc_cn",
+ "blinc_core",
+ "blinc_layout",
+ "blinc_theme",
+ "fs-interfaces 0.0.1 (git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.1)",
 ]
 
 [[package]]
 name = "fs-components-render"
-version = "0.0.1"
-source = "git+https://github.com/FreeSynergy/fs-components?tag=v0.0.1#320de5f62953b1b3c259aa4746e606f3ece9a8dc"
+version = "0.0.2"
+source = "git+https://github.com/FreeSynergy/fs-components?rev=4688cee#4688ceef35d0f1a1c131d392a9da9f88e4bb9379"
 dependencies = [
  "blinc_app",
  "blinc_cn",
@@ -1473,9 +1516,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "fs-components-styles"
+version = "0.0.2"
+source = "git+https://github.com/FreeSynergy/fs-components?rev=4688cee#4688ceef35d0f1a1c131d392a9da9f88e4bb9379"
+
+[[package]]
 name = "fs-components-widgets"
-version = "0.0.1"
-source = "git+https://github.com/FreeSynergy/fs-components?tag=v0.0.1#320de5f62953b1b3c259aa4746e606f3ece9a8dc"
+version = "0.0.2"
+source = "git+https://github.com/FreeSynergy/fs-components?rev=4688cee#4688ceef35d0f1a1c131d392a9da9f88e4bb9379"
 dependencies = [
  "blinc_cn",
  "blinc_core",
@@ -1490,8 +1538,8 @@ dependencies = [
 
 [[package]]
 name = "fs-components-workbenches"
-version = "0.0.1"
-source = "git+https://github.com/FreeSynergy/fs-components?tag=v0.0.1#320de5f62953b1b3c259aa4746e606f3ece9a8dc"
+version = "0.0.2"
+source = "git+https://github.com/FreeSynergy/fs-components?rev=4688cee#4688ceef35d0f1a1c131d392a9da9f88e4bb9379"
 dependencies = [
  "blinc_app",
  "blinc_cn",
@@ -1568,10 +1616,20 @@ dependencies = [
  "chrono",
  "fs-objects",
  "futures",
+ "idna",
  "rustix 1.1.6",
  "tokio",
  "tokio-util",
  "uuid",
+]
+
+[[package]]
+name = "fs-interfaces"
+version = "0.0.1"
+source = "git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.2#a8c28ea86f863db92f0d333fcf27b0d012fd8832"
+dependencies = [
+ "capnp",
+ "idna",
 ]
 
 [[package]]
@@ -1589,15 +1647,6 @@ dependencies = [
  "tokio",
  "tokio-util",
  "uuid",
-]
-
-[[package]]
-name = "fs-interfaces"
-version = "0.52.0"
-source = "git+https://github.com/FreeSynergy/fs-interfaces?rev=9a288a6#9a288a6e7a1e5400cacca1a893fcc5c519bfe3b2"
-dependencies = [
- "capnp",
- "idna",
 ]
 
 [[package]]
@@ -1636,6 +1685,20 @@ dependencies = [
 [[package]]
 name = "fs-types"
 version = "0.0.1"
+source = "git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.2#a8c28ea86f863db92f0d333fcf27b0d012fd8832"
+dependencies = [
+ "capnp",
+ "chrono",
+ "fs-interfaces 0.0.1 (git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.2)",
+ "geo-uri",
+ "iri-string",
+ "oxilangtag",
+ "unicode-normalization",
+]
+
+[[package]]
+name = "fs-types"
+version = "0.0.1"
 source = "git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.7#e989a3a6cf8ba0a172139dad6adb5f293c1f501d"
 dependencies = [
  "capnp",
@@ -1653,10 +1716,16 @@ name = "fs-wiki-app"
 version = "0.0.1"
 dependencies = [
  "async-trait",
+ "fs-admin-frontend",
+ "fs-components-app",
+ "fs-components-fields",
+ "fs-components-styles",
  "fs-components-widgets",
  "fs-components-workbenches",
  "fs-objects",
  "fs-text",
+ "fs-types 0.0.1 (git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.2)",
+ "fs-types 0.0.1 (git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.7)",
  "fs-wiki-client",
  "fs-wiki-core",
  "fs-wiki-testserver",
@@ -1679,7 +1748,7 @@ dependencies = [
  "fs-interfaces 0.0.1 (git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.7)",
  "fs-objects",
  "fs-text",
- "fs-types",
+ "fs-types 0.0.1 (git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.7)",
  "fs-wiki-core",
  "fs-wiki-server",
  "fs-wiki-testserver",
@@ -1698,7 +1767,7 @@ dependencies = [
  "fs-interfaces 0.0.1 (git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.7)",
  "fs-objects",
  "fs-text",
- "fs-types",
+ "fs-types 0.0.1 (git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.7)",
  "serde",
  "serde_json",
  "tempfile",
@@ -1720,7 +1789,7 @@ dependencies = [
  "fs-interfaces 0.0.1 (git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.7)",
  "fs-objects",
  "fs-text",
- "fs-types",
+ "fs-types 0.0.1 (git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.7)",
  "fs-wiki-core",
  "serde_json",
  "tempfile",

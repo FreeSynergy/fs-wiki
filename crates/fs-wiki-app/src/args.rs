@@ -27,6 +27,10 @@ pub struct Args {
     pub drafts: Option<PathBuf>,
     /// Picture size.
     pub size: (u32, u32),
+    /// Open the documentation reader instead of the Admin window.
+    pub reader: bool,
+    /// Do not open a window: connect, read the descriptions, list the pages and say what was found.
+    pub check: bool,
     /// `--help` was given.
     pub help: bool,
 }
@@ -64,6 +68,8 @@ pub fn parse(args: &[String]) -> Result<Args, String> {
             "--export" => out.export = Some(PathBuf::from(value("--export")?)),
             "--step" => out.steps.push(value("--step")?),
             "--size" => out.size = size(&value("--size")?)?,
+            "--reader" => out.reader = true,
+            "--check" => out.check = true,
             "-h" | "--help" => out.help = true,
             other => return Err(format!("unknown option {other}")),
         }
@@ -78,7 +84,10 @@ fn size(text: &str) -> Result<(u32, u32), String> {
 }
 
 /// The help text.
-pub const HELP: &str = "fs-wiki-app: read the documentation in a window
+pub const HELP: &str = "fs-wiki-app: the wiki in a window (Admin view of pages, folders, history, trash and links)
+
+  --reader            open the documentation reader and editor instead (the options below belong to it)
+  --check             no window: connect, read the descriptions and the pages, and say what was found
 
   --socket <path>     socket of the running fs-wiki-server (default $XDG_RUNTIME_DIR/freesynergy/wiki.sock);
                       start it first: fs-wiki-server [--socket <path>] [--data <dir>]
