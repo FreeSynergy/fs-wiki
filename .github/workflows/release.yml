@@ -12,6 +12,7 @@ jobs:
     with:
       binaries: fs-wiki
       cargo-package: fs-wiki
+      ignore-binaries: fs-wiki-app,fs-wiki-server   # the window and the server alone; `fs-wiki` holds both
       name: fs-wiki
       kind: app
       app-id: net.freesynergy.Wiki

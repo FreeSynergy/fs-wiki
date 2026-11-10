@@ -19,7 +19,7 @@ fn every_type_is_valid_and_owned_by_the_wiki() {
     for t in &all {
         assert_eq!(t.program, PROGRAM);
         t.validate().expect("valid");
-        assert!(!t.standard.is_empty());
+        assert_ne!(t.standard.len(), 0);
     }
 }
 
@@ -150,7 +150,7 @@ fn labels_are_translation_keys_and_unique_per_type() {
 
 #[test]
 fn unsupported_is_exactly_the_wished_commands_of_requirements() {
-    use fs_wiki_core::describe::{is_supported, unsupported};
+    use fs_wiki_core::describe::{is_supported, unsupported, SUPPORTED};
     for (ty, name) in wished_commands() {
         assert!(
             !is_supported(ty, name),
@@ -162,7 +162,6 @@ fn unsupported_is_exactly_the_wished_commands_of_requirements() {
             && is_supported("Link", "find")
             && !is_supported("Page", "nope")
     );
-    use fs_wiki_core::describe::SUPPORTED;
     let reg = registry().unwrap();
     for (ty, name) in SUPPORTED {
         assert!(

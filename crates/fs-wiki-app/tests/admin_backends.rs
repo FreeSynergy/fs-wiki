@@ -40,7 +40,7 @@ fn a_page_is_created_listed_changed_partly_and_found() {
     let none = pages
         .list(&v(&[("term", &["changed"]), ("pathPrefix", &["other"])]))
         .unwrap();
-    assert!(none.is_empty());
+    assert_eq!(none.len(), 0);
 }
 
 #[test]
@@ -136,7 +136,7 @@ fn trash_template_redirect_resolve_and_export() {
     let entries = trash.list(&Values::new()).unwrap();
     assert_eq!(entries.len(), 1);
     trash.run("restore", &v(&[("id", &[&copy])])).unwrap();
-    assert!(trash.list(&Values::new()).unwrap().is_empty());
+    assert_eq!(trash.list(&Values::new()).unwrap().len(), 0);
     assert_eq!(pages.list(&Values::new()).unwrap().len(), 2);
 }
 

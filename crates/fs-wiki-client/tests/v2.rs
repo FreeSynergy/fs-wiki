@@ -75,7 +75,7 @@ async fn trash_restore_and_purge() {
         .list_trash(Some(&page.items[0].place()), 10)
         .await
         .unwrap();
-    assert!(after.items.is_empty());
+    assert_eq!(after.items.len(), 0);
     let back = texts.restore_from_trash(a.id, "").await.unwrap();
     assert_eq!(back.path, "a");
     texts.trash(a.id).await.unwrap();
@@ -155,7 +155,7 @@ async fn search_with_snippets_and_filters() {
     };
     let all = texts.search(&q("brown", Tri::Any), None, 10).await.unwrap();
     assert_eq!(all.items.len(), 2);
-    assert!(!all.items[0].snippets.is_empty());
+    assert_ne!(all.items[0].snippets.len(), 0);
     let only = texts
         .search(&q("brown", Tri::Only), None, 10)
         .await
