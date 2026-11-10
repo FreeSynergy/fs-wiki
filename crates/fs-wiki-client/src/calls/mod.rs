@@ -5,3 +5,5 @@
 pub(crate) mod pages;
 pub(crate) mod reads;
 pub(crate) mod writes;
+pub(crate) mod v2;
+pub(crate) mod v2_wire;

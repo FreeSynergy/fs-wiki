@@ -102,3 +102,20 @@ fn labels_are_translation_keys_and_unique_per_type() {
         }
     }
 }
+
+#[test]
+fn unsupported_is_exactly_the_wished_commands_of_requirements() {
+    use fs_wiki_core::describe::{is_supported, unsupported};
+    for (ty, name) in wished_commands() {
+        assert!(!is_supported(ty, name), "{ty}.{name} is wished, so it cannot be supported yet");
+    }
+    assert!(is_supported("Page", "create") && is_supported("Link", "find") && !is_supported("Page", "nope"));
+    use fs_wiki_core::describe::SUPPORTED;
+    let reg = registry().unwrap();
+    for (ty, name) in SUPPORTED {
+        assert!(reg.get(ty).and_then(|d| d.find_command(name)).is_some(), "{ty}.{name} not described");
+    }
+    let open: BTreeSet<_> = unsupported().into_iter().collect();
+    let wished: BTreeSet<_> = wished_commands().into_iter().map(|(a, b)| (a.to_owned(), b.to_owned())).collect();
+    assert_eq!(open, wished);
+}

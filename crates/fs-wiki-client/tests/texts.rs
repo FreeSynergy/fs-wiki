@@ -123,7 +123,7 @@ async fn the_report_of_the_server_is_the_report_of_the_client() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn the_client_does_not_offer_what_it_cannot_call_yet() {
+async fn the_client_offers_what_it_can_call_since_texts_0_2() {
     let served = Served::in_memory().await;
     let texts = served.client();
     let caps = texts.capabilities();
@@ -136,11 +136,9 @@ async fn the_client_does_not_offer_what_it_cannot_call_yet() {
         "text.redirect",
         "text.search",
     ] {
-        assert!(!caps.is_supported(id), "{id}");
-        assert!(caps.why_not(id).is_some(), "{id} is listed, with a reason");
+        assert!(caps.is_supported(id), "{id}");
     }
-    assert!(texts
-        .history(fs_objects::ObjectId::new(), None, 5)
-        .await
-        .is_err());
+    // a text that is not there is a typed not-found, not an Unsupported
+    let e = texts.history(fs_objects::ObjectId::new(), None, 5).await.unwrap_err();
+    assert!(!matches!(e, fs_wiki_core::Error::Unsupported(_)), "{e:?}");
 }

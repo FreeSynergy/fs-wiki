@@ -1,4 +1,4 @@
-//! `Texts` over the socket: the sixteen methods of the contract (the fourteen of `Texts`, `capabilities` and `subscribe`).
+//! `Texts` over the socket: every method of the contract, texts 0.1 and 0.2 (`capabilities` and `subscribe` apart).
 //!
 //! Pattern: Adapter — each method is one call of `texts.capnp`; the arguments are made owned here,
 //! because the call runs on the thread of the connection. `list` and `find` read as many pages as
@@ -10,11 +10,15 @@ use fs_interfaces::Capabilities;
 use fs_objects::ObjectId;
 use fs_objects::StoreId;
 use fs_text::Document;
-use fs_wiki_core::{LinkEntry, Paging, Place, Result, TextEntry, TextPage, TextQuery, Texts};
+use fs_wiki_core::{
+    Expect, LinkEntry, Node, NodePage, Paging, Place, Placement, Resolution, Result, RevisionContent, RevisionPage,
+    SearchHit, SearchPage, SearchPlace, SearchQuery, TextEntry, TextPage, TextQuery, Texts, TrashItem, TrashPage,
+    TrashPlace,
+};
 
 use crate::calls::pages::{collect, collect_after};
 use crate::calls::writes::document_json;
-use crate::calls::{reads, writes};
+use crate::calls::{reads, v2, writes};
 use crate::RpcTexts;
 
 #[async_trait]
@@ -142,5 +146,105 @@ impl Texts for RpcTexts {
         let media_type = media_type.to_string();
         self.call(move |r| async move { reads::export_text(&r.texts, id, media_type).await })
             .await
+    }
+
+    // ---- texts 0.2 ----------------------------------------------------------------------------------
+
+    async fn edit_with(&self, id: ObjectId, expect: Expect, document: Document, summary: &str) -> Result<TextEntry> {
+        let (document, summary) = (document_json(&document)?, summary.to_string());
+        self.call(move |r| async move { v2::edit_with(&r.texts, id, expect, document, summary).await }).await
+    }
+
+    async fn history(&self, id: ObjectId, before: Option<u64>, size: usize) -> Result<RevisionPage> {
+        let page = self.call(move |r| async move { v2::history(&r.texts, id, v2::READ_LIMIT).await }).await?;
+        let kept: Vec<_> = page.items.into_iter().filter(|i| before.is_none_or(|b| i.number < b)).collect();
+        let (items, more) = v2::cut(kept, page.more, None::<fn(&_) -> bool>, size);
+        Ok(RevisionPage { items, more })
+    }
+
+    async fn get_revision(&self, id: ObjectId, number: u64) -> Result<Option<RevisionContent>> {
+        self.call(move |r| async move { v2::get_revision(&r.texts, id, number).await }).await
+    }
+
+    async fn restore_revision(&self, id: ObjectId, number: u64, expect: Expect) -> Result<TextEntry> {
+        self.call(move |r| async move { v2::restore_revision(&r.texts, id, number, expect).await }).await
+    }
+
+    async fn purge_revision(&self, id: ObjectId, number: u64) -> Result<()> {
+        self.call(move |r| async move { v2::purge_revision(&r.texts, id, number).await }).await
+    }
+
+    async fn trash(&self, id: ObjectId) -> Result<TrashItem> {
+        self.call(move |r| async move { v2::trash(&r.texts, id).await }).await
+    }
+
+    async fn list_trash(&self, after: Option<&TrashPlace>, size: usize) -> Result<TrashPage> {
+        let page = self.call(|r| async move { v2::list_trash(&r.texts, v2::READ_LIMIT).await }).await?;
+        let after = after.copied();
+        let (items, more) = v2::cut(page.items, page.more, after.map(|a| move |i: &TrashItem| i.place() == a), size);
+        Ok(TrashPage { items, more })
+    }
+
+    async fn restore_from_trash(&self, id: ObjectId, path: &str) -> Result<TextEntry> {
+        let path = path.to_string();
+        self.call(move |r| async move { v2::restore_from_trash(&r.texts, id, path).await }).await
+    }
+
+    async fn purge(&self, id: ObjectId) -> Result<()> {
+        self.call(move |r| async move { v2::purge(&r.texts, id).await }).await
+    }
+
+    async fn create_folder(&self, parent: Option<ObjectId>, name: &str, path: &str) -> Result<Node> {
+        let (name, path) = (name.to_string(), path.to_string());
+        self.call(move |r| async move { v2::create_folder(&r.texts, parent, name, path).await }).await
+    }
+
+    async fn rename_folder(&self, id: ObjectId, name: &str) -> Result<Node> {
+        let name = name.to_string();
+        self.call(move |r| async move { v2::rename_folder(&r.texts, id, name).await }).await
+    }
+
+    async fn delete_folder(&self, id: ObjectId) -> Result<()> {
+        self.call(move |r| async move { v2::delete_folder(&r.texts, id).await }).await
+    }
+
+    async fn get_folder(&self, id: ObjectId) -> Result<Option<Node>> {
+        self.call(move |r| async move { v2::get_folder(&r.texts, id).await }).await
+    }
+
+    async fn children(&self, parent: Option<ObjectId>, offset: usize, size: usize) -> Result<NodePage> {
+        self.call(move |r| async move { v2::children(&r.texts, parent, offset, size).await }).await
+    }
+
+    async fn reorder(&self, id: ObjectId, placement: Placement, anchor: Option<ObjectId>) -> Result<Node> {
+        self.call(move |r| async move { v2::reorder(&r.texts, id, placement, anchor).await }).await
+    }
+
+    async fn set_template(&self, id: ObjectId, template: bool, expect: Expect) -> Result<TextEntry> {
+        self.call(move |r| async move { v2::set_template(&r.texts, id, template, expect).await }).await
+    }
+
+    async fn create_from_template(&self, template: ObjectId, path: &str) -> Result<TextEntry> {
+        let path = path.to_string();
+        self.call(move |r| async move { v2::create_from_template(&r.texts, template, path).await }).await
+    }
+
+    async fn set_redirect(&self, id: ObjectId, target: &str, expect: Expect) -> Result<TextEntry> {
+        let target = target.to_string();
+        self.call(move |r| async move { v2::set_redirect(&r.texts, id, target, expect).await }).await
+    }
+
+    async fn resolve(&self, path: &str) -> Result<Resolution> {
+        let path = path.to_string();
+        self.call(move |r| async move { v2::resolve(&r.texts, path).await }).await
+    }
+
+    async fn search(&self, query: &SearchQuery, after: Option<&SearchPlace>, size: usize) -> Result<SearchPage> {
+        let query = query.clone();
+        let page = self.call(move |r| async move { v2::search(&r.texts, query, v2::READ_LIMIT).await }).await?;
+        // The relevance is not on the wire: a client continues a search by the id of the last hit it saw.
+        let after = after.map(|a| a.id);
+        let (items, more) = v2::cut(page.items, page.more, after.map(|id| move |h: &SearchHit| h.id == id), size);
+        Ok(SearchPage { items, more })
     }
 }

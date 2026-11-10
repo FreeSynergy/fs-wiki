@@ -75,32 +75,17 @@ impl RpcTexts {
         fs_interfaces::rpc::default_socket(SERVER)
     }
 
-    /// What the server reported when this connection was made. A snapshot: the server is not asked
-    /// again.
-    ///
-    /// Capabilities of texts 0.2 are reported as not offered: this client has no calls for them yet
-    /// (`Texts` defaults answer `Unsupported`), so a caller must not be told it can use them.
+    /// What the server reported when this connection was made. A snapshot: the server is not asked again.
     pub(crate) fn report(&self) -> Capabilities {
-        const NOT_YET: [&str; 7] = [
-            "text.editSummary",
-            "text.history",
-            "text.trash",
-            "text.space",
-            "text.template",
-            "text.redirect",
-            "text.search",
-        ];
-        let mut out = Capabilities::new(self.capabilities.provider());
-        for e in self.capabilities.entries() {
-            if NOT_YET.contains(&e.capability.as_str()) {
-                out.unsupported(&e.capability, "this client does not call it yet");
-            } else if e.supported {
-                out.supported(&e.capability);
-            } else {
-                out.unsupported(&e.capability, &e.reason);
-            }
-        }
-        out
+        self.capabilities.clone()
+    }
+
+    /// The data types of the wiki, as the server describes them (`Texts.types`, ADR 0066), checked.
+    ///
+    /// # Errors
+    /// The server cannot be reached, does not know the method, or sent a description that does not read.
+    pub async fn types(&self) -> Result<fs_types::TypeRegistry> {
+        self.call(|r| async move { crate::calls::v2::types(&r.texts).await }).await
     }
 
     /// The id of the store behind the server, as the server reported it when this connection was made.

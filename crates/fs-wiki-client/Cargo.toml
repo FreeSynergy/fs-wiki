@@ -8,6 +8,7 @@ license.workspace = true
 [dependencies]
 fs-wiki-core = { path = "../fs-wiki-core" }
 fs-text = { path = "../fs-text" }
+fs-types = { git = "https://github.com/FreeSynergy/fs-interfaces", tag = "v0.0.7" }
 fs-interfaces = { git = "https://github.com/FreeSynergy/fs-interfaces", tag = "v0.0.7", features = ["rpc"] }
 fs-objects = { git = "https://github.com/FreeSynergy/fs-objects", tag = "v0.0.1" }
 capnp = "0.27"

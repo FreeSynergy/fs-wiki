@@ -14,7 +14,10 @@ mod link;
 mod page;
 mod page_wish;
 mod revision;
+mod support;
 mod trash;
+
+pub use support::{is_supported, unsupported, SUPPORTED};
 
 use fs_types::{BasicType, CommandDescription, CommandKind, DescriptionProblem, FieldDescription, TypeDescription, TypeRegistry};
 

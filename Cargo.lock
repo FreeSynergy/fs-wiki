@@ -1679,6 +1679,7 @@ dependencies = [
  "fs-interfaces 0.0.1 (git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.7)",
  "fs-objects",
  "fs-text",
+ "fs-types",
  "fs-wiki-core",
  "fs-wiki-server",
  "fs-wiki-testserver",
