@@ -6,6 +6,7 @@
 //!
 //! Pattern: Example-based integration tests with a delaying proxy as the test seam (fails if the
 //! purge runs in the caller's future instead of a task of its own).
+#![cfg(unix)] // the hub runs on Unix only for now
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};

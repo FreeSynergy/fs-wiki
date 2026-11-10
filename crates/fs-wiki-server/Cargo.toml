@@ -18,7 +18,6 @@ fs-text = { path = "../fs-text" }
 fs-types = { git = "https://github.com/FreeSynergy/fs-interfaces", tag = "v0.0.16", features = ["rpc"] }
 fs-interfaces = { git = "https://github.com/FreeSynergy/fs-interfaces", tag = "v0.0.16", features = ["rpc"] }
 fs-objects = { git = "https://github.com/FreeSynergy/fs-objects", tag = "v0.0.1" }
-fs-hub-client = { git = "https://github.com/FreeSynergy/fs-hub", tag = "v0.0.1" }
 async-trait = "0.1"
 tokio = { version = "1", features = ["sync", "time", "rt"] }
 capnp = "0.27"
@@ -27,6 +26,13 @@ serde_json = "1"
 uuid = "1"
 
 [dev-dependencies]
-fs-hub = { git = "https://github.com/FreeSynergy/fs-hub", tag = "v0.0.1" }
 tempfile = "3"
 tokio = { version = "1", features = ["full"] }
+
+# The hub (its client and its daemon) still builds only against the Unix transport of fs-interfaces v0.0.1: on Windows the
+# wiki has the port without a hub (`hub_purge_absent.rs`) until the hub itself is ported.
+[target.'cfg(unix)'.dependencies]
+fs-hub-client = { git = "https://github.com/FreeSynergy/fs-hub", tag = "v0.0.1" }
+
+[target.'cfg(unix)'.dev-dependencies]
+fs-hub = { git = "https://github.com/FreeSynergy/fs-hub", tag = "v0.0.1" }

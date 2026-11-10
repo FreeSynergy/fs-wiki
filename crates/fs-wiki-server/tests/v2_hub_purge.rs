@@ -3,6 +3,7 @@
 //!
 //! Pattern: Example-based integration tests against the real server, the real `HubPurge` port and a
 //! real `fs-hub` daemon.
+#![cfg(unix)] // the hub runs on Unix only for now
 
 mod common;
 

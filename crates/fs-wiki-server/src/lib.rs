@@ -16,6 +16,10 @@ mod errors;
 mod errors_v2;
 mod facts;
 mod feed;
+#[cfg(unix)]
+mod hub_purge;
+#[cfg(not(unix))]
+#[path = "hub_purge_absent.rs"]
 mod hub_purge;
 pub mod lease;
 mod links;
@@ -31,7 +35,9 @@ mod wire_search;
 mod writes;
 mod writes_v2;
 
-pub use hub_purge::{manifest, HubPurge, PROGRAM};
+#[cfg(unix)]
+pub use hub_purge::manifest;
+pub use hub_purge::{HubPurge, PROGRAM};
 pub use program::{serve, ServeError, HELP};
 pub use texts_service::{TextsServer, CONTRACT_VERSION};
 pub use wire::MAX_SOURCE_BYTES;

@@ -4,6 +4,7 @@
 //!
 //! Pattern: Example-based spike tests at store level (an `Article` and its revision record, as the wiki
 //! writes them) with the real `fs-hub` daemon and the real client session.
+#![cfg(unix)] // the hub runs on Unix only for now
 
 use std::sync::Arc;
 
