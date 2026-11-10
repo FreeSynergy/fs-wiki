@@ -8,7 +8,7 @@ What is different here: a text is stored as text plus layers, not as one flat fi
 
 ## What it can do today
 
-Latest tag: `v0.0.4`.
+Latest tag: `v0.0.5`.
 
 - Create, edit, move, delete and list texts by path; links, backlinks and search.
 - Move a text or a folder and rewrite the links to it.
