@@ -3,7 +3,6 @@
 //! Pattern: Facade (declarations) — `WikiRepo` is the one entry point; the files behind it are
 //! one concept each (record, name, read, write, move, folder move, links, transfer).
 
-mod aux;
 mod backend;
 mod book;
 mod caps;
@@ -30,6 +29,7 @@ mod revise;
 mod revisions;
 mod searching;
 mod shift;
+mod side_records;
 mod snippets;
 mod spaces;
 mod target;
