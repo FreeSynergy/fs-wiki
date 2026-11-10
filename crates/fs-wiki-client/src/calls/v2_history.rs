@@ -10,7 +10,7 @@ use fs_wiki_core::{
     Expect, Result, RevisionContent, RevisionPage, TextEntry, TrashItem, TrashPage,
 };
 
-use super::v2_pages::collect;
+use super::v2_pages::{collect, subject_of};
 use super::v2_wire::{info, trash_item, write_expect};
 use crate::problems::{error_of, Subject};
 use crate::read::{entry, unreadable};
@@ -86,7 +86,7 @@ pub(crate) async fn restore_revision(
     req.get().set_number(number);
     write_expect(req.get().init_expect(), expect);
     entry(
-        answer!(req, Subject::Text(id))
+        answer!(req, subject_of(id, expect))
             .get()
             .and_then(|r| r.get_text())
             .map_err(unreadable)?,

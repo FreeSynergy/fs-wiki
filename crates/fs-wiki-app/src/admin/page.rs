@@ -8,7 +8,9 @@ use fs_admin_frontend::{Backend, BackendError, Outcome, Record, Values};
 use fs_wiki_core::describe::is_supported;
 use fs_wiki_core::{Expect, Paging, SearchFilter, SearchQuery, TextFormat, Tri};
 
-use super::ctx::{Ctx, LIST_LIMIT, id, need, not_a_number, one, sent, unsupported};
+use super::ctx::{
+    Ctx, LIST_LIMIT, id, millis, need, not_a_number, one, optional_id, placement, sent, unsupported,
+};
 use super::{page_more, records};
 
 /// The pages of the wiki.
@@ -32,7 +34,9 @@ impl PageBackend {
                 template: tri(q, "templates"),
                 redirect: tri(q, "redirects"),
                 author: one(q, "author").unwrap_or_default().to_owned(),
-                ..SearchFilter::default()
+                space: optional_id(q, "space")?,
+                updated_from_ms: millis(q, "updatedFrom")?,
+                updated_to_ms: millis(q, "updatedTo")?,
             },
         };
         let hits = self
@@ -59,7 +63,8 @@ impl PageBackend {
         let expect = match one(input, "revision").map(str::parse::<u64>) {
             Some(Ok(n)) => Expect::Revision(n),
             Some(Err(_)) => return Err(not_a_number("revision")),
-            None => Expect::Any,
+            // No revision sent: the page as it was read just now, so a write in between is a conflict, not lost.
+            None => Expect::Revision(current.revision),
         };
         let summary = one(input, "summary").unwrap_or_default().to_owned();
         let mut doc = current.document.clone();
@@ -83,7 +88,16 @@ impl Backend for PageBackend {
         if q.contains_key("tag") {
             return Err(unsupported("tagTable"));
         }
-        let search_only = ["prefix", "pathPrefix", "templates", "redirects", "author"];
+        let search_only = [
+            "prefix",
+            "pathPrefix",
+            "templates",
+            "redirects",
+            "author",
+            "space",
+            "updatedFrom",
+            "updatedTo",
+        ];
         if search_only
             .iter()
             .any(|k| one(q, k).is_some_and(|v| v != "any" && v != "no"))
@@ -145,11 +159,21 @@ impl Backend for PageBackend {
                 Ok(records::outcome(e.id))
             }
             "setRedirect" => {
+                let page = id(input, "id")?;
+                // A field not sent is unchanged; an empty list clears the redirect.
+                if !sent(input, "redirectTo") {
+                    return Ok(records::outcome(page));
+                }
                 let target = one(input, "redirectTo").unwrap_or_default();
-                let e = self
-                    .0
-                    .block(t.set_redirect(id(input, "id")?, target, Expect::Any))?;
+                let e = self.0.block(t.set_redirect(page, target, Expect::Any))?;
                 Ok(records::outcome(e.id))
+            }
+            "reorder" => {
+                let at = placement(need(input, "placement")?)?;
+                let n =
+                    self.0
+                        .block(t.reorder(id(input, "id")?, at, optional_id(input, "anchor")?))?;
+                Ok(records::outcome(n.id))
             }
             "trash" => {
                 let item = self.0.block(t.trash(id(input, "id")?))?;

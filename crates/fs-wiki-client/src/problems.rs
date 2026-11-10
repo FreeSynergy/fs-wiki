@@ -49,7 +49,15 @@ fn from_problem(p: &Problem, subject: &Subject) -> Error {
     let detail = p.detail.as_str();
     match local_type(p) {
         "unsupported" => unsupported_of(detail, "texts").into(),
-        "texts/not-found" => not_found(detail, subject),
+        "texts/not-found" => not_found(p, subject),
+        "texts/not-empty" => match subject {
+            Subject::Text(id) | Subject::Revision(id, _) => Error::NotEmpty(*id),
+            _ => Error::Store(StoreError::Conflict(detail.to_string())),
+        },
+        "texts/not-in-trash" => match subject {
+            Subject::Text(id) | Subject::Revision(id, _) => Error::NotInTrash(*id),
+            _ => Error::Store(StoreError::Conflict(detail.to_string())),
+        },
         "texts/conflict" => conflict(detail, subject),
         "texts/path-taken" => path_taken(detail),
         "texts/move-refused" => move_refused(detail),
@@ -63,8 +71,11 @@ fn from_problem(p: &Problem, subject: &Subject) -> Error {
     }
 }
 
-fn not_found(detail: &str, subject: &Subject) -> Error {
+fn not_found(p: &Problem, subject: &Subject) -> Error {
+    let detail = p.detail.as_str();
     match subject {
+        // a folder or space that is not there is told apart from a text by the `kind` of the problem
+        Subject::Text(id) if p.ext(keys::KIND) == Some("folder") => Error::NoSuchNode(*id),
         Subject::Text(id) | Subject::Revision(id, _) => Error::NotFound(*id),
         Subject::Folder(prefix) => Error::NoSuchFolder(prefix.clone()),
         Subject::None => object_id_in(detail).map_or_else(

@@ -18,6 +18,7 @@ pub const SUPPORTED: &[(&str, &str)] = &[
     ("Page", "move"),
     ("Page", "setTemplate"),
     ("Page", "setRedirect"),
+    ("Page", "reorder"),
     ("Page", "trash"),
     ("Page", "delete"),
     ("Page", "find"),

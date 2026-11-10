@@ -1,6 +1,6 @@
 //! A server that a window started ends when no window is left (the lease).
 //!
-//! Pattern: Lease (a lock on a file; `coding.md` section 2 has no closer name, reported to the strategy) — a window holds
+//! Pattern: RAII / Guard (the lock lives as long as the `File` that `hold` returns) with an Observer thread (`watch`) — a window holds
 //! a *shared* lock on `<socket>.lease` for as long as it lives (the system lets go when the process ends, also if it
 //! crashes); the server it started tries to take the *exclusive* lock from time to time and ends itself, with a clean
 //! shutdown, when it gets it a few times in a row. Several windows share one server: it ends with the last. A server

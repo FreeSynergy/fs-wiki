@@ -5,7 +5,10 @@
 
 use std::future::Future;
 
-use fs_wiki_core::Result;
+use fs_objects::ObjectId;
+use fs_wiki_core::{Expect, Result};
+
+use crate::problems::Subject;
 
 /// Items page after page until `size` are there or the cursor is empty; `more` says whether something follows.
 pub(crate) async fn collect<T, F, Fut>(size: usize, mut fetch: F) -> Result<(Vec<T>, bool)>
@@ -36,6 +39,12 @@ pub(crate) fn drop_through<T>(items: Vec<T>, is_place: impl Fn(&T) -> bool) -> V
     }
 }
 
+/// The items after a place in an ordered list: those for which `before_or_at` is false, from the first of them on. Unlike
+/// [`drop_through`] it needs no item at the place itself (that item may have changed since the last page was read).
+pub(crate) fn drop_while_before<T>(items: Vec<T>, before_or_at: impl Fn(&T) -> bool) -> Vec<T> {
+    items.into_iter().skip_while(|i| before_or_at(i)).collect()
+}
+
 /// How many items a list that continues "after" a place reads at most before it cuts there.
 pub(crate) const READ_LIMIT: usize = 5000;
 
@@ -49,6 +58,30 @@ pub(crate) fn cut<T>(
 ) -> (Vec<T>, bool) {
     let mut items = match after {
         Some(is_place) => drop_through(items, is_place),
+        None => items,
+    };
+    let more = items.len() > size || server_more;
+    items.truncate(size);
+    (items, more)
+}
+
+/// What a write was about: the text, and the revision it expected (a conflict names both).
+pub(crate) fn subject_of(id: ObjectId, expect: Expect) -> Subject {
+    match expect {
+        Expect::Revision(n) => Subject::Revision(id, n),
+        Expect::Any => Subject::Text(id),
+    }
+}
+
+/// As [`cut`], for an ordered list continued after a place (`drop_while_before`).
+pub(crate) fn cut_ordered<T>(
+    items: Vec<T>,
+    server_more: bool,
+    before_or_at: Option<impl Fn(&T) -> bool>,
+    size: usize,
+) -> (Vec<T>, bool) {
+    let mut items = match before_or_at {
+        Some(f) => drop_while_before(items, f),
         None => items,
     };
     let more = items.len() > size || server_more;

@@ -168,3 +168,46 @@ async fn search_with_snippets_and_filters() {
         .unwrap();
     assert_eq!(rest.items.len(), 1);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_stale_revision_is_a_typed_conflict_in_every_write_that_takes_one() {
+    use fs_wiki_core::Error;
+    let served = Served::in_memory().await;
+    let texts = served.client();
+    let a = make(&texts, "a", "one\n").await;
+    let b = texts
+        .edit_with(a.id, Expect::Any, doc("two\n"), "")
+        .await
+        .unwrap();
+    let stale = Expect::Revision(a.revision);
+    for e in [
+        texts.set_template(a.id, true, stale).await.unwrap_err(),
+        texts.set_redirect(a.id, "x", stale).await.unwrap_err(),
+        texts.restore_revision(a.id, 1, stale).await.unwrap_err(),
+        texts
+            .edit_with(a.id, stale, doc("three\n"), "")
+            .await
+            .unwrap_err(),
+    ] {
+        assert!(
+            matches!(e, Error::Conflict { expected, found, .. } if expected == a.revision && found == b.revision),
+            "{e:?}"
+        );
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_folder_that_is_not_empty_and_a_page_that_is_not_in_the_trash_have_their_own_errors() {
+    use fs_wiki_core::Error;
+    let served = Served::in_memory().await;
+    let texts = served.client();
+    let space = texts.create_folder(None, "Manual", "").await.unwrap();
+    make(&texts, &format!("{}/p", space.path), "x\n").await;
+    let e = texts.delete_folder(space.id).await.unwrap_err();
+    assert!(matches!(e, Error::NotEmpty(id) if id == space.id), "{e:?}");
+    let e = texts.get_folder(fs_objects::ObjectId::new()).await;
+    assert!(e.is_ok());
+    let p = make(&texts, "q", "x\n").await;
+    let e = texts.restore_from_trash(p.id, "").await.unwrap_err();
+    assert!(matches!(e, Error::NotInTrash(id) if id == p.id), "{e:?}");
+}

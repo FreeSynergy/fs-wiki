@@ -5,9 +5,9 @@
 
 use fs_admin_frontend::{Backend, BackendError, Outcome, Record, Values};
 use fs_wiki_core::describe::is_supported;
-use fs_wiki_core::{Node, NodeKind, Placement};
+use fs_wiki_core::{Node, NodeKind};
 
-use super::ctx::{Ctx, LIST_LIMIT, id, need, one, optional_id, unsupported};
+use super::ctx::{Ctx, LIST_LIMIT, id, need, one, optional_id, placement, unsupported};
 use super::records;
 
 /// The spaces and folders.
@@ -29,16 +29,6 @@ impl FolderBackend {
         }
         out.sort_by(|a, b| a.path.cmp(&b.path));
         Ok(out)
-    }
-
-    fn placement(word: &str) -> Result<Placement, BackendError> {
-        Ok(match word {
-            "first" => Placement::First,
-            "last" => Placement::Last,
-            "before" => Placement::Before,
-            "after" => Placement::After,
-            _ => return Err(super::ctx::not_a_number("placement")),
-        })
     }
 }
 
@@ -86,7 +76,7 @@ impl Backend for FolderBackend {
                 Ok(records::outcome(folder))
             }
             "reorder" => {
-                let at = Self::placement(need(input, "placement")?)?;
+                let at = placement(need(input, "placement")?)?;
                 let n =
                     self.0
                         .block(t.reorder(id(input, "id")?, at, optional_id(input, "anchor")?))?;

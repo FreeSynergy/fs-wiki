@@ -5,7 +5,8 @@
 //! Builder chain of `fs-types`. The standard of each type is chosen where its description is (module head), the reason
 //! in `DESIGN.md` ("Types").
 //!
-//! Every command of the core is in a description, and so is every command of `requirements.md`; whether the core can
+//! Every command of the core is in a description (the test `describe.rs` compares them with the methods of `Texts`), and so
+//! is every command of `requirements.md`; whether the core can
 //! carry one out is not said here (types.capnp has no `supported` field yet): the program that serves the frontend
 //! keeps a table for that, `DESIGN.md` section "Unsupported".
 
@@ -19,6 +20,6 @@ mod revision;
 mod support;
 mod trash;
 
-pub(crate) use build::{command, field, optional_reference, reference};
+pub(crate) use build::{any_reference, command, field, optional_reference, reference};
 pub use registry::{descriptions, registry, wished_commands, PROGRAM};
 pub use support::{is_supported, unsupported, SUPPORTED};

@@ -5,7 +5,9 @@
 //! the content travels as Markdown (the fs-text document is the truth, Markdown the readable form, ADR 0042).
 //! Templates and redirects are states of a page (`kind`, `redirectTo`), not types of their own, as in the contract.
 
-use fs_types::{BasicType as B, CommandKind as K, DescribesType, TypeDescription};
+use fs_types::{
+    BasicType as B, CommandKind as K, DescribesType, FieldDescription, TypeDescription,
+};
 
 use super::{command, field, optional_reference, page_wish, reference, PROGRAM};
 use crate::TextEntry;
@@ -46,7 +48,7 @@ fn writing(d: TypeDescription) -> TypeDescription {
             .input(id())
             .input(field(T, "content", B::MultilineText))
             .input(field(T, "summary", B::Text))
-            .input(field(T, "revision", B::Text)),
+            .input(field(T, "revision", B::Text).required()),
     )
     .command(
         command(T, "move", K::Change)
@@ -65,6 +67,16 @@ fn writing(d: TypeDescription) -> TypeDescription {
             .input(id())
             .input(field(T, "redirectTo", B::Text)),
     )
+    .command(
+        command(T, "reorder", K::Change)
+            .input(id())
+            .input(
+                field(T, "placement", B::Choice)
+                    .choices(&["first", "last", "before", "after"])
+                    .required(),
+            )
+            .input(FieldDescription::new("anchor", B::Reference).label("wiki.page.anchor")),
+    )
     .command(command(T, "trash", K::Delete).input(id()))
     .command(command(T, "delete", K::Delete).input(id()))
 }
@@ -78,7 +90,14 @@ fn reading(d: TypeDescription) -> TypeDescription {
                 .input(field(T, "pathPrefix", B::Text))
                 .input(field(T, "templates", B::Choice).choices(&["any", "only", "exclude"]))
                 .input(field(T, "redirects", B::Choice).choices(&["any", "only", "exclude"]))
-                .input(field(T, "author", B::Text)),
+                .input(field(T, "author", B::Text))
+                .input(
+                    FieldDescription::new("space", B::Reference)
+                        .target("Folder")
+                        .label("wiki.page.space"),
+                )
+                .input(field(T, "updatedFrom", B::DateTime))
+                .input(field(T, "updatedTo", B::DateTime)),
         )
         .command(
             command(T, "resolve", K::Other)

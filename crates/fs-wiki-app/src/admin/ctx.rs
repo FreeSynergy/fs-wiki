@@ -123,3 +123,31 @@ pub fn not_a_number(field: &str) -> BackendError {
         problem: fs_types_admin::RecordProblem::Value(fs_types_admin::TypeProblem::Character),
     }])
 }
+
+/// A placement word of the description.
+///
+/// # Errors
+/// `Rejected` when the word is none of first, last, before, after.
+pub fn placement(word: &str) -> Result<fs_wiki_core::Placement, BackendError> {
+    use fs_wiki_core::Placement as P;
+    Ok(match word {
+        "first" => P::First,
+        "last" => P::Last,
+        "before" => P::Before,
+        "after" => P::After,
+        _ => return Err(not_a_number("placement")),
+    })
+}
+
+/// A date-time field as milliseconds since the epoch; 0 when not given (no restriction).
+///
+/// # Errors
+/// `Rejected` when it is not an RFC 3339 date-time.
+pub fn millis(input: &Values, field: &str) -> Result<i64, BackendError> {
+    match one(input, field) {
+        None => Ok(0),
+        Some(s) => chrono::DateTime::parse_from_rfc3339(s)
+            .map(|t| t.timestamp_millis())
+            .map_err(|_| not_a_number(field)),
+    }
+}

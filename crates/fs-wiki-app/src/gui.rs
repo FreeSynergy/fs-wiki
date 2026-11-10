@@ -56,9 +56,8 @@ fn connect_or_start(socket: &Path, may_start: bool) -> Result<RpcTexts, String> 
     // What the server says when it cannot start goes to a file next to the socket, so the window can tell the person.
     let log = socket.with_extension("log");
     let log_file = std::fs::File::create(&log).ok();
-    let mut server = std::process::Command::new(me);
+    let mut server = server_command(&me);
     server
-        .arg("serve")
         .arg("--lease")
         .arg(&lease)
         .stdin(std::process::Stdio::null())
@@ -90,15 +89,35 @@ fn connect_or_start(socket: &Path, may_start: bool) -> Result<RpcTexts, String> 
     first.map_err(|e| connect_error(socket, &e))
 }
 
+/// The command that runs the server: `fs-wiki serve`, or, when this is the window-only `fs-wiki-app`, the
+/// `fs-wiki-server` next to it (`serve` is not a word of the window program).
+fn server_command(me: &Path) -> std::process::Command {
+    let name = me.file_name().and_then(|n| n.to_str()).unwrap_or_default();
+    if name.starts_with("fs-wiki-app") {
+        std::process::Command::new(me.with_file_name("fs-wiki-server"))
+    } else {
+        let mut serve = std::process::Command::new(me);
+        serve.arg("serve");
+        serve
+    }
+}
+
 /// Hold the shared lock on `path` until this process ends.
 fn hold_lease(path: &Path) {
     static HELD: std::sync::OnceLock<std::fs::File> = std::sync::OnceLock::new();
-    if let Ok(file) = std::fs::OpenOptions::new()
+    match std::fs::OpenOptions::new()
         .create(true)
         .append(true)
         .open(path)
-        && file.lock_shared().is_ok()
     {
-        let _ = HELD.set(file);
+        Ok(file) => match file.lock_shared() {
+            Ok(()) => {
+                let _ = HELD.set(file);
+            }
+            Err(e) => eprintln!(
+                "fs-wiki: no lease ({e}): a server this window starts ends by itself after a while"
+            ),
+        },
+        Err(e) => eprintln!("fs-wiki: no lease file {} ({e})", path.display()),
     }
 }

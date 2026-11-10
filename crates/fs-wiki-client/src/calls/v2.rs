@@ -10,7 +10,7 @@ use fs_objects::ObjectId;
 use fs_types::TypeRegistry;
 use fs_wiki_core::{Expect, Resolution, Result, SearchHit, SearchPage, SearchQuery, TextEntry};
 
-use super::v2_pages::collect;
+use super::v2_pages::{collect, subject_of};
 use super::v2_wire::{outcome, write_expect, write_query};
 use crate::problems::{error_of, Subject};
 use crate::read::{entry, unreadable};
@@ -62,12 +62,8 @@ pub(crate) async fn edit_with(
     write_expect(req.get().init_expect(), expect);
     req.get().set_document(document.as_str());
     req.get().set_summary(summary.as_str());
-    let subject = match expect {
-        Expect::Revision(n) => Subject::Revision(id, n),
-        Expect::Any => Subject::Text(id),
-    };
     entry(
-        answer!(req, subject)
+        answer!(req, subject_of(id, expect))
             .get()
             .and_then(|r| r.get_text())
             .map_err(unreadable)?,
@@ -85,7 +81,7 @@ pub(crate) async fn set_template(
     req.get().set_template(template);
     write_expect(req.get().init_expect(), expect);
     entry(
-        answer!(req, Subject::Text(id))
+        answer!(req, subject_of(id, expect))
             .get()
             .and_then(|r| r.get_text())
             .map_err(unreadable)?,
@@ -119,7 +115,7 @@ pub(crate) async fn set_redirect(
     req.get().set_target(target.as_str());
     write_expect(req.get().init_expect(), expect);
     entry(
-        answer!(req, Subject::Text(id))
+        answer!(req, subject_of(id, expect))
             .get()
             .and_then(|r| r.get_text())
             .map_err(unreadable)?,

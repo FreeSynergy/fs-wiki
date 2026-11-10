@@ -1,6 +1,6 @@
 //! Small builders the descriptions share: label keys from names, references, commands.
 //!
-//! Pattern: Builder helpers (`coding.md` section 2; they only call the Builder chain of `fs-types`).
+//! Pattern: none (a small set of pure functions that call the Builder chain of `fs-types`).
 
 use fs_types::{BasicType, CommandDescription, CommandKind, FieldDescription};
 
@@ -29,6 +29,11 @@ pub(crate) fn optional_reference(name: &str, target: &str, label: &str) -> Field
     FieldDescription::new(name, BasicType::Reference)
         .target(target)
         .label(label)
+}
+
+/// A reference to a record of any type (no `target`), optional.
+pub(crate) fn any_reference(name: &str, label: &str) -> FieldDescription {
+    FieldDescription::new(name, BasicType::Reference).label(label)
 }
 
 /// A command with a label key `wiki.<ty>.<name>`.

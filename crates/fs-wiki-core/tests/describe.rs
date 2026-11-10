@@ -177,3 +177,79 @@ fn unsupported_is_exactly_the_wished_commands_of_requirements() {
         .collect();
     assert_eq!(open, wished);
 }
+
+/// Every method of the trait `Texts` is either a command of a description or a reading/bookkeeping method named here.
+#[test]
+fn every_method_of_texts_is_a_described_command_or_a_named_reading() {
+    // method -> (type, command); the methods that read one record or report the provider are in `reading`
+    let described = [
+        ("create", "Page", "create"),
+        ("edit", "Page", "change"),
+        ("edit_if", "Page", "change"),
+        ("edit_with", "Page", "change"),
+        ("move_to", "Page", "move"),
+        ("move_folder", "Folder", "move"),
+        ("delete", "Page", "delete"),
+        ("find", "Page", "find"),
+        ("list", "Page", "find"),
+        ("page", "Page", "find"),
+        ("search", "Page", "search"),
+        ("links", "Link", "find"),
+        ("backlinks", "Link", "find"),
+        ("import_text", "Page", "import"),
+        ("export_text", "Page", "export"),
+        ("history", "Revision", "find"),
+        ("get_revision", "Revision", "get"),
+        ("restore_revision", "Revision", "restore"),
+        ("purge_revision", "Revision", "purge"),
+        ("trash", "Page", "trash"),
+        ("list_trash", "TrashEntry", "find"),
+        ("restore_from_trash", "TrashEntry", "restore"),
+        ("purge", "TrashEntry", "purge"),
+        ("create_folder", "Folder", "create"),
+        ("rename_folder", "Folder", "rename"),
+        ("delete_folder", "Folder", "delete"),
+        ("children", "Folder", "find"),
+        ("reorder", "Folder", "reorder"),
+        ("set_template", "Page", "setTemplate"),
+        ("create_from_template", "Page", "createFromTemplate"),
+        ("set_redirect", "Page", "setRedirect"),
+        ("resolve", "Page", "resolve"),
+    ];
+    // a record read (the detail of a list), and what the provider reports about itself
+    let reading = [
+        "get",
+        "get_by_path",
+        "get_folder",
+        "capabilities",
+        "identity",
+    ];
+    let reg = registry().unwrap();
+    let source = include_str!("../src/texts.rs");
+    let methods: BTreeSet<&str> = source
+        .lines()
+        .filter_map(|l| {
+            l.trim_start()
+                .strip_prefix("async fn ")
+                .or_else(|| l.trim_start().strip_prefix("fn "))
+        })
+        .filter_map(|l| l.split('(').next())
+        .collect();
+    assert!(methods.len() > 30, "the trait was read: {methods:?}");
+    for m in &methods {
+        let known = reading.contains(m) || described.iter().any(|(n, _, _)| n == m);
+        assert!(
+            known,
+            "Texts::{m} is neither described nor named as a reading"
+        );
+    }
+    for (m, ty, cmd) in described {
+        assert!(methods.contains(m), "{m} is not a method of Texts any more");
+        assert!(
+            reg.get(ty).and_then(|t| t.find_command(cmd)).is_some(),
+            "{ty}.{cmd} for {m}"
+        );
+    }
+    // a page can be moved among its siblings as well as a folder
+    assert!(reg.get("Page").unwrap().find_command("reorder").is_some());
+}

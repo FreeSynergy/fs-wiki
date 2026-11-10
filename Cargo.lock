@@ -1723,6 +1723,7 @@ name = "fs-wiki-app"
 version = "0.0.2"
 dependencies = [
  "async-trait",
+ "chrono",
  "fs-admin-frontend",
  "fs-components-app",
  "fs-components-fields",

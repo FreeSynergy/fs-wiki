@@ -90,10 +90,16 @@ impl RpcTexts {
             .call(|r| async move { v2_history::list_trash(&r.texts, v2_pages::READ_LIMIT).await })
             .await?;
         let after = after.copied();
-        let (items, more) = v2_pages::cut(
+        // Newest first, then by id: everything up to and including the place is before it.
+        let (items, more) = v2_pages::cut_ordered(
             page.items,
             page.more,
-            after.map(|a| move |i: &TrashItem| i.place() == a),
+            after.map(|a| {
+                move |i: &TrashItem| {
+                    let p = i.place();
+                    p.deleted_ms > a.deleted_ms || (p.deleted_ms == a.deleted_ms && p.id <= a.id)
+                }
+            }),
             size,
         );
         Ok(TrashPage { items, more })
