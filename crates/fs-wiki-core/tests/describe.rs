@@ -117,13 +117,13 @@ fn every_row_of_requirements_is_a_command() {
 
 #[test]
 fn a_change_or_delete_names_its_record() {
-    // The generated frontend offers a change or delete only when its input refers to the type itself.
+    // The generated frontend offers a change or delete only when its input refers to the type itself. The commands that
+    // took `change` before fs-types v0.0.16 are `Other` now; one that takes an `id` names its own record just the same.
     for t in descriptions().unwrap() {
-        for c in t
-            .commands
-            .iter()
-            .filter(|c| matches!(c.kind, CommandKind::Change | CommandKind::Delete))
-        {
+        for c in t.commands.iter().filter(|c| {
+            matches!(c.kind, CommandKind::Change | CommandKind::Delete)
+                || (c.kind == CommandKind::Other && c.input.iter().any(|f| f.name == "id"))
+        }) {
             assert!(
                 c.input
                     .iter()
