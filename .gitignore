@@ -20,3 +20,4 @@ Thumbs.db
 # pictures and scratch files of the app (snapshots); only the placeholder is kept
 /temp/*
 !/temp/.gitkeep
+.claude/
