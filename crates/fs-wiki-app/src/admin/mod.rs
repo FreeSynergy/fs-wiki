@@ -17,7 +17,7 @@ mod say;
 mod trash;
 mod window;
 
-pub use ctx::{unsupported, Ctx};
+pub use ctx::{Ctx, unsupported};
 pub use folder::FolderBackend;
 pub use link::LinkBackend;
 pub use page::PageBackend;

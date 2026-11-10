@@ -2,9 +2,7 @@
 //!
 //! Pattern: Adapter — one request in, one reply read back as values of the core (as `reads.rs`/`writes.rs`). The
 //! cursors of the contract are opaque, so a list that continues after a place is read from the start and cut there:
-//! `drop_through` (pages are small, the lists of a wiki are not long).
-
-use std::future::Future;
+//! `drop_through` in `v2_pages.rs` (pages are small, the lists of a wiki are not long).
 
 use fs_interfaces::rpc::write_object_id;
 use fs_interfaces::texts_capnp::texts::Client;
@@ -12,10 +10,11 @@ use fs_objects::ObjectId;
 use fs_text::Document;
 use fs_types::TypeRegistry;
 use fs_wiki_core::{
-    Expect, Node, NodePage, Placement, Resolution, Result, RevisionContent, RevisionPage, SearchHit,
-    SearchPage, SearchQuery, TextEntry, TrashItem, TrashPage,
+    Expect, Node, NodePage, Placement, Resolution, Result, RevisionContent, RevisionPage,
+    SearchHit, SearchPage, SearchQuery, TextEntry, TrashItem, TrashPage,
 };
 
+use super::v2_pages::collect;
 use super::v2_wire::{info, node, outcome, placement, trash_item, write_expect, write_query};
 use crate::problems::{error_of, Subject};
 use crate::read::{entry, unreadable};
@@ -23,29 +22,11 @@ use crate::read::{entry, unreadable};
 /// Send a request and wait for the reply; the error of the core for what the server said.
 macro_rules! answer {
     ($req:expr, $subject:expr) => {
-        $req.send().promise.await.map_err(|e| error_of(&e, &$subject))?
+        $req.send()
+            .promise
+            .await
+            .map_err(|e| error_of(&e, &$subject))?
     };
-}
-
-/// Items page after page until `size` are there or the cursor is empty; `more` says whether something follows.
-async fn collect<T, F, Fut>(size: usize, mut fetch: F) -> Result<(Vec<T>, bool)>
-where
-    F: FnMut(Vec<u8>) -> Fut,
-    Fut: Future<Output = Result<(Vec<T>, Vec<u8>)>>,
-{
-    let (mut items, mut cursor) = (Vec::new(), Vec::new());
-    loop {
-        let (page, next) = fetch(cursor).await?;
-        let empty = page.is_empty();
-        items.extend(page);
-        cursor = next;
-        if cursor.is_empty() || empty || items.len() > size {
-            break;
-        }
-    }
-    let more = items.len() > size || !cursor.is_empty();
-    items.truncate(size);
-    Ok((items, more))
 }
 
 fn next_of(c: capnp::Result<fs_interfaces::common_capnp::cursor::Reader<'_>>) -> Result<Vec<u8>> {
@@ -54,9 +35,23 @@ fn next_of(c: capnp::Result<fs_interfaces::common_capnp::cursor::Reader<'_>>) ->
 
 /// `Texts.types`: the catalog of the wiki's data types, read and checked.
 pub(crate) async fn types(c: &Client) -> Result<TypeRegistry> {
-    let catalog = answer!(c.types_request(), Subject::None).get().and_then(|r| r.get_catalog()).map_err(unreadable)?;
-    let reply = catalog.describe_request().send().promise.await.map_err(|e| error_of(&e, &Subject::None))?;
-    TypeRegistry::read(reply.get().and_then(|r| r.get_types()).map_err(unreadable)?).map_err(unreadable)
+    let catalog = answer!(c.types_request(), Subject::None)
+        .get()
+        .and_then(|r| r.get_catalog())
+        .map_err(unreadable)?;
+    let reply = catalog
+        .describe_request()
+        .send()
+        .promise
+        .await
+        .map_err(|e| error_of(&e, &Subject::None))?;
+    TypeRegistry::read(
+        reply
+            .get()
+            .and_then(|r| r.get_types())
+            .map_err(unreadable)?,
+    )
+    .map_err(unreadable)
 }
 
 pub(crate) async fn edit_with(
@@ -75,7 +70,12 @@ pub(crate) async fn edit_with(
         Expect::Revision(n) => Subject::Revision(id, n),
         Expect::Any => Subject::Text(id),
     };
-    entry(answer!(req, subject).get().and_then(|r| r.get_text()).map_err(unreadable)?)
+    entry(
+        answer!(req, subject)
+            .get()
+            .and_then(|r| r.get_text())
+            .map_err(unreadable)?,
+    )
 }
 
 pub(crate) async fn history(c: &Client, id: ObjectId, size: usize) -> Result<RevisionPage> {
@@ -85,14 +85,23 @@ pub(crate) async fn history(c: &Client, id: ObjectId, size: usize) -> Result<Rev
         req.get().init_cursor().set_opaque(&cursor);
         let reply = answer!(req, Subject::Text(id));
         let page = reply.get().and_then(|r| r.get_page()).map_err(unreadable)?;
-        let items = page.get_items().map_err(unreadable)?.iter().map(info).collect::<Result<Vec<_>>>()?;
+        let items = page
+            .get_items()
+            .map_err(unreadable)?
+            .iter()
+            .map(info)
+            .collect::<Result<Vec<_>>>()?;
         Ok((items, next_of(page.get_next())?))
     })
     .await?;
     Ok(RevisionPage { items, more })
 }
 
-pub(crate) async fn get_revision(c: &Client, id: ObjectId, number: u64) -> Result<Option<RevisionContent>> {
+pub(crate) async fn get_revision(
+    c: &Client,
+    id: ObjectId,
+    number: u64,
+) -> Result<Option<RevisionContent>> {
     let mut req = c.get_revision_request();
     write_object_id(req.get().init_id(), id);
     req.get().set_number(number);
@@ -102,17 +111,35 @@ pub(crate) async fn get_revision(c: &Client, id: ObjectId, number: u64) -> Resul
         return Ok(None);
     }
     let r = r.get_revision().map_err(unreadable)?;
-    let document: Document = serde_json::from_str(r.get_document().map_err(unreadable)?.to_str().map_err(unreadable)?)
-        .map_err(unreadable)?;
-    Ok(Some(RevisionContent { info: info(r.get_info().map_err(unreadable)?)?, document }))
+    let document: Document = serde_json::from_str(
+        r.get_document()
+            .map_err(unreadable)?
+            .to_str()
+            .map_err(unreadable)?,
+    )
+    .map_err(unreadable)?;
+    Ok(Some(RevisionContent {
+        info: info(r.get_info().map_err(unreadable)?)?,
+        document,
+    }))
 }
 
-pub(crate) async fn restore_revision(c: &Client, id: ObjectId, number: u64, expect: Expect) -> Result<TextEntry> {
+pub(crate) async fn restore_revision(
+    c: &Client,
+    id: ObjectId,
+    number: u64,
+    expect: Expect,
+) -> Result<TextEntry> {
     let mut req = c.restore_revision_request();
     write_object_id(req.get().init_id(), id);
     req.get().set_number(number);
     write_expect(req.get().init_expect(), expect);
-    entry(answer!(req, Subject::Text(id)).get().and_then(|r| r.get_text()).map_err(unreadable)?)
+    entry(
+        answer!(req, Subject::Text(id))
+            .get()
+            .and_then(|r| r.get_text())
+            .map_err(unreadable)?,
+    )
 }
 
 pub(crate) async fn purge_revision(c: &Client, id: ObjectId, number: u64) -> Result<()> {
@@ -126,7 +153,12 @@ pub(crate) async fn purge_revision(c: &Client, id: ObjectId, number: u64) -> Res
 pub(crate) async fn trash(c: &Client, id: ObjectId) -> Result<TrashItem> {
     let mut req = c.trash_request();
     write_object_id(req.get().init_id(), id);
-    trash_item(answer!(req, Subject::Text(id)).get().and_then(|r| r.get_item()).map_err(unreadable)?)
+    trash_item(
+        answer!(req, Subject::Text(id))
+            .get()
+            .and_then(|r| r.get_item())
+            .map_err(unreadable)?,
+    )
 }
 
 pub(crate) async fn list_trash(c: &Client, size: usize) -> Result<TrashPage> {
@@ -135,18 +167,32 @@ pub(crate) async fn list_trash(c: &Client, size: usize) -> Result<TrashPage> {
         req.get().init_cursor().set_opaque(&cursor);
         let reply = answer!(req, Subject::None);
         let page = reply.get().and_then(|r| r.get_page()).map_err(unreadable)?;
-        let items = page.get_items().map_err(unreadable)?.iter().map(trash_item).collect::<Result<Vec<_>>>()?;
+        let items = page
+            .get_items()
+            .map_err(unreadable)?
+            .iter()
+            .map(trash_item)
+            .collect::<Result<Vec<_>>>()?;
         Ok((items, next_of(page.get_next())?))
     })
     .await?;
     Ok(TrashPage { items, more })
 }
 
-pub(crate) async fn restore_from_trash(c: &Client, id: ObjectId, path: String) -> Result<TextEntry> {
+pub(crate) async fn restore_from_trash(
+    c: &Client,
+    id: ObjectId,
+    path: String,
+) -> Result<TextEntry> {
     let mut req = c.restore_from_trash_request();
     write_object_id(req.get().init_id(), id);
     req.get().set_path(path.as_str());
-    entry(answer!(req, Subject::Text(id)).get().and_then(|r| r.get_text()).map_err(unreadable)?)
+    entry(
+        answer!(req, Subject::Text(id))
+            .get()
+            .and_then(|r| r.get_text())
+            .map_err(unreadable)?,
+    )
 }
 
 pub(crate) async fn purge(c: &Client, id: ObjectId) -> Result<()> {
@@ -156,19 +202,34 @@ pub(crate) async fn purge(c: &Client, id: ObjectId) -> Result<()> {
     Ok(())
 }
 
-pub(crate) async fn create_folder(c: &Client, parent: Option<ObjectId>, name: String, path: String) -> Result<Node> {
+pub(crate) async fn create_folder(
+    c: &Client,
+    parent: Option<ObjectId>,
+    name: String,
+    path: String,
+) -> Result<Node> {
     let mut req = c.create_folder_request();
     fs_interfaces::rpc::write_uuid(req.get().init_parent(), parent.map(|p| p.as_uuid()));
     req.get().set_name(name.as_str());
     req.get().set_path(path.as_str());
-    node(answer!(req, Subject::None).get().and_then(|r| r.get_node()).map_err(unreadable)?)
+    node(
+        answer!(req, Subject::None)
+            .get()
+            .and_then(|r| r.get_node())
+            .map_err(unreadable)?,
+    )
 }
 
 pub(crate) async fn rename_folder(c: &Client, id: ObjectId, name: String) -> Result<Node> {
     let mut req = c.rename_folder_request();
     write_object_id(req.get().init_id(), id);
     req.get().set_name(name.as_str());
-    node(answer!(req, Subject::Text(id)).get().and_then(|r| r.get_node()).map_err(unreadable)?)
+    node(
+        answer!(req, Subject::Text(id))
+            .get()
+            .and_then(|r| r.get_node())
+            .map_err(unreadable)?,
+    )
 }
 
 pub(crate) async fn delete_folder(c: &Client, id: ObjectId) -> Result<()> {
@@ -189,65 +250,131 @@ pub(crate) async fn get_folder(c: &Client, id: ObjectId) -> Result<Option<Node>>
     node(r.get_node().map_err(unreadable)?).map(Some)
 }
 
-pub(crate) async fn children(c: &Client, parent: Option<ObjectId>, offset: usize, size: usize) -> Result<NodePage> {
+pub(crate) async fn children(
+    c: &Client,
+    parent: Option<ObjectId>,
+    offset: usize,
+    size: usize,
+) -> Result<NodePage> {
     let (items, more) = collect(offset.saturating_add(size), |cursor| async move {
         let mut req = c.children_request();
         fs_interfaces::rpc::write_uuid(req.get().init_parent(), parent.map(|p| p.as_uuid()));
         req.get().init_cursor().set_opaque(&cursor);
         let reply = answer!(req, Subject::None);
         let page = reply.get().and_then(|r| r.get_page()).map_err(unreadable)?;
-        let items = page.get_items().map_err(unreadable)?.iter().map(node).collect::<Result<Vec<_>>>()?;
+        let items = page
+            .get_items()
+            .map_err(unreadable)?
+            .iter()
+            .map(node)
+            .collect::<Result<Vec<_>>>()?;
         Ok((items, next_of(page.get_next())?))
     })
     .await?;
-    Ok(NodePage { items: items.into_iter().skip(offset).collect(), more })
+    Ok(NodePage {
+        items: items.into_iter().skip(offset).collect(),
+        more,
+    })
 }
 
-pub(crate) async fn reorder(c: &Client, id: ObjectId, at: Placement, anchor: Option<ObjectId>) -> Result<Node> {
+pub(crate) async fn reorder(
+    c: &Client,
+    id: ObjectId,
+    at: Placement,
+    anchor: Option<ObjectId>,
+) -> Result<Node> {
     let mut req = c.reorder_request();
     write_object_id(req.get().init_id(), id);
     req.get().set_placement(placement(at));
     fs_interfaces::rpc::write_uuid(req.get().init_anchor(), anchor.map(|p| p.as_uuid()));
-    node(answer!(req, Subject::Text(id)).get().and_then(|r| r.get_node()).map_err(unreadable)?)
+    node(
+        answer!(req, Subject::Text(id))
+            .get()
+            .and_then(|r| r.get_node())
+            .map_err(unreadable)?,
+    )
 }
 
-pub(crate) async fn set_template(c: &Client, id: ObjectId, template: bool, expect: Expect) -> Result<TextEntry> {
+pub(crate) async fn set_template(
+    c: &Client,
+    id: ObjectId,
+    template: bool,
+    expect: Expect,
+) -> Result<TextEntry> {
     let mut req = c.set_template_request();
     write_object_id(req.get().init_id(), id);
     req.get().set_template(template);
     write_expect(req.get().init_expect(), expect);
-    entry(answer!(req, Subject::Text(id)).get().and_then(|r| r.get_text()).map_err(unreadable)?)
+    entry(
+        answer!(req, Subject::Text(id))
+            .get()
+            .and_then(|r| r.get_text())
+            .map_err(unreadable)?,
+    )
 }
 
-pub(crate) async fn create_from_template(c: &Client, template: ObjectId, path: String) -> Result<TextEntry> {
+pub(crate) async fn create_from_template(
+    c: &Client,
+    template: ObjectId,
+    path: String,
+) -> Result<TextEntry> {
     let mut req = c.create_from_template_request();
     write_object_id(req.get().init_template(), template);
     req.get().set_path(path.as_str());
-    entry(answer!(req, Subject::Text(template)).get().and_then(|r| r.get_text()).map_err(unreadable)?)
+    entry(
+        answer!(req, Subject::Text(template))
+            .get()
+            .and_then(|r| r.get_text())
+            .map_err(unreadable)?,
+    )
 }
 
-pub(crate) async fn set_redirect(c: &Client, id: ObjectId, target: String, expect: Expect) -> Result<TextEntry> {
+pub(crate) async fn set_redirect(
+    c: &Client,
+    id: ObjectId,
+    target: String,
+    expect: Expect,
+) -> Result<TextEntry> {
     let mut req = c.set_redirect_request();
     write_object_id(req.get().init_id(), id);
     req.get().set_target(target.as_str());
     write_expect(req.get().init_expect(), expect);
-    entry(answer!(req, Subject::Text(id)).get().and_then(|r| r.get_text()).map_err(unreadable)?)
+    entry(
+        answer!(req, Subject::Text(id))
+            .get()
+            .and_then(|r| r.get_text())
+            .map_err(unreadable)?,
+    )
 }
 
 pub(crate) async fn resolve(c: &Client, path: String) -> Result<Resolution> {
     let mut req = c.resolve_request();
     req.get().set_path(path.as_str());
     let reply = answer!(req, Subject::None);
-    let r = reply.get().and_then(|r| r.get_resolution()).map_err(unreadable)?;
+    let r = reply
+        .get()
+        .and_then(|r| r.get_resolution())
+        .map_err(unreadable)?;
     let hops = r
         .get_hops()
         .map_err(unreadable)?
         .iter()
-        .map(|h| h.map_err(unreadable).and_then(|h| h.to_string().map_err(unreadable)))
+        .map(|h| {
+            h.map_err(unreadable)
+                .and_then(|h| h.to_string().map_err(unreadable))
+        })
         .collect::<Result<Vec<_>>>()?;
     let kind = outcome(r.get_outcome())?;
-    let text = if r.has_text() { Some(entry(r.get_text().map_err(unreadable)?)?) } else { None };
-    Ok(Resolution { outcome: kind, hops, text })
+    let text = if r.has_text() {
+        Some(entry(r.get_text().map_err(unreadable)?)?)
+    } else {
+        None
+    };
+    Ok(Resolution {
+        outcome: kind,
+        hops,
+        text,
+    })
 }
 
 pub(crate) async fn search(c: &Client, query: SearchQuery, size: usize) -> Result<SearchPage> {
@@ -270,32 +397,4 @@ pub(crate) async fn search(c: &Client, query: SearchQuery, size: usize) -> Resul
     })
     .await?;
     Ok(SearchPage { items, more })
-}
-
-/// The items after the one `is_place` finds (cut at a place, as the contract's cursors do on the server).
-pub(crate) fn drop_through<T>(items: Vec<T>, is_place: impl Fn(&T) -> bool) -> Vec<T> {
-    match items.iter().position(is_place) {
-        Some(i) => items.into_iter().skip(i + 1).collect(),
-        None => Vec::new(),
-    }
-}
-
-/// How many items a list that continues "after" a place reads at most before it cuts there.
-pub(crate) const READ_LIMIT: usize = 5000;
-
-/// The items after the place (if one is given) and at most `size` of them; `more` says whether items follow, in this
-/// list or because the server had more than [`READ_LIMIT`].
-pub(crate) fn cut<T>(
-    items: Vec<T>,
-    server_more: bool,
-    after: Option<impl Fn(&T) -> bool>,
-    size: usize,
-) -> (Vec<T>, bool) {
-    let mut items = match after {
-        Some(is_place) => drop_through(items, is_place),
-        None => items,
-    };
-    let more = items.len() > size || server_more;
-    items.truncate(size);
-    (items, more)
 }

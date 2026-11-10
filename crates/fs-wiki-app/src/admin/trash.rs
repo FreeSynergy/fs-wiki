@@ -6,7 +6,7 @@
 use fs_admin_frontend::{Backend, BackendError, Outcome, Record, Values};
 use fs_wiki_core::describe::is_supported;
 
-use super::ctx::{id, one, unsupported, Ctx, LIST_LIMIT};
+use super::ctx::{Ctx, LIST_LIMIT, id, one, unsupported};
 use super::records;
 
 /// The trashed pages.
@@ -19,7 +19,11 @@ impl Backend for TrashBackend {
         Ok(page
             .items
             .iter()
-            .filter(|t| term.is_empty() || t.path.to_lowercase().contains(&term) || t.name.to_lowercase().contains(&term))
+            .filter(|t| {
+                term.is_empty()
+                    || t.path.to_lowercase().contains(&term)
+                    || t.name.to_lowercase().contains(&term)
+            })
             .map(records::trash)
             .collect())
     }
@@ -31,7 +35,10 @@ impl Backend for TrashBackend {
         let t = &self.0.texts;
         match name {
             "restore" => {
-                let e = self.0.block(t.restore_from_trash(id(input, "id")?, one(input, "path").unwrap_or_default()))?;
+                let e = self.0.block(t.restore_from_trash(
+                    id(input, "id")?,
+                    one(input, "path").unwrap_or_default(),
+                ))?;
                 Ok(records::outcome(e.id))
             }
             "purge" => {

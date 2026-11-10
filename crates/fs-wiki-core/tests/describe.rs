@@ -35,16 +35,35 @@ fn the_trait_gives_the_same_description_as_the_registry() {
 
 #[test]
 fn references_between_our_types_resolve_except_the_other_programs() {
-    let open: Vec<_> = registry().unwrap().unresolved_targets().into_iter().map(|(_, _, t)| t).collect();
-    assert!(open.iter().all(|t| t == "File"), "only the files program is outside: {open:?}");
+    let open: Vec<_> = registry()
+        .unwrap()
+        .unresolved_targets()
+        .into_iter()
+        .map(|(_, _, t)| t)
+        .collect();
+    assert!(
+        open.iter().all(|t| t == "File"),
+        "only the files program is outside: {open:?}"
+    );
 }
 
 #[test]
 fn the_core_commands_are_all_described() {
     let page = names(&TextEntry::describe());
     for n in [
-        "create", "import", "createFromTemplate", "change", "move", "setTemplate", "setRedirect", "trash", "delete", "find",
-        "search", "resolve", "export",
+        "create",
+        "import",
+        "createFromTemplate",
+        "change",
+        "move",
+        "setTemplate",
+        "setRedirect",
+        "trash",
+        "delete",
+        "find",
+        "search",
+        "resolve",
+        "export",
     ] {
         assert!(page.contains(n), "Page.{n}");
     }
@@ -52,8 +71,10 @@ fn the_core_commands_are_all_described() {
     for n in ["find", "create", "rename", "move", "reorder", "delete"] {
         assert!(folder.contains(n), "Folder.{n}");
     }
-    assert!(names(&RevisionInfo::describe()).is_superset(&["find", "get", "restore", "purge"].map(String::from).into()));
-    assert!(names(&TrashItem::describe()).is_superset(&["find", "restore", "purge"].map(String::from).into()));
+    assert!(names(&RevisionInfo::describe())
+        .is_superset(&["find", "get", "restore", "purge"].map(String::from).into()));
+    assert!(names(&TrashItem::describe())
+        .is_superset(&["find", "restore", "purge"].map(String::from).into()));
     assert!(names(&LinkEntry::describe()).contains("find"));
 }
 
@@ -63,8 +84,23 @@ fn every_row_of_requirements_is_a_command() {
     // history/restore, trash/restore, sharing, folders/order, templates/redirects, search, comments, attachments,
     // labels, watch, then the optional ideas
     for n in [
-        "share", "comment", "openTalkPage", "attach", "setLabels", "watch", "createDatabase", "joinSession", "recordGuide",
-        "recordCommandGuide", "replayGuide", "embed", "applyTag", "tagTable", "referenceBlock", "createCanvas", "importCanvas",
+        "share",
+        "comment",
+        "openTalkPage",
+        "attach",
+        "setLabels",
+        "watch",
+        "createDatabase",
+        "joinSession",
+        "recordGuide",
+        "recordCommandGuide",
+        "replayGuide",
+        "embed",
+        "applyTag",
+        "tagTable",
+        "referenceBlock",
+        "createCanvas",
+        "importCanvas",
         "exportCanvas",
     ] {
         assert!(page.contains(n), "Page.{n}");
@@ -72,7 +108,10 @@ fn every_row_of_requirements_is_a_command() {
     assert!(names(&LinkEntry::describe()).contains("unlinkedMentions"));
     for (ty, n) in wished_commands() {
         let d = registry().unwrap().get(ty).cloned().unwrap();
-        assert!(names(&d).contains(n), "{ty}.{n} is listed as wished but not described");
+        assert!(
+            names(&d).contains(n),
+            "{ty}.{n} is listed as wished but not described"
+        );
     }
 }
 
@@ -80,9 +119,15 @@ fn every_row_of_requirements_is_a_command() {
 fn a_change_or_delete_names_its_record() {
     // The generated frontend offers a change or delete only when its input refers to the type itself.
     for t in descriptions().unwrap() {
-        for c in t.commands.iter().filter(|c| matches!(c.kind, CommandKind::Change | CommandKind::Delete)) {
+        for c in t
+            .commands
+            .iter()
+            .filter(|c| matches!(c.kind, CommandKind::Change | CommandKind::Delete))
+        {
             assert!(
-                c.input.iter().any(|f| f.basic == BasicType::Reference && f.target == t.name),
+                c.input
+                    .iter()
+                    .any(|f| f.basic == BasicType::Reference && f.target == t.name),
                 "{}.{} has no reference to {}",
                 t.name,
                 c.name,
@@ -107,15 +152,28 @@ fn labels_are_translation_keys_and_unique_per_type() {
 fn unsupported_is_exactly_the_wished_commands_of_requirements() {
     use fs_wiki_core::describe::{is_supported, unsupported};
     for (ty, name) in wished_commands() {
-        assert!(!is_supported(ty, name), "{ty}.{name} is wished, so it cannot be supported yet");
+        assert!(
+            !is_supported(ty, name),
+            "{ty}.{name} is wished, so it cannot be supported yet"
+        );
     }
-    assert!(is_supported("Page", "create") && is_supported("Link", "find") && !is_supported("Page", "nope"));
+    assert!(
+        is_supported("Page", "create")
+            && is_supported("Link", "find")
+            && !is_supported("Page", "nope")
+    );
     use fs_wiki_core::describe::SUPPORTED;
     let reg = registry().unwrap();
     for (ty, name) in SUPPORTED {
-        assert!(reg.get(ty).and_then(|d| d.find_command(name)).is_some(), "{ty}.{name} not described");
+        assert!(
+            reg.get(ty).and_then(|d| d.find_command(name)).is_some(),
+            "{ty}.{name} not described"
+        );
     }
     let open: BTreeSet<_> = unsupported().into_iter().collect();
-    let wished: BTreeSet<_> = wished_commands().into_iter().map(|(a, b)| (a.to_owned(), b.to_owned())).collect();
+    let wished: BTreeSet<_> = wished_commands()
+        .into_iter()
+        .map(|(a, b)| (a.to_owned(), b.to_owned()))
+        .collect();
     assert_eq!(open, wished);
 }

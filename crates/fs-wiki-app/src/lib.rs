@@ -12,10 +12,10 @@
 
 pub mod admin;
 pub mod args;
-pub mod gui;
 mod check;
 pub mod drafts;
 mod drafts_orphans;
+pub mod gui;
 pub mod hash;
 pub mod import;
 pub mod map;

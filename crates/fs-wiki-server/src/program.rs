@@ -7,10 +7,10 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use crate::{HubPurge, TextsServer};
 use fs_interfaces::rpc::{prepare_data_dir, run_until_signal, ServerOptions};
 use fs_objects::{Store, TursoStore};
 use fs_wiki_core::WikiRepo;
-use crate::{HubPurge, TextsServer};
 
 /// The help text.
 pub const HELP: &str = "fs-wiki serve [--socket PATH] [--data DIR] [--actor IRI] [--instance DOMAIN] [--hub-socket PATH] [--lease FILE]\nDefaults: $XDG_RUNTIME_DIR/freesynergy/wiki.sock, $XDG_DATA_HOME/freesynergy/wiki, the local owner; the hub at its default socket (only `purge` and `purgeRevision` need it)\n--lease FILE: end when no window holds this lock any more (started by a window, not by hand)";
@@ -29,10 +29,15 @@ pub enum ServeError {
 /// # Errors
 /// [`ServeError::Usage`] for unknown or incomplete words, [`ServeError::Failed`] for everything else.
 pub fn serve(args: impl IntoIterator<Item = OsString>) -> Result<(), ServeError> {
-    let (lease, args) = crate::lease::take_lease(args.into_iter().collect()).map_err(ServeError::Usage)?;
+    let (lease, args) =
+        crate::lease::take_lease(args.into_iter().collect()).map_err(ServeError::Usage)?;
     let (hub_socket, args) = hub_socket_of(args);
-    let Some(ServerOptions { socket, data, actor, instance }) =
-        ServerOptions::parse("wiki", args).map_err(|p| ServeError::Usage(p.to_string()))?
+    let Some(ServerOptions {
+        socket,
+        data,
+        actor,
+        instance,
+    }) = ServerOptions::parse("wiki", args).map_err(ServeError::Usage)?
     else {
         println!("{HELP}");
         return Ok(());
@@ -40,7 +45,10 @@ pub fn serve(args: impl IntoIterator<Item = OsString>) -> Result<(), ServeError>
     if let Some(lease) = lease {
         // The window that started this server holds the lease; when none does, end as a signal would.
         crate::lease::watch(lease, || {
-            let _ = rustix::process::kill_process(rustix::process::getpid(), rustix::process::Signal::TERM);
+            let _ = rustix::process::kill_process(
+                rustix::process::getpid(),
+                rustix::process::Signal::TERM,
+            );
         });
     }
     run_until_signal(&socket, || async move {
@@ -58,10 +66,7 @@ pub fn serve(args: impl IntoIterator<Item = OsString>) -> Result<(), ServeError>
         // named, and a page says so as well.
         let report = repo.upgrade_index().await.map_err(std::io::Error::other)?;
         if report.rewritten > 0 {
-            eprintln!(
-                "fs-wiki: index completed for {} texts",
-                report.rewritten
-            );
+            eprintln!("fs-wiki: index completed for {} texts", report.rewritten);
         }
         for failed in &report.failed {
             eprintln!("fs-wiki: text not repaired: {failed}");

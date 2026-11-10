@@ -3,7 +3,7 @@
 `fs-wiki` is the wiki program of FreeSynergy and the **owner of the text interface** (ADR 0031, 0050): every text is a wiki
 entry, a collection of texts is a wiki. The database is the truth, files are exports (ADR 0042). The contract is `texts.capnp`
 in [`fs-interfaces`](https://github.com/FreeSynergy/fs-interfaces) (ADR 0045); this program is its provider. This repo holds
-six crates (one of them only for tests); the GUI lives only in `fs-wiki-app`, on [`fs-components`](https://github.com/FreeSynergy/fs-components) (Blinc):
+seven crates (one of them only for tests, one the single binary); the GUI lives only in `fs-wiki-app`, on [`fs-components`](https://github.com/FreeSynergy/fs-components) (Blinc):
 
 * `crates/fs-text`: the **library** of text + layers (document, marks, Markdown, outside changes, links, templates, history).
   No storage, no interface. Its own design is in [`crates/fs-text/DESIGN.md`](crates/fs-text/DESIGN.md).
@@ -12,6 +12,7 @@ six crates (one of them only for tests); the GUI lives only in `fs-wiki-app`, on
   the running `fs-wiki-server` through `fs-wiki-client` (ADR 0021), never to `WikiRepo` or a store.
 * `crates/fs-wiki-client`: the **Cap'n Proto client**: `RpcTexts` implements `Texts` + `TextFeed` of the core over a Unix socket.
 * `crates/fs-wiki-server`: the **Cap'n Proto server**: the contract `texts.capnp` (fs-interfaces v0.49.1) over a Unix socket, in front of `Texts` + `TextFeed`. It only translates; no text logic.
+* `crates/fs-wiki`: the **one binary** (ADR 0063): `fs-wiki` opens the window (and starts the server when none runs, which ends with the last window), `fs-wiki serve` is the server. This is what the release packages.
 * `crates/fs-wiki-core`: the **program core**. The trait `Texts` (Rust form of `Texts` in `texts.capnp`) and `WikiRepo`, its
   implementation over `fs-objects`.
 
@@ -152,6 +153,46 @@ Version 0.5.0 (workspace; the tag is set by the owner). Built on `fs-objects` v0
 | App: explicit Export (`source/export.rs`, `export_fs.rs`): the path is checked as a path (`TextPath`), every step is opened with `openat` and no-follow (a swapped link is met by the open itself), the file is written under a temporary name and renamed (a crash leaves the old or the new file; a hard link elsewhere is replaced, not written through). An existing file with other content is a conflict carrying both texts (`export_markdown_checked`, `WikiSource::last_difference`) and is replaced only after a second press **that answers the question just asked**: the answer is bound to the content shown (hash), so a file that changed after the question is asked about anew (`export_markdown_if_seen`). A page whose Markdown cannot say exactly what the page says (fs-text `ExportReport::inexact`) is asked about first in the same flow, before anything is written ("This file could not be written exactly: block 3 (...): reason"; if the target holds a file with other content, the same question says so and how many lines differ); the number of untouched blocks that had to be written anew (`rewritten`) is added to the answer. A replaced file keeps its mode (a 0600 file stays 0600) and its owner where allowed; temporary names are short and unique. Into the docs folder it records the file as in step and names an old file left by a move (never deleted) | done |
 | App tests | the: `map` (also 1000 nested quotes), `resolve` (schemes, colons after the path, root, folders), `import`, `restart` and `conflicts` (file store and real folder: restart after save, move, outside change, both changed, delete), `source`, `save_race` (4 threads), `export`, `export_safety`, `export_page`, `args`, `origins`, `server`; all against the real `fs-wiki-server` started inside the test over a real socket (the crate `fs-wiki-testserver`), no stand-in |
 | The reader window (`fs-wiki-app`, on `fs-components`) exists; typing in the real window was not verified. other editors, collections / shelves (ADR 0034), named passages' registry, templates in the program | **not started** |
+
+## Types, Admin window, Unsupported (round 3, ADR 0065, 0066, thread R2)
+
+**Descriptions (`fs-wiki-core/src/describe/`, `Texts.types @36` in `texts.capnp`, fs-interfaces v0.0.7).** Each data type of the program implements `DescribesType` (fs-types) and enters the `TypeRegistry`; the server answers `Texts.types` from it (`fs-wiki-server/tests/types.rs`), the client reads it (`RpcTexts::types`). The standard of each type, and why:
+
+| Type | Core value | Standard | Why |
+|---|---|---|---|
+| `Page` | `TextEntry` | W3C ActivityStreams 2.0 `Article` | the core stores every text in an AS2 `Article` envelope (ADR 0031); the content travels as Markdown. A template and a redirect are states of a page (`kind`, `redirectTo`), as in the contract |
+| `Folder` | `Node` (space, folder) | AS2 `OrderedCollection` | a folder holds pages in an order the person sets (`reorder`) |
+| `Revision` | `RevisionInfo` | RFC 7089 Memento | a revision is the state of a page at a time; id `<page id>#<number>` |
+| `TrashEntry` | `TrashItem` | AS2 `Tombstone` | a deleted object with when and who; id = the page's id |
+| `Link` | `LinkEntry` | AS2 `Link` | target and link text; read-only; id `<source>\|<target>\|<place>` (derived) |
+
+`Draft` (the unsaved copy of the reader) is **not** a described type: it is a file of the reader mode, not part of the contract. Listed as `Unsupported`.
+
+**Commands.** Every command of the core is described (Page: create, import, createFromTemplate, change, move, setTemplate, setRedirect, trash, delete, find, search, resolve, export; Folder: find, create, rename, move, reorder, delete; Revision: find, get, restore, purge; TrashEntry: find, restore, purge; Link: find), and every row of `requirements.md` that the core does not have (below). The list is `find` (an empty term lists, `Backend::list`); `change` is partial: a field not sent stays, the Markdown is read as an outside change so layers stay, `revision` makes it conditional (conflict is shown as `unavailable`, the frontend has no word for it).
+
+**Window (`fs-wiki-app/src/admin/`, `gui.rs`).** Shell of ADR 0065 (`fs-components-app`) around `fs-admin-frontend` at `fs-components` rev `4688cee`; one session per type (`Backend` per type, `window.rs`), words in `say.rs` (English, derived from the keys until translation exists). The program has no render code. `fs-wiki --check` runs the same backends without a window (a headless probe of connect, descriptions, lists). `--reader` opens the old documentation reader and editor (import of a folder, drafts, export), because the Admin frontend has no reader.
+
+| Where | Pattern | Why |
+|---|---|---|
+| `describe/*.rs` | Value object + Registry | descriptions; types enter by the trait |
+| `describe/support.rs` | Specification | the table of what is carried out (`// SWITCH`) |
+| `client/calls/v2*.rs` | Adapter + Iterator | texts 0.2 on the wire to the core's values; paging by hand |
+| `server/lease.rs`, `app/gui.rs` | Lease (a lock on a file; not in `coding.md` section 2, reported) | the server a window starts ends with the last window |
+| `app/admin/*.rs` | Adapter + Strategy by command | `Backend` of the frontend over `Texts` |
+| `app/admin/convert.rs` | Adapter | fs-types v0.0.7 (server) to v0.0.2 (frontend); goes when the frontend moves |
+| `app/admin/window.rs` | Factory | backend per type name, sessions, window |
+
+**Unsupported (named, not faked).**
+
+* `supported` is **not** in the description: fs-types v0.0.7 has no such field. A local table, `describe::SUPPORTED` (one row per carried-out command, marker `// SWITCH`), is the one place that switches a command on; `Backend::run` answers `Unavailable("unsupported:<name>")` for the rest, and `fs-wiki --check` counts them. **fs-types v0.0.11** has the flag and a `change` through `Edit`, but its validation refuses a `change` with input fields and the frontend at `4688cee` (fs-types v0.0.2) offers `change` only with a reference input and knows no flag: the move waits for the frontend (Thread A); then `SUPPORTED` becomes `.unsupported()` on the commands below and `change` becomes an `Edit`.
+* The frontend at `4688cee` shows every described command as a button and knows nothing of "locked, kommt noch": a still-to-come command is a live button that answers with an error. Reported to the coordinator for Thread A.
+* Commands of `requirements.md` the core does not have (Page): share, unshare (permissions, Sharing interface open), comment, openTalkPage (messages with a reference), attach, detach (files with a reference), setLabels (shared tag field open), watch, unwatch (`subscribe` in the hub), createDatabase (blocks and databases, open), joinSession (co-editing, P2P ADR 0059), recordGuide, recordCommandGuide, replayGuide, embed, applyTag, tagTable (typed notes), referenceBlock, createCanvas, importCanvas, exportCanvas; (Link): unlinkedMentions.
+* `purge` and `purgeRevision` need the hub; without one the server answers `no-hub` and the frontend shows `unavailable`.
+* A list that continues after a place (`history`, `list_trash`, `search`, `children`) is read from the start by the client and cut there (the cursors are opaque); at most 5000 items. `SearchHit.relevance` is not on the wire, a search continues by id.
+* Findings of the frontend (`RecordIssue`) have no word for "path taken", "conflict" or "not empty": those refusals come as `unavailable` with the English text in the log. Only a missing field and a non-number are findings.
+* The Text-Editor component (`fs-components-text-editor`, branch `r2-text-editor` of fs-components, not yet tagged) is built and tested but **not wired in**: the Admin frontend at `4688cee` has a plain input for multiline text and no place to put a component. The reader mode keeps its own editor of the workbench.
+* No `exe`: the siblings build `windows-targets: ""` (Unix sockets), so does this repo; rpm, deb and tar.gz come from `fs-release`.
+* The Admin frontend's own gaps (Ctrl+Q, F1, Settings, Fullscreen, components for text, date, language ...) are in its `DESIGN.md`.
 
 ## Structure and pattern map (ADR 0043)
 

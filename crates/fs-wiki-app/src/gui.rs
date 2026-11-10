@@ -9,7 +9,7 @@ use std::path::Path;
 
 use fs_wiki_client::RpcTexts;
 
-use crate::args::{parse, HELP};
+use crate::args::{HELP, parse};
 use crate::server::socket_path;
 use crate::words::{self, say};
 
@@ -25,11 +25,18 @@ pub fn run(words: &[String]) -> Result<(), String> {
     }
     let socket = socket_path(args.socket.as_deref())?;
     let texts = connect_or_start(&socket, args.socket.is_none())?;
-    if args.reader { crate::mode_reader::run(&args, texts) } else { crate::mode_admin::run(&args, texts) }
+    if args.reader {
+        crate::mode_reader::run(&args, texts)
+    } else {
+        crate::mode_admin::run(&args, texts)
+    }
 }
 
 fn connect_error(socket: &Path, e: &std::io::Error) -> String {
-    say(words::SERVER_UNREACHABLE, &[("path", &socket.display()), ("error", e)])
+    say(
+        words::SERVER_UNREACHABLE,
+        &[("path", &socket.display()), ("error", e)],
+    )
 }
 
 /// Connect; if none answers on the user's own socket, start `<this program> serve` (detached, so other windows use it
@@ -58,7 +65,9 @@ fn connect_or_start(socket: &Path, may_start: bool) -> Result<RpcTexts, String> 
         .stdout(std::process::Stdio::null())
         .stderr(log_file.map_or_else(std::process::Stdio::null, std::process::Stdio::from));
     std::os::unix::process::CommandExt::process_group(&mut server, 0);
-    let mut child = server.spawn().map_err(|e| format!("could not start the wiki server: {e}"))?;
+    let mut child = server
+        .spawn()
+        .map_err(|e| format!("could not start the wiki server: {e}"))?;
     for _ in 0..50 {
         std::thread::sleep(std::time::Duration::from_millis(100));
         if let Ok(texts) = RpcTexts::connect(socket) {
@@ -68,7 +77,10 @@ fn connect_or_start(socket: &Path, may_start: bool) -> Result<RpcTexts, String> 
         if let Ok(Some(status)) = child.try_wait() {
             let said = std::fs::read_to_string(&log).unwrap_or_default();
             let _ = std::fs::remove_file(&log);
-            return Err(format!("the wiki server stopped at once ({status}): {}", said.trim()));
+            return Err(format!(
+                "the wiki server stopped at once ({status}): {}",
+                said.trim()
+            ));
         }
     }
     // Still waiting: the child lives on (it may just be slow); reap it if it ends later.
@@ -81,7 +93,10 @@ fn connect_or_start(socket: &Path, may_start: bool) -> Result<RpcTexts, String> 
 /// Hold the shared lock on `path` until this process ends.
 fn hold_lease(path: &Path) {
     static HELD: std::sync::OnceLock<std::fs::File> = std::sync::OnceLock::new();
-    if let Ok(file) = std::fs::OpenOptions::new().create(true).append(true).open(path)
+    if let Ok(file) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
         && file.lock_shared().is_ok()
     {
         let _ = HELD.set(file);

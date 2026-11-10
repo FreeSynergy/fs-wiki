@@ -31,7 +31,7 @@ mod wire_search;
 mod writes;
 mod writes_v2;
 
-pub use program::{serve, ServeError, HELP};
 pub use hub_purge::{manifest, HubPurge, PROGRAM};
+pub use program::{serve, ServeError, HELP};
 pub use texts_service::{TextsServer, CONTRACT_VERSION};
 pub use wire::MAX_SOURCE_BYTES;

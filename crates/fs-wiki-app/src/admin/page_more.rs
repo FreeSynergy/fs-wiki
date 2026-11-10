@@ -6,7 +6,7 @@
 use fs_admin_frontend::{BackendError, Outcome, Values};
 use fs_wiki_core::Outcome as Resolved;
 
-use super::ctx::{id, need, unsupported, Ctx};
+use super::ctx::{Ctx, id, need, unsupported};
 
 fn word(o: Resolved) -> &'static str {
     match o {
@@ -32,7 +32,10 @@ pub fn run(ctx: &Ctx, name: &str, input: &Values) -> Result<Outcome, BackendErro
             Ok(Outcome { id: target, values })
         }
         "export" => {
-            let text = ctx.block(ctx.texts.export_text(id(input, "id")?, need(input, "mediaType")?))?;
+            let text = ctx.block(
+                ctx.texts
+                    .export_text(id(input, "id")?, need(input, "mediaType")?),
+            )?;
             let mut values = Values::new();
             values.insert("text".into(), vec![text]);
             Ok(Outcome { id: None, values })

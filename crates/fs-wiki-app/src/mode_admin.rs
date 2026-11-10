@@ -8,7 +8,7 @@ use std::sync::Arc;
 use fs_admin_frontend::Values;
 use fs_wiki_client::RpcTexts;
 
-use crate::admin::{backend_for, open, Ctx};
+use crate::admin::{Ctx, backend_for, open};
 use crate::args::Args;
 
 /// Run the Admin mode.
@@ -18,16 +18,19 @@ use crate::args::Args;
 pub fn run(args: &Args, texts: RpcTexts) -> Result<(), String> {
     let runtime = tokio::runtime::Runtime::new().map_err(|e| e.to_string())?;
     let texts = Arc::new(texts);
-    let registry = runtime.block_on(texts.types()).map_err(|e| format!("the server gave no type description: {e}"))?;
+    let registry = runtime
+        .block_on(texts.types())
+        .map_err(|e| format!("the server gave no type description: {e}"))?;
     let ctx = Ctx::new(texts, runtime.handle().clone());
     if args.check {
-        return check(&registry, &ctx);
+        check(&registry, &ctx);
+        return Ok(());
     }
     open(&registry, &ctx, "source").map_err(|e| e.to_string())
 }
 
 /// One line per data type: how many records its list has; no window.
-fn check(registry: &fs_types::TypeRegistry, ctx: &Ctx) -> Result<(), String> {
+fn check(registry: &fs_types::TypeRegistry, ctx: &Ctx) {
     for t in registry.iter() {
         let line = match backend_for(&t.name, ctx) {
             Some(backend) => match backend.list(&Values::new()) {
@@ -36,8 +39,15 @@ fn check(registry: &fs_types::TypeRegistry, ctx: &Ctx) -> Result<(), String> {
             },
             None => "no backend".to_owned(),
         };
-        let open = t.commands.iter().filter(|c| !fs_wiki_core::describe::is_supported(&t.name, &c.name)).count();
-        println!("{}: {} commands ({open} still to come), {line}", t.name, t.commands.len());
+        let open = t
+            .commands
+            .iter()
+            .filter(|c| !fs_wiki_core::describe::is_supported(&t.name, &c.name))
+            .count();
+        println!(
+            "{}: {} commands ({open} still to come), {line}",
+            t.name,
+            t.commands.len()
+        );
     }
-    Ok(())
 }

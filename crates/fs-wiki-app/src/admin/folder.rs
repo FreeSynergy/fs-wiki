@@ -7,7 +7,7 @@ use fs_admin_frontend::{Backend, BackendError, Outcome, Record, Values};
 use fs_wiki_core::describe::is_supported;
 use fs_wiki_core::{Node, NodeKind, Placement};
 
-use super::ctx::{id, need, one, optional_id, unsupported, Ctx, LIST_LIMIT};
+use super::ctx::{Ctx, LIST_LIMIT, id, need, one, optional_id, unsupported};
 use super::records;
 
 /// The spaces and folders.
@@ -62,22 +62,34 @@ impl Backend for FolderBackend {
         let t = &self.0.texts;
         match name {
             "create" => {
-                let n = self.0.block(t.create_folder(optional_id(input, "parent")?, need(input, "name")?, one(input, "path").unwrap_or_default()))?;
+                let n = self.0.block(t.create_folder(
+                    optional_id(input, "parent")?,
+                    need(input, "name")?,
+                    one(input, "path").unwrap_or_default(),
+                ))?;
                 Ok(records::outcome(n.id))
             }
             "rename" => {
-                let n = self.0.block(t.rename_folder(id(input, "id")?, need(input, "name")?))?;
+                let n = self
+                    .0
+                    .block(t.rename_folder(id(input, "id")?, need(input, "name")?))?;
                 Ok(records::outcome(n.id))
             }
             "move" => {
                 let folder = id(input, "id")?;
-                let node = self.0.block(t.get_folder(folder))?.ok_or(BackendError::NotFound)?;
-                self.0.block(t.move_folder(&node.path, need(input, "path")?))?;
+                let node = self
+                    .0
+                    .block(t.get_folder(folder))?
+                    .ok_or(BackendError::NotFound)?;
+                self.0
+                    .block(t.move_folder(&node.path, need(input, "path")?))?;
                 Ok(records::outcome(folder))
             }
             "reorder" => {
                 let at = Self::placement(need(input, "placement")?)?;
-                let n = self.0.block(t.reorder(id(input, "id")?, at, optional_id(input, "anchor")?))?;
+                let n =
+                    self.0
+                        .block(t.reorder(id(input, "id")?, at, optional_id(input, "anchor")?))?;
                 Ok(records::outcome(n.id))
             }
             "delete" => {

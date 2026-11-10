@@ -24,8 +24,16 @@ fn describe() -> TypeDescription {
         .field(field(T, "path", B::Text))
         .field(field(T, "restoredFrom", B::Text))
         .command(command(T, "find", K::Find).input(reference("page", "Page", "wiki.revision.page")))
-        .command(command(T, "get", K::Other).input(id()).result(field(T, "content", B::MultilineText)))
-        .command(command(T, "restore", K::Other).input(id()).input(field(T, "revision", B::Text)))
+        .command(command(T, "get", K::Other).input(id()).result(field(
+            T,
+            "content",
+            B::MultilineText,
+        )))
+        .command(
+            command(T, "restore", K::Other)
+                .input(id())
+                .input(field(T, "revision", B::Text)),
+        )
         .command(command(T, "purge", K::Delete).input(id()))
 }
 

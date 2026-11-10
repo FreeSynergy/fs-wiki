@@ -85,7 +85,8 @@ impl RpcTexts {
     /// # Errors
     /// The server cannot be reached, does not know the method, or sent a description that does not read.
     pub async fn types(&self) -> Result<fs_types::TypeRegistry> {
-        self.call(|r| async move { crate::calls::v2::types(&r.texts).await }).await
+        self.call(|r| async move { crate::calls::v2::types(&r.texts).await })
+            .await
     }
 
     /// The id of the store behind the server, as the server reported it when this connection was made.

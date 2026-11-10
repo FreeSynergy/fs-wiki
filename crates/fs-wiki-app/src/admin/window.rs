@@ -6,14 +6,16 @@
 use std::sync::Arc;
 
 use fs_admin_frontend::view::{AboutInfo, AdminSurface};
-use fs_admin_frontend::window::{admin_window, TypeView};
+use fs_admin_frontend::window::{TypeView, admin_window};
 use fs_admin_frontend::{Backend, Session, SystemClock};
-use fs_components_app::{launch, AppError, AppWidget, WindowOptions};
+use fs_components_app::{AppError, AppWidget, WindowOptions, launch};
 use fs_components_fields::{Look, Say};
 use fs_components_styles::StyleId;
 use fs_types::TypeRegistry;
 
-use super::{convert, Ctx, FolderBackend, LinkBackend, PageBackend, RevisionBackend, TrashBackend, Words};
+use super::{
+    Ctx, FolderBackend, LinkBackend, PageBackend, RevisionBackend, TrashBackend, Words, convert,
+};
 
 /// The backend of a data type of the wiki; none for a type this version does not know.
 pub fn backend_for(name: &str, ctx: &Ctx) -> Option<Arc<dyn Backend>> {
@@ -35,10 +37,23 @@ pub fn views(registry: &TypeRegistry, ctx: &Ctx) -> Vec<TypeView> {
         .filter_map(|name| {
             let description = registry.get(name)?;
             let backend = backend_for(name, ctx)?;
-            let session = Session::new(convert::description(description), backend, Arc::new(SystemClock::new()));
-            let surface = AdminSurface::new(session, Look::new(StyleId::Admin, false), Arc::clone(&say), None);
+            let session = Session::new(
+                convert::description(description),
+                backend,
+                Arc::new(SystemClock::new()),
+            );
+            let surface = AdminSurface::new(
+                session,
+                Look::new(StyleId::Admin, false),
+                Arc::clone(&say),
+                None,
+            );
             let label = format!("type.{}", name.trim_end_matches("Entry").to_lowercase());
-            Some(TypeView { id: name.to_owned(), label, surface: Arc::new(surface) })
+            Some(TypeView {
+                id: name.to_owned(),
+                label,
+                surface: Arc::new(surface),
+            })
         })
         .collect()
 }

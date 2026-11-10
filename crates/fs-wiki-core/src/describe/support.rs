@@ -56,7 +56,10 @@ pub fn unsupported() -> Vec<(String, String)> {
         .expect("the descriptions are valid")
         .iter()
         .flat_map(|t| {
-            t.commands.iter().filter(|c| !is_supported(&t.name, &c.name)).map(|c| (t.name.clone(), c.name.clone()))
+            t.commands
+                .iter()
+                .filter(|c| !is_supported(&t.name, &c.name))
+                .map(|c| (t.name.clone(), c.name.clone()))
         })
         .collect()
 }

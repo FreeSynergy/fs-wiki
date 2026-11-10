@@ -35,7 +35,13 @@ impl Ctx {
     }
 
     /// Wait for a call of the core.
-    pub fn block<T>(&self, f: impl std::future::Future<Output = fs_wiki_core::Result<T>>) -> Result<T, BackendError> {
+    ///
+    /// # Errors
+    /// The error of the core as the frontend's ([`fail`]).
+    pub fn block<T>(
+        &self,
+        f: impl std::future::Future<Output = fs_wiki_core::Result<T>>,
+    ) -> Result<T, BackendError> {
         self.handle.block_on(f).map_err(fail)
     }
 }
@@ -43,9 +49,10 @@ impl Ctx {
 /// The error of the core as the frontend's.
 pub fn fail(e: Error) -> BackendError {
     match e {
-        Error::NotFound(_) | Error::NoSuchNode(_) | Error::NoSuchRevision { .. } | Error::NoSuchFolder(_) => {
-            BackendError::NotFound
-        }
+        Error::NotFound(_)
+        | Error::NoSuchNode(_)
+        | Error::NoSuchRevision { .. }
+        | Error::NoSuchFolder(_) => BackendError::NotFound,
         Error::Unsupported(u) => BackendError::Unavailable(format!("unsupported:{u}")),
         other => BackendError::Unavailable(other.to_string()),
     }
@@ -53,7 +60,11 @@ pub fn fail(e: Error) -> BackendError {
 
 /// The first value of a field, trimmed; `None` when missing or empty.
 pub fn one<'a>(input: &'a Values, field: &str) -> Option<&'a str> {
-    input.get(field).and_then(|v| v.first()).map(|s| s.trim()).filter(|s| !s.is_empty())
+    input
+        .get(field)
+        .and_then(|v| v.first())
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
 }
 
 /// Whether the field is in the input at all (an empty list means "cleared").
@@ -80,7 +91,9 @@ pub fn need<'a>(input: &'a Values, field: &str) -> Result<&'a str, BackendError>
 /// # Errors
 /// `Rejected` when missing, `NotFound` when it is not an id of ours.
 pub fn id(input: &Values, field: &str) -> Result<ObjectId, BackendError> {
-    need(input, field)?.parse().map_err(|_| BackendError::NotFound)
+    need(input, field)?
+        .parse()
+        .map_err(|_| BackendError::NotFound)
 }
 
 /// An optional id.
@@ -88,12 +101,18 @@ pub fn id(input: &Values, field: &str) -> Result<ObjectId, BackendError> {
 /// # Errors
 /// `NotFound` when given and not an id.
 pub fn optional_id(input: &Values, field: &str) -> Result<Option<ObjectId>, BackendError> {
-    one(input, field).map(|s| s.parse().map_err(|_| BackendError::NotFound)).transpose()
+    one(input, field)
+        .map(|s| s.parse().map_err(|_| BackendError::NotFound))
+        .transpose()
 }
 
 /// A text value as a one-element list; nothing for an empty text.
 pub fn text(s: &str) -> Vec<String> {
-    if s.is_empty() { Vec::new() } else { vec![s.to_owned()] }
+    if s.is_empty() {
+        Vec::new()
+    } else {
+        vec![s.to_owned()]
+    }
 }
 
 /// A value that should be a number and is not.

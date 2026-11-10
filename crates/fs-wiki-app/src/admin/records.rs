@@ -4,7 +4,10 @@
 //! name of the description). Pure functions; the shape of every record is the description of `fs-wiki-core`.
 
 use fs_admin_frontend::{Outcome, Record, Values};
-use fs_wiki_core::{LinkEntry, Node, NodeKind, RevisionInfo, SearchHit, TextEntry, TextFormat, TrashItem};
+use fs_objects::ObjectId;
+use fs_wiki_core::{
+    LinkEntry, Node, NodeKind, RevisionInfo, SearchHit, TextEntry, TextFormat, TrashItem,
+};
 
 use super::ctx::text;
 
@@ -43,20 +46,32 @@ pub fn page(e: &TextEntry) -> Record {
 pub fn hit(h: &SearchHit) -> Record {
     record(
         h.id.to_string(),
-        &[("path", text(&h.path)), ("name", text(&h.name)), ("kind", kind(h.template)), ("updatedBy", text(&h.updated_by))],
+        &[
+            ("path", text(&h.path)),
+            ("name", text(&h.name)),
+            ("kind", kind(h.template)),
+            ("updatedBy", text(&h.updated_by)),
+        ],
     )
 }
 
 /// A space or folder.
 pub fn folder(n: &Node) -> Record {
-    let kind = if n.kind == NodeKind::Space { "space" } else { "folder" };
+    let kind = if n.kind == NodeKind::Space {
+        "space"
+    } else {
+        "folder"
+    };
     record(
         n.id.to_string(),
         &[
             ("kind", vec![kind.to_owned()]),
             ("name", text(&n.name)),
             ("path", text(&n.path)),
-            ("parent", n.parent.map(|p| p.to_string()).into_iter().collect()),
+            (
+                "parent",
+                n.parent.map(|p| p.to_string()).into_iter().collect(),
+            ),
             ("position", vec![n.position.to_string()]),
         ],
     )
@@ -80,7 +95,14 @@ pub fn revision(i: &RevisionInfo) -> Record {
             ("size", vec![i.size.to_string()]),
             ("summary", text(&i.summary)),
             ("path", text(&i.path)),
-            ("restoredFrom", if i.restored_from == 0 { Vec::new() } else { vec![i.restored_from.to_string()] }),
+            (
+                "restoredFrom",
+                if i.restored_from == 0 {
+                    Vec::new()
+                } else {
+                    vec![i.restored_from.to_string()]
+                },
+            ),
         ],
     )
 }
@@ -108,12 +130,18 @@ pub fn link(l: &LinkEntry) -> Record {
             ("target", text(&l.target)),
             ("at", text(&l.at)),
             ("title", text(&l.title)),
-            ("internal", vec![if l.internal { "yes" } else { "no" }.to_owned()]),
+            (
+                "internal",
+                vec![if l.internal { "yes" } else { "no" }.to_owned()],
+            ),
         ],
     )
 }
 
 /// An answer that names the record it created or changed.
-pub fn outcome(id: impl ToString) -> Outcome {
-    Outcome { id: Some(id.to_string()), values: Values::new() }
+pub fn outcome(id: ObjectId) -> Outcome {
+    Outcome {
+        id: Some(id.to_string()),
+        values: Values::new(),
+    }
 }

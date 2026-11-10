@@ -8,7 +8,7 @@ use fs_admin_frontend::{Backend, BackendError, Outcome, Record, Values};
 use fs_wiki_core::describe::is_supported;
 use fs_wiki_core::{Expect, Paging, SearchFilter, SearchQuery, TextFormat, Tri};
 
-use super::ctx::{id, need, not_a_number, one, sent, unsupported, Ctx, LIST_LIMIT};
+use super::ctx::{Ctx, LIST_LIMIT, id, need, not_a_number, one, sent, unsupported};
 use super::{page_more, records};
 
 /// The pages of the wiki.
@@ -35,7 +35,10 @@ impl PageBackend {
                 ..SearchFilter::default()
             },
         };
-        let hits = self.0.block(self.0.texts.search(&query, None, LIST_LIMIT))?.items;
+        let hits = self
+            .0
+            .block(self.0.texts.search(&query, None, LIST_LIMIT))?
+            .items;
         // A hit carries no text: read each page, so the detail shows every field.
         let mut out = Vec::new();
         for h in hits {
@@ -49,7 +52,10 @@ impl PageBackend {
 
     fn change(&self, input: &Values) -> Result<Outcome, BackendError> {
         let page = id(input, "id")?;
-        let current = self.0.block(self.0.texts.get(page))?.ok_or(BackendError::NotFound)?;
+        let current = self
+            .0
+            .block(self.0.texts.get(page))?
+            .ok_or(BackendError::NotFound)?;
         let expect = match one(input, "revision").map(str::parse::<u64>) {
             Some(Ok(n)) => Expect::Revision(n),
             Some(Err(_)) => return Err(not_a_number("revision")),
@@ -59,10 +65,15 @@ impl PageBackend {
         let mut doc = current.document.clone();
         // A field not sent is unchanged; the Markdown is read as an outside change, so layers stay.
         if sent(input, "content") {
-            let md = input.get("content").and_then(|v| v.first()).map_or("", String::as_str);
+            let md = input
+                .get("content")
+                .and_then(|v| v.first())
+                .map_or("", String::as_str);
             TextFormat::Markdown.import_external(&mut doc, md);
         }
-        let written = self.0.block(self.0.texts.edit_with(page, expect, doc, &summary))?;
+        let written = self
+            .0
+            .block(self.0.texts.edit_with(page, expect, doc, &summary))?;
         Ok(records::outcome(written.id))
     }
 }
@@ -73,11 +84,17 @@ impl Backend for PageBackend {
             return Err(unsupported("tagTable"));
         }
         let search_only = ["prefix", "pathPrefix", "templates", "redirects", "author"];
-        if search_only.iter().any(|k| one(q, k).is_some_and(|v| v != "any" && v != "no")) {
+        if search_only
+            .iter()
+            .any(|k| one(q, k).is_some_and(|v| v != "any" && v != "no"))
+        {
             return self.search(q);
         }
         let term = one(q, "term").unwrap_or_default();
-        let paging = Paging { offset: 0, limit: Some(LIST_LIMIT) };
+        let paging = Paging {
+            offset: 0,
+            limit: Some(LIST_LIMIT),
+        };
         let texts = if term.is_empty() {
             self.0.block(self.0.texts.list("", paging))?
         } else {
@@ -93,30 +110,45 @@ impl Backend for PageBackend {
         let t = &self.0.texts;
         match name {
             "create" => {
-                let e = self.0.block(t.create(need(input, "path")?, one(input, "content").unwrap_or_default()))?;
+                let e = self.0.block(t.create(
+                    need(input, "path")?,
+                    one(input, "content").unwrap_or_default(),
+                ))?;
                 Ok(records::outcome(e.id))
             }
             "import" => {
-                let e = self.0.block(t.import_text(need(input, "path")?, need(input, "mediaType")?, need(input, "text")?))?;
+                let e = self.0.block(t.import_text(
+                    need(input, "path")?,
+                    need(input, "mediaType")?,
+                    need(input, "text")?,
+                ))?;
                 Ok(records::outcome(e.id))
             }
             "createFromTemplate" => {
-                let e = self.0.block(t.create_from_template(id(input, "template")?, need(input, "path")?))?;
+                let e = self
+                    .0
+                    .block(t.create_from_template(id(input, "template")?, need(input, "path")?))?;
                 Ok(records::outcome(e.id))
             }
             "change" => self.change(input),
             "move" => {
-                let e = self.0.block(t.move_to(id(input, "id")?, need(input, "path")?))?;
+                let e = self
+                    .0
+                    .block(t.move_to(id(input, "id")?, need(input, "path")?))?;
                 Ok(records::outcome(e.id))
             }
             "setTemplate" => {
                 let on = need(input, "kind")? == "template";
-                let e = self.0.block(t.set_template(id(input, "id")?, on, Expect::Any))?;
+                let e = self
+                    .0
+                    .block(t.set_template(id(input, "id")?, on, Expect::Any))?;
                 Ok(records::outcome(e.id))
             }
             "setRedirect" => {
                 let target = one(input, "redirectTo").unwrap_or_default();
-                let e = self.0.block(t.set_redirect(id(input, "id")?, target, Expect::Any))?;
+                let e = self
+                    .0
+                    .block(t.set_redirect(id(input, "id")?, target, Expect::Any))?;
                 Ok(records::outcome(e.id))
             }
             "trash" => {

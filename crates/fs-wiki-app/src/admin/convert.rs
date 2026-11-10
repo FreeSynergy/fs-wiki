@@ -5,8 +5,12 @@
 //! values are copied field by field; the kinds travel as their wire numbers (a number this side does not know is
 //! `unknown`, which the schema promises to read as plain text). Goes away when the frontend moves to the later tag.
 
-use fs_types::{CommandDescription as New, FieldDescription as NewField, TypeDescription as NewType};
-use fs_types_admin::{BasicType, CommandDescription, CommandKind, FieldDescription, TypeDescription};
+use fs_types::{
+    CommandDescription as New, FieldDescription as NewField, TypeDescription as NewType,
+};
+use fs_types_admin::{
+    BasicType, CommandDescription, CommandKind, FieldDescription, TypeDescription,
+};
 
 fn field(f: &NewField) -> FieldDescription {
     let basic = BasicType::try_from(f.basic as u16).unwrap_or(BasicType::Unknown);

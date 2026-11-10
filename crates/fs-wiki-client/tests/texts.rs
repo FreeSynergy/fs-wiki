@@ -139,6 +139,9 @@ async fn the_client_offers_what_it_can_call_since_texts_0_2() {
         assert!(caps.is_supported(id), "{id}");
     }
     // a text that is not there is a typed not-found, not an Unsupported
-    let e = texts.history(fs_objects::ObjectId::new(), None, 5).await.unwrap_err();
+    let e = texts
+        .history(fs_objects::ObjectId::new(), None, 5)
+        .await
+        .unwrap_err();
     assert!(!matches!(e, fs_wiki_core::Error::Unsupported(_)), "{e:?}");
 }

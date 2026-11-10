@@ -21,9 +21,18 @@ const FIXED: &[(&str, &str)] = &[
     ("action.remove", "Remove"),
     ("action.save", "Save"),
     ("message.done", "Done."),
-    ("message.rejected", "The wiki refused this; check the marked fields."),
-    ("message.not-found", "There is no such page, folder or command."),
-    ("message.unavailable", "The wiki cannot do this now (see the log), or the command is still to come."),
+    (
+        "message.rejected",
+        "The wiki refused this; check the marked fields.",
+    ),
+    (
+        "message.not-found",
+        "There is no such page, folder or command.",
+    ),
+    (
+        "message.unavailable",
+        "The wiki cannot do this now (see the log), or the command is still to come.",
+    ),
     ("message.unsaved", "There is text that is not sent yet."),
     ("list.empty", "Nothing here."),
     ("list.stale", "The list may be old."),
@@ -60,7 +69,10 @@ impl Say for Words {
             return (*text).to_owned();
         }
         match key.strip_prefix("wiki.") {
-            Some(rest) => rest.rsplit('.').next().map_or_else(|| key.to_owned(), spelled),
+            Some(rest) => rest
+                .rsplit('.')
+                .next()
+                .map_or_else(|| key.to_owned(), spelled),
             None => key.to_owned(),
         }
     }

@@ -28,7 +28,10 @@ fn main() -> ExitCode {
 }
 
 fn lossy(words: &[OsString]) -> Vec<String> {
-    words.iter().map(|w| w.to_string_lossy().into_owned()).collect()
+    words
+        .iter()
+        .map(|w| w.to_string_lossy().into_owned())
+        .collect()
 }
 
 fn serve(words: &[OsString]) -> ExitCode {
@@ -58,6 +61,8 @@ fn window(words: &[String]) -> ExitCode {
 
 #[cfg(not(feature = "gui"))]
 fn window(_words: &[String]) -> ExitCode {
-    eprintln!("fs-wiki: this build has no window (built with --no-default-features); use `fs-wiki serve`");
+    eprintln!(
+        "fs-wiki: this build has no window (built with --no-default-features); use `fs-wiki serve`"
+    );
     ExitCode::FAILURE
 }

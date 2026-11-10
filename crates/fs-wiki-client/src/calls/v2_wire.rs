@@ -8,13 +8,13 @@
 use fs_interfaces::common_capnp::uuid;
 use fs_interfaces::rpc::{from_millis, read_object_id, read_uuid, write_uuid};
 use fs_interfaces::texts_capnp::{
-    expect, node, revision_info, search_hit, search_query, trash_item, NodeKind as WireKind, Outcome as WireOutcome,
-    Placement as WirePlacement, Tri as WireTri,
+    expect, node, revision_info, search_hit, search_query, trash_item, NodeKind as WireKind,
+    Outcome as WireOutcome, Placement as WirePlacement, Tri as WireTri,
 };
 use fs_objects::ObjectId;
 use fs_wiki_core::{
-    Expect, Highlight, Node, NodeKind, Outcome, Placement, Result, RevisionInfo, SearchHit, SearchQuery, Snippet,
-    TrashItem, Tri,
+    Expect, Highlight, Node, NodeKind, Outcome, Placement, Result, RevisionInfo, SearchHit,
+    SearchQuery, Snippet, TrashItem, Tri,
 };
 
 use crate::read::unreadable;
@@ -25,7 +25,10 @@ fn text(t: capnp::Result<capnp::text::Reader<'_>>) -> Result<String> {
 
 /// A zero id is none.
 pub(crate) fn optional_id(r: uuid::Reader<'_>) -> Result<Option<ObjectId>> {
-    read_uuid(r).map(|_| read_object_id(r)).transpose().map_err(unreadable)
+    read_uuid(r)
+        .map(|_| read_object_id(r))
+        .transpose()
+        .map_err(unreadable)
 }
 
 pub(crate) fn write_expect(mut out: expect::Builder<'_>, e: Expect) {
@@ -54,7 +57,8 @@ pub(crate) fn trash_item(r: trash_item::Reader<'_>) -> Result<TrashItem> {
         id: read_object_id(r.get_id().map_err(unreadable)?).map_err(unreadable)?,
         path: text(r.get_path())?,
         name: text(r.get_name())?,
-        deleted_at: from_millis(r.get_deleted_at().map_err(unreadable)?.get_unix_millis()).map_err(unreadable)?,
+        deleted_at: from_millis(r.get_deleted_at().map_err(unreadable)?.get_unix_millis())
+            .map_err(unreadable)?,
         deleted_by: text(r.get_deleted_by())?,
         size: r.get_size(),
     })
@@ -110,12 +114,17 @@ pub(crate) fn write_query(mut out: search_query::Builder<'_>, q: &SearchQuery) {
     out.set_term(q.term.as_str());
     out.set_prefix(q.prefix);
     let mut f = out.init_filter();
-    write_uuid(f.reborrow().init_space(), q.filter.space.map(|s| s.as_uuid()));
+    write_uuid(
+        f.reborrow().init_space(),
+        q.filter.space.map(|s| s.as_uuid()),
+    );
     f.set_path_prefix(q.filter.path_prefix.as_str());
     f.set_template(tri(q.filter.template));
     f.set_redirect(tri(q.filter.redirect));
     f.set_author(q.filter.author.as_str());
-    f.reborrow().init_updated_from().set_unix_millis(q.filter.updated_from_ms);
+    f.reborrow()
+        .init_updated_from()
+        .set_unix_millis(q.filter.updated_from_ms);
     f.init_updated_to().set_unix_millis(q.filter.updated_to_ms);
 }
 
@@ -131,7 +140,10 @@ pub(crate) fn hit(r: search_hit::Reader<'_>, relevance: u32) -> Result<SearchHit
     for s in r.get_snippets().map_err(unreadable)? {
         let mut highlights = Vec::new();
         for h in s.get_highlights().map_err(unreadable)? {
-            highlights.push(Highlight { start: h.get_start(), end: h.get_end() });
+            highlights.push(Highlight {
+                start: h.get_start(),
+                end: h.get_end(),
+            });
         }
         snippets.push(Snippet {
             field: field(&text(s.get_field())?)?,
@@ -145,7 +157,8 @@ pub(crate) fn hit(r: search_hit::Reader<'_>, relevance: u32) -> Result<SearchHit
         id: read_object_id(r.get_id().map_err(unreadable)?).map_err(unreadable)?,
         path: text(r.get_path())?,
         name: text(r.get_name())?,
-        updated: from_millis(r.get_updated().map_err(unreadable)?.get_unix_millis()).map_err(unreadable)?,
+        updated: from_millis(r.get_updated().map_err(unreadable)?.get_unix_millis())
+            .map_err(unreadable)?,
         updated_by: text(r.get_updated_by())?,
         template: r.get_template(),
         redirect: r.get_redirect(),

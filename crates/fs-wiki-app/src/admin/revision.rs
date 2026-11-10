@@ -7,21 +7,28 @@ use fs_objects::ObjectId;
 use fs_wiki_core::describe::is_supported;
 use fs_wiki_core::{Expect, TextFormat};
 
-use super::ctx::{need, not_a_number, one, unsupported, Ctx, LIST_LIMIT};
+use super::ctx::{Ctx, LIST_LIMIT, need, not_a_number, one, unsupported};
 use super::records;
 
 /// The revisions of the pages.
 pub struct RevisionBackend(pub Ctx);
 
 fn split(input: &Values) -> Result<(ObjectId, u64), BackendError> {
-    let (page, number) = need(input, "id")?.split_once('#').ok_or(BackendError::NotFound)?;
-    Ok((page.parse().map_err(|_| BackendError::NotFound)?, number.parse().map_err(|_| not_a_number("id"))?))
+    let (page, number) = need(input, "id")?
+        .split_once('#')
+        .ok_or(BackendError::NotFound)?;
+    Ok((
+        page.parse().map_err(|_| BackendError::NotFound)?,
+        number.parse().map_err(|_| not_a_number("id"))?,
+    ))
 }
 
 impl Backend for RevisionBackend {
     fn list(&self, q: &Values) -> Result<Vec<Record>, BackendError> {
         // the history of one page; without a page there is nothing to list (the history is per text)
-        let Some(page) = one(q, "page") else { return Ok(Vec::new()) };
+        let Some(page) = one(q, "page") else {
+            return Ok(Vec::new());
+        };
         let page: ObjectId = page.parse().map_err(|_| BackendError::NotFound)?;
         let h = self.0.block(self.0.texts.history(page, None, LIST_LIMIT))?;
         Ok(h.items.iter().map(records::revision).collect())
@@ -35,9 +42,15 @@ impl Backend for RevisionBackend {
         let (page, number) = split(input)?;
         match name {
             "get" => {
-                let r = self.0.block(t.get_revision(page, number))?.ok_or(BackendError::NotFound)?;
+                let r = self
+                    .0
+                    .block(t.get_revision(page, number))?
+                    .ok_or(BackendError::NotFound)?;
                 let mut values = Values::new();
-                values.insert("content".into(), vec![TextFormat::Markdown.export(&r.document)]);
+                values.insert(
+                    "content".into(),
+                    vec![TextFormat::Markdown.export(&r.document)],
+                );
                 Ok(Outcome { id: None, values })
             }
             "restore" => {

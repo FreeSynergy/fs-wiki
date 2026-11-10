@@ -1,6 +1,6 @@
 //! `Link`: a link from a page to another page or an outside address (`LinkEntry`).
 //!
-//! Pattern: Value object. Standard: W3C ActivityStreams 2.0 `Link` (target, text of the link). The list is read-only: links
+//! Pattern: Value object. Standard: W3C `ActivityStreams` 2.0 `Link` (target, text of the link). The list is read-only: links
 //! are made by writing the page. The id is `<source>|<target>|<place>` (derived, not stored).
 
 use fs_types::{BasicType as B, CommandKind as K, DescribesType, TypeDescription};
@@ -26,7 +26,11 @@ fn describe() -> TypeDescription {
                 .input(optional_reference("source", "Page", "wiki.link.source"))
                 .input(field(T, "target", B::Text)),
         )
-        .command(command(T, "unlinkedMentions", K::Find).input(reference("page", "Page", "wiki.link.page")))
+        .command(command(T, "unlinkedMentions", K::Find).input(reference(
+            "page",
+            "Page",
+            "wiki.link.page",
+        )))
 }
 
 impl DescribesType for LinkEntry {

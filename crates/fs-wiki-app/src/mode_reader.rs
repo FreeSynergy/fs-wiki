@@ -7,9 +7,9 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use fs_components_workbenches::{DraftStore, Labels, Options, Picture, Step, launch, snapshot};
 use crate::store_path::{data_dir, old_store_file, origins_file};
 use crate::{Conflict, FileDraftStore, FileOrigins, Wiki, WikiSource, import_folder, words};
+use fs_components_workbenches::{DraftStore, Labels, Options, Picture, Step, launch, snapshot};
 use fs_wiki_client::RpcTexts;
 use fs_wiki_core::Texts;
 
