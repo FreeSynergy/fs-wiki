@@ -187,12 +187,19 @@ fn it_refuses_bad_arguments_and_a_data_directory_others_can_read() {
     }
     assert!(!dir.path().join("data").exists(), "nothing was opened");
 
-    let open = dir.path().join("open");
+    // A data folder that others can read is refused: by its mode, so on Unix.
+    #[cfg(unix)]
+    open_data_is_refused(&run, dir.path());
+}
+
+#[cfg(unix)]
+fn open_data_is_refused(run: &dyn Fn(&[&str]) -> Option<i32>, dir: &Path) {
+    let open = dir.join("open");
     std::fs::create_dir(&open).unwrap();
     // A folder open to others is refused (Unix: by its mode).
     #[cfg(unix)]
     std::fs::set_permissions(&open, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
-    let socket = dir.path().join("x.sock");
+    let socket = dir.join("x.sock");
     let (socket, open) = (socket.to_str().unwrap(), open.to_str().unwrap());
     assert_eq!(run(&["--socket", socket, "--data", open]), Some(1));
 }

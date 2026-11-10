@@ -95,21 +95,17 @@ impl FileDraftStore {
             builder.mode(0o700);
         }
         builder.create(&self.dir).map_err(|e| failed(&e))?;
-        private(&self.dir, 0o700)
+        #[cfg(unix)]
+        private(&self.dir, 0o700)?;
+        Ok(())
     }
 }
 
-/// Set the permission bits (Unix); nothing elsewhere.
+/// Set the permission bits (Unix only; Windows keeps the folder in the user's profile).
+#[cfg(unix)]
 fn private(path: &Path, mode: u32) -> Result<(), SourceError> {
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode))
-            .map_err(|e| failed(&e))?;
-    }
-    #[cfg(not(unix))]
-    let _ = (path, mode);
-    Ok(())
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)).map_err(|e| failed(&e))
 }
 
 /// An absolute form, also for names that do not exist yet.
@@ -155,9 +151,12 @@ impl DraftStore for FileDraftStore {
             f.write_all(&json).map_err(|e| failed(&e))?;
             f.sync_all().map_err(|e| failed(&e))?;
             std::fs::rename(&temp, &file).map_err(|e| failed(&e))?;
+            // The folder is synced on Unix; Windows cannot open one as a file.
+            #[cfg(unix)]
             std::fs::File::open(&self.dir)
                 .and_then(|d| d.sync_all())
-                .map_err(|e| failed(&e))
+                .map_err(|e| failed(&e))?;
+            Ok(())
         })();
         if written.is_err() {
             let _ = std::fs::remove_file(&temp);

@@ -156,8 +156,12 @@ pub(crate) fn lock(path: &Path) -> io::Result<File> {
 
 /// Options for a file only the user may read (mode 0600 on Unix; elsewhere the folder's rights).
 fn private_options() -> OpenOptions {
-    let mut options = OpenOptions::new();
     #[cfg(unix)]
-    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
-    options
+    {
+        let mut options = OpenOptions::new();
+        std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+        options
+    }
+    #[cfg(not(unix))]
+    OpenOptions::new()
 }

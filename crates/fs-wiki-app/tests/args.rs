@@ -38,6 +38,8 @@ fn every_docs_folder_has_its_own_store_in_the_data_directory() {
     std::fs::remove_dir_all(data).unwrap();
 }
 
+// Unix paths (`/data` is not absolute on Windows, where the data folder is `%LOCALAPPDATA%`).
+#[cfg(unix)]
 #[test]
 fn an_empty_or_relative_data_directory_is_treated_as_unset() {
     use fs_wiki_app::store_path::data_dir_from;

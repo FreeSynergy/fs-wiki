@@ -62,14 +62,23 @@ pub fn open_folder(dir: &Dir, name: &str, create: bool) -> Result<Dir, FsError> 
             if !create {
                 return Err(FsError::Missing);
             }
-            let mut builder = DirBuilder::new();
-            #[cfg(unix)]
-            cap_std::fs::DirBuilderExt::mode(&mut builder, 0o755);
-            dir.create_dir_with(name, &builder).map_err(other)?;
+            dir.create_dir_with(name, &new_folder()).map_err(other)?;
             dir.open_dir_nofollow(name).map_err(other)
         }
         Err(e) => Err(linked(dir, name, true).unwrap_or_else(|| other(e))),
     }
+}
+
+/// How a folder is made: 0755 on Unix (the umask applies), the rights of the parent on Windows.
+fn new_folder() -> DirBuilder {
+    #[cfg(unix)]
+    {
+        let mut builder = DirBuilder::new();
+        cap_std::fs::DirBuilderExt::mode(&mut builder, 0o755);
+        builder
+    }
+    #[cfg(not(unix))]
+    DirBuilder::new()
 }
 
 /// A file that is there: its text, and the mode and owner a replacement must keep.
@@ -130,22 +139,13 @@ fn keep_rights(file: &cap_std::fs::File, old: &Existing) -> std::io::Result<()> 
     file.set_permissions(cap_std::fs::PermissionsExt::from_mode(old.mode))
 }
 
-/// Windows keeps no mode and owner of its own to carry over.
-#[cfg(not(unix))]
-fn keep_rights(_file: &cap_std::fs::File, _old: &Existing) -> std::io::Result<()> {
-    Ok(())
-}
-
-/// Make what was written durable: the folder itself on Unix (Windows cannot sync a folder).
+/// Make what was written durable: the folder itself (Unix only; Windows cannot sync a folder).
+#[cfg(unix)]
 fn sync_dir(dir: &Dir) -> Result<(), FsError> {
-    #[cfg(unix)]
     // `cap-std` holds its folders as path handles that cannot be synced: open the folder again, as a file.
     dir.open(".")
         .and_then(|folder| folder.sync_all())
-        .map_err(other)?;
-    #[cfg(not(unix))]
-    let _ = dir;
-    Ok(())
+        .map_err(other)
 }
 
 /// Write `text` as `name` in `dir`: a temporary file, synced, then renamed over the target. A file
@@ -173,12 +173,16 @@ pub fn write_atomic(
         }
     }
     let (temp, mut file) = made.ok_or_else(|| other("no free temporary name"))?;
+    // Windows keeps no mode and owner of its own to carry over.
+    #[cfg(unix)]
     if let Some(old) = keep
         && let Err(e) = keep_rights(&file, old)
     {
         let _ = dir.remove_file(&temp);
         return Err(other(e));
     }
+    #[cfg(not(unix))]
+    let _ = keep;
     let result = file
         .write_all(text.as_bytes())
         .and_then(|()| file.sync_all())
@@ -191,5 +195,7 @@ pub fn write_atomic(
         let _ = dir.remove_file(&temp);
     }
     result?;
-    sync_dir(dir)
+    #[cfg(unix)]
+    sync_dir(dir)?;
+    Ok(())
 }
