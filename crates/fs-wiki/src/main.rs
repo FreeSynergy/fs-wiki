@@ -4,6 +4,7 @@
 //! fs-wiki                          the window (feature `gui`, on by default)
 //! fs-wiki [--socket F] [--check]   the window, options as in `fs-wiki-app --help`
 //! fs-wiki serve                    the server (Cap'n Proto, texts.capnp)
+//! fs-wiki --version                the version, without opening anything
 //! ```
 
 use std::ffi::OsString;
@@ -15,6 +16,10 @@ fn main() -> ExitCode {
     let raw: Vec<OsString> = std::env::args_os().skip(1).collect();
     let text = |i: usize| raw.get(i).and_then(|w| w.to_str());
     match text(0) {
+        Some("--version" | "-V") => {
+            println!("fs-wiki {}", env!("CARGO_PKG_VERSION"));
+            ExitCode::SUCCESS
+        }
         Some("serve") => serve(&raw[1..]),
         // `fs-wiki --socket PATH serve`: the option may stand before the word.
         Some("--socket") if text(2) == Some("serve") => {
