@@ -86,6 +86,10 @@ fn starter(
 /// Hold the shared lock on `path` until this process ends.
 fn hold_lease(path: &Path) {
     static HELD: std::sync::OnceLock<std::fs::File> = std::sync::OnceLock::new();
+    // The folder of the socket may not exist yet (the first start of all): the person's own, private (as the server makes it).
+    if let Some(dir) = path.parent() {
+        make_private_dir(dir);
+    }
     // Read and write, not append: Windows takes a lock only on a handle that can read or write data.
     match std::fs::OpenOptions::new()
         .read(true)
@@ -104,4 +108,13 @@ fn hold_lease(path: &Path) {
         },
         Err(e) => eprintln!("fs-wiki: no lease file {} ({e})", path.display()),
     }
+}
+
+/// Make `dir` (and what lacks above it) readable by the owner only; a failure is not reported here, the lease then says so.
+fn make_private_dir(dir: &Path) {
+    let mut builder = std::fs::DirBuilder::new();
+    builder.recursive(true);
+    #[cfg(unix)]
+    std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);
+    let _ = builder.create(dir);
 }
