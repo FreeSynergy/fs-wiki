@@ -5,7 +5,6 @@
 //! type, and builds the window; nothing here draws (no render code in the program, ADR 0066). The backends are
 //! Adapters from the frontend's `Backend` to `Texts` (one file per type).
 
-mod convert;
 mod ctx;
 mod folder;
 mod link;

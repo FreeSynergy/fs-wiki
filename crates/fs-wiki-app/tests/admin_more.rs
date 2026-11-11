@@ -4,8 +4,9 @@
 
 mod admin_common;
 
-use admin_common::{backend, create, v, wiki};
-use fs_admin_frontend::{BackendError, Values};
+use admin_common::{backend, create, set, v, wiki};
+use fs_admin_frontend::{Backend, BackendError, Values};
+use fs_wiki_app::admin::PageBackend;
 use fs_wiki_app::admin::views;
 use fs_wiki_core::Texts;
 
@@ -24,16 +25,26 @@ fn a_redirect_not_sent_stays_and_an_empty_one_clears_it() {
     let pages = backend(&w, "Page");
     let id = create(&w, "a", "one\n");
     pages
-        .run("setRedirect", &v(&[("id", &[&id]), ("redirectTo", &["b"])]))
+        .run(
+            "setRedirect",
+            None,
+            &v(&[("id", &[&id]), ("redirectTo", &["b"])]),
+        )
         .unwrap();
     // the form sends only what changed: nothing sent, nothing changes
-    pages.run("setRedirect", &v(&[("id", &[&id])])).unwrap();
+    pages
+        .run("setRedirect", None, &v(&[("id", &[&id])]))
+        .unwrap();
     assert_eq!(
         pages.list(&Values::new()).unwrap()[0].values["redirectTo"],
         ["b"]
     );
     pages
-        .run("setRedirect", &v(&[("id", &[&id]), ("redirectTo", &[])]))
+        .run(
+            "setRedirect",
+            None,
+            &v(&[("id", &[&id]), ("redirectTo", &[])]),
+        )
         .unwrap();
     assert!(
         !pages.list(&Values::new()).unwrap()[0]
@@ -47,14 +58,18 @@ fn a_page_moves_among_its_siblings_and_a_folder_with_it() {
     let w = wiki();
     let folders = backend(&w, "Folder");
     let space = folders
-        .run("create", &v(&[("name", &["Manual"])]))
+        .run("create", None, &v(&[("name", &["Manual"])]))
         .unwrap()
         .id
         .unwrap();
     let a = create(&w, "manual/a", "a\n");
     create(&w, "manual/b", "b\n");
     backend(&w, "Page")
-        .run("reorder", &v(&[("id", &[&a]), ("placement", &["last"])]))
+        .run(
+            "reorder",
+            None,
+            &v(&[("id", &[&a]), ("placement", &["last"])]),
+        )
         .unwrap();
     let order =
         w.rt.block_on(w.texts.children(Some(space.parse().unwrap()), 0, 10))
@@ -62,7 +77,7 @@ fn a_page_moves_among_its_siblings_and_a_folder_with_it() {
             .items;
     assert_eq!(order.last().unwrap().id.to_string(), a, "a is last now");
     folders
-        .run("move", &v(&[("id", &[&space]), ("path", &["guide"])]))
+        .run("move", None, &v(&[("id", &[&space]), ("path", &["guide"])]))
         .unwrap();
     let pages = backend(&w, "Page").list(&Values::new()).unwrap();
     assert!(
@@ -79,22 +94,29 @@ fn restore_a_revision_and_the_purge_that_needs_a_hub() {
     let pages = backend(&w, "Page");
     let id = create(&w, "a", "one\n");
     pages
-        .run("change", &v(&[("id", &[&id]), ("content", &["two\n"])]))
+        .run(
+            "change",
+            None,
+            &v(&[("id", &[&id]), ("content", &["two\n"])]),
+        )
         .unwrap();
     let revs = backend(&w, "Revision");
     let list = revs.list(&v(&[("page", &[&id])])).unwrap();
     assert_eq!(list.len(), 2);
     let first = list.iter().find(|r| r.values["number"] == ["1"]).unwrap();
-    revs.run("restore", &v(&[("id", &[&first.id])])).unwrap();
+    revs.run("restore", None, &v(&[("id", &[&first.id])]))
+        .unwrap();
     assert!(pages.list(&Values::new()).unwrap()[0].values["content"][0].contains("one"));
-    let e = revs.run("purge", &v(&[("id", &[&first.id])])).unwrap_err();
+    let e = revs
+        .run("purge", None, &v(&[("id", &[&first.id])]))
+        .unwrap_err();
     assert!(
         matches!(e, BackendError::Unavailable(ref t) if t.contains("no hub")),
         "{e:?}"
     );
-    pages.run("trash", &v(&[("id", &[&id])])).unwrap();
+    pages.run("trash", None, &v(&[("id", &[&id])])).unwrap();
     let e = backend(&w, "TrashEntry")
-        .run("purge", &v(&[("id", &[&id])]))
+        .run("purge", None, &v(&[("id", &[&id])]))
         .unwrap_err();
     assert!(
         matches!(e, BackendError::Unavailable(ref t) if t.contains("no hub")),
@@ -105,33 +127,25 @@ fn restore_a_revision_and_the_purge_that_needs_a_hub() {
 #[test]
 fn a_write_between_the_read_and_the_change_is_a_conflict_not_lost() {
     let w = wiki();
-    let pages = backend(&w, "Page");
+    // two windows on one server: both have listed the page as it is
+    let (first, second) = (
+        PageBackend::new(w.ctx.clone()),
+        PageBackend::new(w.ctx.clone()),
+    );
     let id = create(&w, "a", "one\n");
-    let seen = pages.list(&Values::new()).unwrap()[0].values["revision"][0].clone();
-    pages
-        .run(
-            "change",
-            &v(&[
-                ("id", &[&id]),
-                ("content", &["two\n"]),
-                ("revision", &[&seen]),
-            ]),
-        )
-        .unwrap();
-    // a second writer used the revision that was current when the form was opened
-    let e = pages
-        .run(
-            "change",
-            &v(&[
-                ("id", &[&id]),
-                ("content", &["three\n"]),
-                ("revision", &[&seen]),
-            ]),
-        )
+    first.list(&Values::new()).unwrap();
+    second.list(&Values::new()).unwrap();
+    first.change(&id, &set("content", &["two\n"])).unwrap();
+    // the second window saw the revision before the first one wrote
+    let e = second
+        .change(&id, &set("content", &["three\n"]))
         .unwrap_err();
     assert!(
         matches!(e, BackendError::Unavailable(ref t) if t.contains("conflict")),
         "{e:?}"
     );
-    assert!(pages.list(&Values::new()).unwrap()[0].values["content"][0].contains("two"));
+    assert!(first.list(&Values::new()).unwrap()[0].values["content"][0].contains("two"));
+    // after it read again it may write
+    second.list(&Values::new()).unwrap();
+    second.change(&id, &set("content", &["three\n"])).unwrap();
 }

@@ -1,14 +1,15 @@
 //! The window of the wiki program: connect to the server (starting it when none runs), then the Admin window, the
 //! headless check or the reader.
 //!
-//! Pattern: Facade — one entry point over the arguments, the server start and the two modes. A server the window starts
-//! ends itself when no window holds the lease any more (`fs-wiki-server` `lease.rs`); a socket given with `--socket` is
-//! never answered by starting anything.
+//! Pattern: Facade — one entry point over the arguments, the version handshake and the two modes. A server the window
+//! starts ends itself when no window holds the lease any more (`fs-wiki-server` `lease.rs`); a server of another version
+//! is replaced (`fs-interfaces` `connect_matching`).
 
-use std::path::Path;
+use std::ffi::OsString;
+use std::path::{Path, PathBuf};
 
-use fs_interfaces::rpc::{FACET_FLAG, companion_path};
-use fs_wiki_client::RpcTexts;
+use fs_interfaces::rpc::{CommandStarter, Expected, FACET_FLAG, companion_path};
+use fs_wiki_client::{RpcTexts, Timeouts};
 
 use crate::args::{HELP, parse};
 use crate::server::socket_path;
@@ -25,7 +26,7 @@ pub fn run(words: &[String]) -> Result<(), String> {
         return Ok(());
     }
     let socket = socket_path(args.socket.as_deref())?;
-    let texts = connect_or_start(&socket, args.socket.is_none(), args.facet.as_deref())?;
+    let texts = connect_or_start(&socket, args.socket.is_some(), args.facet.as_deref())?;
     if args.reader {
         crate::mode_reader::run(&args, texts)
     } else {
@@ -33,81 +34,53 @@ pub fn run(words: &[String]) -> Result<(), String> {
     }
 }
 
-fn connect_error(socket: &Path, e: &std::io::Error) -> String {
-    say(
-        words::SERVER_UNREACHABLE,
-        &[("path", &socket.display()), ("error", e)],
-    )
-}
-
-/// Connect; if none answers on the user's own socket, start `<this program> serve` (detached, so other windows use it
-/// too) and wait for it.
+/// Connect to the server that fits this version (the handshake of `fs-interfaces`): one of this version is used as it is,
+/// none is started (`<this program> serve`, detached, so other windows use it too), one of another version is ended and
+/// replaced.
 fn connect_or_start(
     socket: &Path,
-    may_start: bool,
+    own_socket: bool,
     facet: Option<&str>,
 ) -> Result<RpcTexts, String> {
     // This window is a user of the server for as long as it lives: the shared lock is let go by the system when the
-    // process ends. A server this window starts ends itself when no window holds the lease.
+    // process ends. A server this window starts ends itself when no window holds the lease any more.
     let lease = companion_path(socket, "lease");
-    if may_start {
-        hold_lease(&lease);
-    }
-    let first = RpcTexts::connect(socket);
-    if first.is_ok() || !may_start {
-        return first.map_err(|e| connect_error(socket, &e));
-    }
-    let me = std::env::current_exe().map_err(|e| e.to_string())?;
-    // What the server says when it cannot start goes to a file next to the socket, so the window can tell the person.
-    let log = companion_path(socket, "log");
-    let log_file = std::fs::File::create(&log).ok();
-    let mut server = server_command(&me);
-    server
-        .arg("--lease")
-        .arg(&lease)
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(log_file.map_or_else(std::process::Stdio::null, std::process::Stdio::from));
-    if let Some(facet) = facet {
-        server.arg(FACET_FLAG).arg(facet);
-    }
-    crate::detach::current().apply(&mut server);
-    let mut child = server
-        .spawn()
-        .map_err(|e| format!("could not start the wiki server: {e}"))?;
-    for _ in 0..50 {
-        std::thread::sleep(std::time::Duration::from_millis(100));
-        if let Ok(texts) = RpcTexts::connect(socket) {
-            let _ = std::fs::remove_file(&log);
-            return Ok(texts);
-        }
-        if let Ok(Some(status)) = child.try_wait() {
-            let said = std::fs::read_to_string(&log).unwrap_or_default();
-            let _ = std::fs::remove_file(&log);
-            return Err(format!(
-                "the wiki server stopped at once ({status}): {}",
-                said.trim()
-            ));
-        }
-    }
-    // Still waiting: the child lives on (it may just be slow); reap it if it ends later.
-    std::thread::spawn(move || {
-        let _ = child.wait();
-    });
-    first.map_err(|e| connect_error(socket, &e))
+    hold_lease(&lease);
+    let starter = starter(socket, &lease, own_socket, facet)?;
+    let expected = Expected::new(env!("CARGO_PKG_VERSION"));
+    RpcTexts::connect_matching(socket, &expected, &starter, Timeouts::default()).map_err(|e| {
+        say(
+            words::HANDSHAKE,
+            &[("path", &socket.display()), ("error", &e)],
+        )
+    })
 }
 
-/// The command that runs the server: `fs-wiki serve`, or, when this is the window-only `fs-wiki-app`, the
-/// `fs-wiki-server` next to it (`serve` is not a word of the window program).
-fn server_command(me: &Path) -> std::process::Command {
+/// How the server is started when none fits: `fs-wiki serve --lease <lease>` (or the `fs-wiki-server` next to this
+/// window-only program), on the socket this window talks to. What it says when it cannot start goes to its own stderr,
+/// which a detached server has not: the person sees the words of the handshake instead.
+fn starter(
+    socket: &Path,
+    lease: &Path,
+    own_socket: bool,
+    facet: Option<&str>,
+) -> Result<CommandStarter, String> {
+    let me = std::env::current_exe().map_err(|e| e.to_string())?;
     let name = me.file_name().and_then(|n| n.to_str()).unwrap_or_default();
-    if name.starts_with("fs-wiki-app") {
-        std::process::Command::new(me.with_file_name("fs-wiki-server"))
+    // `serve` is not a word of the window-only program: its server is the binary next to it.
+    let (program, mut words): (PathBuf, Vec<OsString>) = if name.starts_with("fs-wiki-app") {
+        (me.with_file_name("fs-wiki-server"), Vec::new())
     } else {
-        let mut serve = std::process::Command::new(me);
-        serve.arg("serve");
-        serve
+        (me, vec!["serve".into()])
+    };
+    if own_socket {
+        words.extend(["--socket".into(), socket.as_os_str().to_owned()]);
     }
+    words.extend(["--lease".into(), lease.as_os_str().to_owned()]);
+    if let Some(facet) = facet {
+        words.extend([FACET_FLAG.into(), facet.into()]);
+    }
+    Ok(CommandStarter::new(program, words))
 }
 
 /// Hold the shared lock on `path` until this process ends.

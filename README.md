@@ -8,7 +8,7 @@ What is different here: a text is stored as text plus layers, not as one flat fi
 
 ## What it can do today
 
-Latest tag: `v0.0.6`.
+Latest tag: `v0.0.6`; `v0.0.7` is in preparation (fs-components v0.0.8: Blinc only through it, AltGr and the keys of other layouts type correctly).
 
 - Create, edit, move, delete and list texts by path; links, backlinks and search.
 - Move a text or a folder and rewrite the links to it.

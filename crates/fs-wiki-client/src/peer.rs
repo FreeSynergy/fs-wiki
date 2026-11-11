@@ -11,6 +11,10 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use fs_interfaces::rpc::client::{Fault, Timeouts, Worker};
+use fs_interfaces::rpc::{
+    connect_matching_with, Expected, HandshakeError, RestartTimes, ServerStarter,
+};
+use fs_interfaces::texts_capnp::texts;
 use fs_interfaces::Capabilities;
 use fs_objects::StoreId;
 use fs_wiki_core::{Error, Registry, Result};
@@ -66,6 +70,48 @@ impl RpcTexts {
             registry: Arc::new(Registry::default()),
             state: Arc::default(),
         })
+    }
+
+    /// [`connect`](Self::connect) after the version handshake (`fs-interfaces` `connect_matching`): a server of the
+    /// version `expected` is used as it is, none is started by `starter`, one of another version is ended and replaced.
+    /// Every call afterwards has the deadline of `timeouts` (default: [`CALL_TIMEOUT`](crate::CALL_TIMEOUT)).
+    ///
+    /// Blocks the calling thread like [`connect`](Self::connect); the handshake itself runs on a thread-local runtime that
+    /// is gone when it returns.
+    ///
+    /// # Errors
+    /// [`HandshakeError`], which words itself for the person: what runs, what is needed, what to do.
+    pub fn connect_matching(
+        socket: &Path,
+        expected: &Expected,
+        starter: &dyn ServerStarter,
+        timeouts: Timeouts,
+    ) -> std::result::Result<Self, HandshakeError> {
+        Self::connect_matching_with(socket, expected, starter, RestartTimes::default(), timeouts)
+    }
+
+    /// [`connect_matching`](Self::connect_matching) with other waits for the replacement of a server.
+    ///
+    /// # Errors
+    /// As for [`connect_matching`](Self::connect_matching).
+    pub fn connect_matching_with(
+        socket: &Path,
+        expected: &Expected,
+        starter: &dyn ServerStarter,
+        times: RestartTimes,
+        timeouts: Timeouts,
+    ) -> std::result::Result<Self, HandshakeError> {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(HandshakeError::Io)?;
+        // The connection of the handshake only asks `Control.version`; it is dropped before the worker's own is made.
+        tokio::task::LocalSet::new().block_on(&runtime, async {
+            connect_matching_with::<texts::Client>(socket, expected, starter, times)
+                .await
+                .map(drop)
+        })?;
+        Self::connect_with(socket, timeouts).map_err(HandshakeError::Io)
     }
 
     /// Where `fs-wiki-server` listens when it is given no `--socket`:

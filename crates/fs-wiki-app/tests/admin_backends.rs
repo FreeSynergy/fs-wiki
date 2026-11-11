@@ -4,8 +4,9 @@
 
 mod admin_common;
 
-use admin_common::{backend, create, v, wiki};
+use admin_common::{backend, create, set, v, wiki};
 use fs_admin_frontend::{BackendError, Values};
+use fs_types::{BasicType, Edit};
 
 #[test]
 fn a_page_is_created_listed_changed_partly_and_found() {
@@ -18,12 +19,17 @@ fn a_page_is_created_listed_changed_partly_and_found() {
     assert!(all[0].values["content"][0].contains("Hello"));
     // only the summary is sent: the content stays (a field not sent is unchanged)
     pages
-        .run("change", &v(&[("id", &[&id]), ("summary", &["note"])]))
+        .run(
+            "change",
+            None,
+            &v(&[("id", &[&id]), ("summary", &["note"])]),
+        )
         .unwrap();
     assert!(pages.list(&Values::new()).unwrap()[0].values["content"][0].contains("Hello"));
     pages
         .run(
             "change",
+            None,
             &v(&[
                 ("id", &[&id]),
                 ("content", &["# Start\n\nChanged\n"]),
@@ -44,30 +50,42 @@ fn a_page_is_created_listed_changed_partly_and_found() {
 }
 
 #[test]
-fn a_stale_revision_is_refused_and_a_bad_number_is_a_finding() {
+fn an_edit_names_what_changes_and_the_rest_stays() {
     let w = wiki();
     let pages = backend(&w, "Page");
     let id = create(&w, "a", "one\n");
-    let e = pages
-        .run(
-            "change",
-            &v(&[
-                ("id", &[&id]),
-                ("content", &["two\n"]),
-                ("revision", &["1"]),
-            ]),
+    pages
+        .change(
+            &id,
+            &set("redirectTo", &["b"])
+                .set(&["kind"], BasicType::Choice, &["template"])
+                .set(&["path"], BasicType::Text, &["c"]),
         )
-        .unwrap_err();
+        .unwrap();
+    pages.list(&Values::new()).unwrap();
+    let page = &pages.list(&Values::new()).unwrap()[0];
+    assert_eq!(page.values["redirectTo"], ["b"]);
+    assert_eq!(page.values["kind"], ["template"]);
+    assert_eq!(page.values["path"], ["c"]);
     assert!(
-        matches!(e, BackendError::Unavailable(ref t) if t.contains("conflict")),
-        "{e:?}"
+        page.values["content"][0].contains("one"),
+        "the content stayed"
+    );
+    // no value clears: the redirect is gone, the content is not touched
+    pages
+        .change(&id, &Edit::new().clear(&["redirectTo"], BasicType::Text))
+        .unwrap();
+    assert!(
+        !pages.list(&Values::new()).unwrap()[0]
+            .values
+            .contains_key("redirectTo")
+    );
+    assert_eq!(
+        pages.change("not-an-id", &Edit::new()).unwrap_err(),
+        BackendError::NotFound
     );
     let e = pages
-        .run("change", &v(&[("id", &[&id]), ("revision", &["x"])]))
-        .unwrap_err();
-    assert!(matches!(e, BackendError::Rejected(_)), "{e:?}");
-    let e = pages
-        .run("create", &v(&[("content", &["no path"])]))
+        .run("create", None, &v(&[("content", &["no path"])]))
         .unwrap_err();
     assert!(
         matches!(e, BackendError::Rejected(_)),
@@ -79,7 +97,10 @@ fn a_stale_revision_is_refused_and_a_bad_number_is_a_finding() {
 fn a_command_that_is_described_but_not_carried_out_says_unsupported() {
     let w = wiki();
     for (ty, cmd) in fs_wiki_core::describe::unsupported() {
-        let e = backend(&w, &ty).run(&cmd, &Values::new()).unwrap_err();
+        assert!(!backend(&w, &ty).supported(&cmd), "{ty}.{cmd} is locked");
+        let e = backend(&w, &ty)
+            .run(&cmd, None, &Values::new())
+            .unwrap_err();
         assert_eq!(
             e,
             BackendError::Unavailable(format!("unsupported:{cmd}")),
@@ -93,6 +114,14 @@ fn a_command_that_is_described_but_not_carried_out_says_unsupported() {
 }
 
 #[test]
+fn what_the_core_carries_out_is_unlocked_for_the_frontend() {
+    let w = wiki();
+    for (ty, cmd) in fs_wiki_core::describe::SUPPORTED {
+        assert!(backend(&w, ty).supported(cmd), "{ty}.{cmd} is unlocked");
+    }
+}
+
+#[test]
 fn trash_template_redirect_resolve_and_export() {
     let w = wiki();
     let pages = backend(&w, "Page");
@@ -100,6 +129,7 @@ fn trash_template_redirect_resolve_and_export() {
     pages
         .run(
             "setTemplate",
+            None,
             &v(&[("id", &[&id]), ("kind", &["template"])]),
         )
         .unwrap();
@@ -110,6 +140,7 @@ fn trash_template_redirect_resolve_and_export() {
     let copy = pages
         .run(
             "createFromTemplate",
+            None,
             &v(&[("template", &[&id]), ("path", &["t2"])]),
         )
         .unwrap()
@@ -118,24 +149,28 @@ fn trash_template_redirect_resolve_and_export() {
     pages
         .run(
             "setRedirect",
+            None,
             &v(&[("id", &[&copy]), ("redirectTo", &["t"])]),
         )
         .unwrap();
-    let r = pages.run("resolve", &v(&[("path", &["t2"])])).unwrap();
+    let r = pages
+        .run("resolve", None, &v(&[("path", &["t2"])]))
+        .unwrap();
     assert_eq!(r.values["outcome"], ["resolved"]);
     assert_eq!(r.id.as_deref(), Some(id.as_str()));
     let exported = pages
         .run(
             "export",
+            None,
             &v(&[("id", &[&id]), ("mediaType", &["text/markdown"])]),
         )
         .unwrap();
     assert!(exported.values["text"][0].contains('T'));
-    pages.run("trash", &v(&[("id", &[&copy])])).unwrap();
+    pages.run("trash", None, &v(&[("id", &[&copy])])).unwrap();
     let trash = backend(&w, "TrashEntry");
     let entries = trash.list(&Values::new()).unwrap();
     assert_eq!(entries.len(), 1);
-    trash.run("restore", &v(&[("id", &[&copy])])).unwrap();
+    trash.run("restore", None, &v(&[("id", &[&copy])])).unwrap();
     assert_eq!(trash.list(&Values::new()).unwrap().len(), 0);
     assert_eq!(pages.list(&Values::new()).unwrap().len(), 2);
 }
@@ -145,30 +180,40 @@ fn folders_revisions_and_links() {
     let w = wiki();
     let folders = backend(&w, "Folder");
     let space = folders
-        .run("create", &v(&[("name", &["Manual"])]))
+        .run("create", None, &v(&[("name", &["Manual"])]))
         .unwrap()
         .id
         .unwrap();
     let sub = folders
-        .run("create", &v(&[("parent", &[&space]), ("name", &["Start"])]))
+        .run(
+            "create",
+            None,
+            &v(&[("parent", &[&space]), ("name", &["Start"])]),
+        )
         .unwrap()
         .id
         .unwrap();
     folders
-        .run("rename", &v(&[("id", &[&sub]), ("name", &["Begin"])]))
+        .run("rename", None, &v(&[("id", &[&sub]), ("name", &["Begin"])]))
         .unwrap();
     let listed = folders.list(&Values::new()).unwrap();
     assert_eq!(listed.len(), 2);
     assert!(listed.iter().any(|r| r.values["name"] == ["Begin"]));
     assert_eq!(folders.list(&v(&[("name", &["begin"])])).unwrap().len(), 1);
     folders
-        .run("reorder", &v(&[("id", &[&sub]), ("placement", &["first"])]))
+        .run(
+            "reorder",
+            None,
+            &v(&[("id", &[&sub]), ("placement", &["first"])]),
+        )
         .unwrap();
     let page = create(&w, "manual/p", "see [x](manual/q)\n");
     let revs = backend(&w, "Revision");
     let list = revs.list(&v(&[("page", &[&page])])).unwrap();
     assert_eq!(list.len(), 1);
-    let got = revs.run("get", &v(&[("id", &[&list[0].id])])).unwrap();
+    let got = revs
+        .run("get", None, &v(&[("id", &[&list[0].id])]))
+        .unwrap();
     assert!(got.values["content"][0].contains("see"));
     assert!(
         revs.list(&Values::new()).unwrap().is_empty(),
@@ -179,6 +224,6 @@ fn folders_revisions_and_links() {
         .unwrap();
     assert_eq!(links.len(), 1);
     assert_eq!(links[0].values["target"], ["manual/q"]);
-    folders.run("delete", &v(&[("id", &[&sub])])).unwrap();
+    folders.run("delete", None, &v(&[("id", &[&sub])])).unwrap();
     assert_eq!(folders.list(&Values::new()).unwrap().len(), 1);
 }

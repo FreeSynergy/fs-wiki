@@ -78,10 +78,10 @@ pub fn sent(input: &Values, field: &str) -> bool {
 /// `Rejected` with a `Missing` finding.
 pub fn need<'a>(input: &'a Values, field: &str) -> Result<&'a str, BackendError> {
     one(input, field).ok_or_else(|| {
-        BackendError::Rejected(vec![fs_types_admin::RecordIssue {
+        BackendError::Rejected(vec![fs_types::RecordIssue {
             field: field.to_owned(),
             index: 0,
-            problem: fs_types_admin::RecordProblem::Missing,
+            problem: fs_types::RecordProblem::Missing,
         }])
     })
 }
@@ -117,10 +117,10 @@ pub fn text(s: &str) -> Vec<String> {
 
 /// A value that should be a number and is not.
 pub fn not_a_number(field: &str) -> BackendError {
-    BackendError::Rejected(vec![fs_types_admin::RecordIssue {
+    BackendError::Rejected(vec![fs_types::RecordIssue {
         field: field.to_owned(),
         index: 0,
-        problem: fs_types_admin::RecordProblem::Value(fs_types_admin::TypeProblem::Character),
+        problem: fs_types::RecordProblem::Value(fs_types::TypeProblem::Character),
     }])
 }
 

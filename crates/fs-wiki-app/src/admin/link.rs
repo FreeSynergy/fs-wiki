@@ -4,6 +4,8 @@
 //! it (`backlinks`); with neither there is nothing to list (the link table is per page). Read-only.
 
 use fs_admin_frontend::{Backend, BackendError, Outcome, Record, Values};
+use fs_types::Edit;
+use fs_wiki_core::describe::is_supported;
 
 use super::ctx::{Ctx, optional_id, unsupported};
 use super::records;
@@ -12,6 +14,15 @@ use super::records;
 pub struct LinkBackend(pub Ctx);
 
 impl Backend for LinkBackend {
+    fn supported(&self, command: &str) -> bool {
+        is_supported("Link", command)
+    }
+
+    fn change(&self, _record: &str, _edit: &Edit) -> Result<Outcome, BackendError> {
+        // The description has no `change` for this type: what can be done has commands of its own.
+        Err(unsupported("change"))
+    }
+
     fn list(&self, q: &Values) -> Result<Vec<Record>, BackendError> {
         if q.contains_key("page") {
             return Err(unsupported("unlinkedMentions"));
@@ -26,7 +37,7 @@ impl Backend for LinkBackend {
         Ok(rows.iter().map(records::link).collect())
     }
 
-    fn run(&self, name: &str, _: &Values) -> Result<Outcome, BackendError> {
+    fn run(&self, name: &str, _: Option<&str>, _: &Values) -> Result<Outcome, BackendError> {
         // Links are made by writing a page; nothing here is carried out.
         Err(unsupported(name))
     }

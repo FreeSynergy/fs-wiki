@@ -4,6 +4,7 @@
 //! frontend shows it as `unavailable`.
 
 use fs_admin_frontend::{Backend, BackendError, Outcome, Record, Values};
+use fs_types::Edit;
 use fs_wiki_core::describe::is_supported;
 
 use super::ctx::{Ctx, LIST_LIMIT, id, one, unsupported};
@@ -13,6 +14,15 @@ use super::records;
 pub struct TrashBackend(pub Ctx);
 
 impl Backend for TrashBackend {
+    fn supported(&self, command: &str) -> bool {
+        is_supported("TrashEntry", command)
+    }
+
+    fn change(&self, _record: &str, _edit: &Edit) -> Result<Outcome, BackendError> {
+        // The description has no `change` for this type: what can be done has commands of its own.
+        Err(unsupported("change"))
+    }
+
     fn list(&self, q: &Values) -> Result<Vec<Record>, BackendError> {
         let term = one(q, "term").unwrap_or_default().to_lowercase();
         let page = self.0.block(self.0.texts.list_trash(None, LIST_LIMIT))?;
@@ -28,7 +38,12 @@ impl Backend for TrashBackend {
             .collect())
     }
 
-    fn run(&self, name: &str, input: &Values) -> Result<Outcome, BackendError> {
+    fn run(
+        &self,
+        name: &str,
+        _record: Option<&str>,
+        input: &Values,
+    ) -> Result<Outcome, BackendError> {
         if !is_supported("TrashEntry", name) {
             return Err(unsupported(name));
         }

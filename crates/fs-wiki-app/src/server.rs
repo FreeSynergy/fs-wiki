@@ -1,8 +1,7 @@
 //! Reaching the wiki server.
 //!
-//! Pattern: Factory — the app gets its `Texts` from a running `fs-wiki-server` and from nowhere
-//! else. Without a server it does not fall back on a store of its own (ADR 0021): it says how to
-//! start one (the sentences are in `words.rs`).
+//! Pattern: Factory — the app gets its `Texts` from a running `fs-wiki-server` of its own version (`gui.rs`, the
+//! handshake) and from nowhere else. It does not fall back on a store of its own (ADR 0021).
 
 use std::path::{Path, PathBuf};
 
@@ -21,7 +20,8 @@ pub fn socket_path(given: Option<&Path>) -> Result<PathBuf, String> {
         .ok_or_else(|| words::NO_SOCKET.to_string())
 }
 
-/// Connect to the server on `socket`.
+/// Connect to the server that already listens on `socket`, without the version handshake and without starting anything:
+/// for tools and examples that talk to a server they started themselves. The window uses `gui::run` (handshake).
 ///
 /// # Errors
 /// The message for the person, with the way to start the server.

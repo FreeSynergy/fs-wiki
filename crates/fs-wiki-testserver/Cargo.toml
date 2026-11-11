@@ -9,7 +9,7 @@ publish = false
 [dependencies]
 fs-wiki-core = { path = "../fs-wiki-core" }
 fs-wiki-server = { path = "../fs-wiki-server" }
-fs-interfaces = { git = "https://github.com/FreeSynergy/fs-interfaces", tag = "v0.0.16", features = ["rpc"] }
+fs-interfaces = { git = "https://github.com/FreeSynergy/fs-interfaces", tag = "v0.0.18", features = ["rpc"] }
 fs-objects = { git = "https://github.com/FreeSynergy/fs-objects", tag = "v0.0.1" }
 tempfile = "3"
 tokio = { version = "1", features = ["full"] }

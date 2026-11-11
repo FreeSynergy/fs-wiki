@@ -13,14 +13,12 @@ use fs_components_fields::{Look, Say};
 use fs_components_styles::StyleId;
 use fs_types::TypeRegistry;
 
-use super::{
-    Ctx, FolderBackend, LinkBackend, PageBackend, RevisionBackend, TrashBackend, Words, convert,
-};
+use super::{Ctx, FolderBackend, LinkBackend, PageBackend, RevisionBackend, TrashBackend, Words};
 
 /// The backend of a data type of the wiki; none for a type this version does not know.
 pub fn backend_for(name: &str, ctx: &Ctx) -> Option<Arc<dyn Backend>> {
     Some(match name {
-        "Page" => Arc::new(PageBackend(ctx.clone())),
+        "Page" => Arc::new(PageBackend::new(ctx.clone())),
         "Folder" => Arc::new(FolderBackend(ctx.clone())),
         "Revision" => Arc::new(RevisionBackend(ctx.clone())),
         "TrashEntry" => Arc::new(TrashBackend(ctx.clone())),
@@ -37,11 +35,7 @@ pub fn views(registry: &TypeRegistry, ctx: &Ctx) -> Vec<TypeView> {
         .filter_map(|name| {
             let description = registry.get(name)?;
             let backend = backend_for(name, ctx)?;
-            let session = Session::new(
-                convert::description(description),
-                backend,
-                Arc::new(SystemClock::new()),
-            );
+            let session = Session::new(description.clone(), backend, Arc::new(SystemClock::new()));
             let surface = AdminSurface::new(
                 session,
                 Look::new(StyleId::Admin, false),

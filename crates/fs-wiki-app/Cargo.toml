@@ -10,16 +10,15 @@ fs-text = { path = "../fs-text" }
 fs-wiki-core = { path = "../fs-wiki-core" }
 fs-wiki-client = { path = "../fs-wiki-client" }
 fs-objects = { git = "https://github.com/FreeSynergy/fs-objects", tag = "v0.0.1" }
-# One revision of fs-components for everything (the Admin frontend is not tagged yet; a tag replaces the rev).
-fs-components-widgets = { git = "https://github.com/FreeSynergy/fs-components", rev = "4688cee" }
-fs-components-workbenches = { git = "https://github.com/FreeSynergy/fs-components", rev = "4688cee" }
-fs-components-app = { git = "https://github.com/FreeSynergy/fs-components", rev = "4688cee" }
-fs-components-fields = { git = "https://github.com/FreeSynergy/fs-components", rev = "4688cee" }
-fs-components-styles = { git = "https://github.com/FreeSynergy/fs-components", rev = "4688cee" }
-fs-admin-frontend = { git = "https://github.com/FreeSynergy/fs-components", rev = "4688cee" }
-# The descriptions as the server sends them (v0.0.16) and as the frontend reads them (v0.0.2, see admin/convert.rs).
-fs-types = { git = "https://github.com/FreeSynergy/fs-interfaces", tag = "v0.0.16" }
-fs-types-admin = { package = "fs-types", git = "https://github.com/FreeSynergy/fs-interfaces", tag = "v0.0.2" }
+# One tag of fs-components for everything; Blinc comes only through it (`fs_components::blinc`), never as a dependency here.
+fs-components-widgets = { git = "https://github.com/FreeSynergy/fs-components", tag = "v0.0.8" }
+fs-components-workbenches = { git = "https://github.com/FreeSynergy/fs-components", tag = "v0.0.8" }
+fs-components-app = { git = "https://github.com/FreeSynergy/fs-components", tag = "v0.0.8" }
+fs-components-fields = { git = "https://github.com/FreeSynergy/fs-components", tag = "v0.0.8" }
+fs-components-styles = { git = "https://github.com/FreeSynergy/fs-components", tag = "v0.0.8" }
+fs-admin-frontend = { git = "https://github.com/FreeSynergy/fs-components", tag = "v0.0.8" }
+# The descriptions as the server sends them and as the frontend reads them: one fs-types, one source in the tree.
+fs-types = { git = "https://github.com/FreeSynergy/fs-interfaces", tag = "v0.0.18" }
 async-trait = "0.1"
 futures = "0.3"
 serde = { version = "1", features = ["derive"] }
@@ -29,7 +28,7 @@ chrono = { version = "0.4", default-features = false, features = ["std"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
 cap-std = "3"
 cap-fs-ext = "3"
-fs-interfaces = { git = "https://github.com/FreeSynergy/fs-interfaces", tag = "v0.0.16", features = ["rpc"] }
+fs-interfaces = { git = "https://github.com/FreeSynergy/fs-interfaces", tag = "v0.0.18", features = ["rpc"] }
 
 [target.'cfg(unix)'.dependencies]
 # Owner and folder sync of the export, on the handle that cap-std gives (Unix only).

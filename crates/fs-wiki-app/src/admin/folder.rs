@@ -4,6 +4,7 @@
 //! folders; `move` carries the folder and everything below it (`move_folder` takes the path, so it is read first).
 
 use fs_admin_frontend::{Backend, BackendError, Outcome, Record, Values};
+use fs_types::Edit;
 use fs_wiki_core::describe::is_supported;
 use fs_wiki_core::{Node, NodeKind};
 
@@ -33,6 +34,15 @@ impl FolderBackend {
 }
 
 impl Backend for FolderBackend {
+    fn supported(&self, command: &str) -> bool {
+        is_supported("Folder", command)
+    }
+
+    fn change(&self, _record: &str, _edit: &Edit) -> Result<Outcome, BackendError> {
+        // The description has no `change` for this type: what can be done has commands of its own.
+        Err(unsupported("change"))
+    }
+
     fn list(&self, q: &Values) -> Result<Vec<Record>, BackendError> {
         let name = one(q, "name").unwrap_or_default().to_lowercase();
         let parent = optional_id(q, "parent")?;
@@ -45,7 +55,12 @@ impl Backend for FolderBackend {
             .collect())
     }
 
-    fn run(&self, name: &str, input: &Values) -> Result<Outcome, BackendError> {
+    fn run(
+        &self,
+        name: &str,
+        _record: Option<&str>,
+        input: &Values,
+    ) -> Result<Outcome, BackendError> {
         if !is_supported("Folder", name) {
             return Err(unsupported(name));
         }

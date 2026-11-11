@@ -4,6 +4,7 @@
 
 use fs_admin_frontend::{Backend, BackendError, Outcome, Record, Values};
 use fs_objects::ObjectId;
+use fs_types::Edit;
 use fs_wiki_core::describe::is_supported;
 use fs_wiki_core::{Expect, TextFormat};
 
@@ -24,6 +25,15 @@ fn split(input: &Values) -> Result<(ObjectId, u64), BackendError> {
 }
 
 impl Backend for RevisionBackend {
+    fn supported(&self, command: &str) -> bool {
+        is_supported("Revision", command)
+    }
+
+    fn change(&self, _record: &str, _edit: &Edit) -> Result<Outcome, BackendError> {
+        // The description has no `change` for this type: what can be done has commands of its own.
+        Err(unsupported("change"))
+    }
+
     fn list(&self, q: &Values) -> Result<Vec<Record>, BackendError> {
         // the history of one page; without a page there is nothing to list (the history is per text)
         let Some(page) = one(q, "page") else {
@@ -34,7 +44,12 @@ impl Backend for RevisionBackend {
         Ok(h.items.iter().map(records::revision).collect())
     }
 
-    fn run(&self, name: &str, input: &Values) -> Result<Outcome, BackendError> {
+    fn run(
+        &self,
+        name: &str,
+        _record: Option<&str>,
+        input: &Values,
+    ) -> Result<Outcome, BackendError> {
         if !is_supported("Revision", name) {
             return Err(unsupported(name));
         }

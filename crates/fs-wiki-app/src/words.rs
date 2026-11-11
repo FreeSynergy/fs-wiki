@@ -17,6 +17,9 @@ The wiki lives in fs-wiki-server; start it first, in another terminal:\n\
 \nit keeps its data in its own folder (--data DIR; one server is one wiki). Then start this app \
 again with --socket {path} (not needed when the server uses the default socket).";
 
+/// `{path}`: the socket. `{error}`: the words of the handshake (what runs, what is needed, what to do).
+pub const HANDSHAKE: &str = "no wiki server of this version on {path}: {error}";
+
 /// No socket was given and the environment names none.
 pub const NO_SOCKET: &str = "no socket: give --socket PATH of the running fs-wiki-server (or set \
 XDG_RUNTIME_DIR, where the server puts its socket by default)";

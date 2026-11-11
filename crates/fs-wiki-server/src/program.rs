@@ -8,7 +8,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::{HubPurge, TextsServer};
-use fs_interfaces::rpc::{prepare_data_dir, run_until_signal, stop_self, ServerOptions};
+use fs_interfaces::rpc::{
+    prepare_data_dir, run_until_signal_as, stop_self, ServerIdentity, ServerOptions,
+};
 use fs_objects::{Store, TursoStore};
 use fs_wiki_core::WikiRepo;
 
@@ -49,7 +51,9 @@ pub fn serve(args: impl IntoIterator<Item = OsString>) -> Result<(), ServeError>
         // signal to send, so the server is asked from inside).
         crate::lease::watch(lease, stop_self);
     }
-    run_until_signal(&socket, || async move {
+    // Name and version go to `Control.version`: a window of another version replaces this server (fs-interfaces handshake).
+    let identity = ServerIdentity::new("fs-wiki", env!("CARGO_PKG_VERSION"));
+    run_until_signal_as(&socket, identity, || async move {
         let data = prepare_data_dir(&data)?;
         let store = TursoStore::open(data.join("objects.db"))
             .await

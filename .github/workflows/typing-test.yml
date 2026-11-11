@@ -1,0 +1,48 @@
+# The typing test of fs-release (actions/typing-test): the built window runs under a virtual KWin, the keys of the layout
+# (default `de`: Shift, AltGr: Ä ä ö ü ß @ € { } [ ] \ | ~ µ) are typed into a text field of the window, and the test checks
+# that each one arrives as that glyph and how long key-to-picture takes. On the GitHub runner (no GPU) the time is only
+# reported, not enforced (`enforce-ms` stays empty). The way to the field is `.github/typing-test/focus.sh`. By hand
+# (workflow_dispatch) the layout and the number of runs can be chosen, e.g. layout `us` or runs 10.
+name: typing-test
+on:
+  push:
+  workflow_dispatch:
+    inputs:
+      layout:
+        description: "xkb keyboard layout of the typed keys"
+        default: de
+      runs:
+        description: "How many runs, each with a fresh window"
+        default: "3"
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+
+jobs:
+  typing-test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends pkg-config libxkbcommon-dev libwayland-dev libfontconfig1-dev libssl-dev
+      - uses: FreeSynergy/fs-release/actions/setup-rust@main
+        with:
+          cache-key: typing-test
+      - name: Build the window (release)
+        run: cargo build --release --locked -p fs-wiki
+      - uses: FreeSynergy/fs-release/actions/typing-test@main
+        with:
+          app-binary: target/release/fs-wiki
+          app-args: "--size 1000x640"
+          scenario: .github/typing-test/focus.sh
+          name: fs-wiki
+          layout: ${{ inputs.layout || 'de' }}
+          runs: ${{ inputs.runs || '3' }}

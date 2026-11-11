@@ -15,14 +15,15 @@ use crate::TextEntry;
 const T: &str = "page";
 
 fn fields(d: TypeDescription) -> TypeDescription {
-    d.field(reference("id", "Page", "wiki.page.id"))
+    // What the program sets itself is read-only: the form of `change` offers the rest (path, content, kind, redirect).
+    d.field(reference("id", "Page", "wiki.page.id").read_only())
         .field(field(T, "path", B::Text).required())
-        .field(field(T, "name", B::Text))
+        .field(field(T, "name", B::Text).read_only())
         .field(field(T, "content", B::MultilineText))
         .field(field(T, "kind", B::Choice).choices(&["page", "template"]))
         .field(field(T, "redirectTo", B::Text))
-        .field(field(T, "updatedBy", B::Text))
-        .field(field(T, "revision", B::Text))
+        .field(field(T, "updatedBy", B::Text).read_only())
+        .field(field(T, "revision", B::Text).read_only())
 }
 
 fn writing(d: TypeDescription) -> TypeDescription {
@@ -43,13 +44,9 @@ fn writing(d: TypeDescription) -> TypeDescription {
             .input(reference("template", "Page", "wiki.page.template"))
             .input(field(T, "path", B::Text).required()),
     )
-    .command(
-        command(T, "change", K::Other)
-            .input(id())
-            .input(field(T, "content", B::MultilineText))
-            .input(field(T, "summary", B::Text))
-            .input(field(T, "revision", B::Text).required()),
-    )
+    // A typed edit (`Edit`, fs-types): a field that is not sent stays, one with no values is cleared. No input here: the
+    // form is made of the fields of the type.
+    .command(command(T, "change", K::Change))
     .command(
         command(T, "move", K::Other)
             .input(id())

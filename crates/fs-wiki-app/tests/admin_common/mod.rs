@@ -48,8 +48,22 @@ pub fn backend(w: &Wiki, name: &str) -> Arc<dyn Backend> {
 
 pub fn create(w: &Wiki, path: &str, content: &str) -> String {
     backend(w, "Page")
-        .run("create", &v(&[("path", &[path]), ("content", &[content])]))
+        .run(
+            "create",
+            None,
+            &v(&[("path", &[path]), ("content", &[content])]),
+        )
         .unwrap()
         .id
         .unwrap()
+}
+
+/// An edit that replaces the text values of one field.
+pub fn set(field: &str, values: &[&str]) -> fs_types::Edit {
+    let basic = if field == "content" {
+        fs_types::BasicType::MultilineText
+    } else {
+        fs_types::BasicType::Text
+    };
+    fs_types::Edit::new().set(&[field], basic, values)
 }
