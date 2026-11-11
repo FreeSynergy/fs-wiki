@@ -93,13 +93,7 @@ fn restore_a_revision_and_the_purge_that_needs_a_hub() {
     let w = wiki();
     let pages = backend(&w, "Page");
     let id = create(&w, "a", "one\n");
-    pages
-        .run(
-            "change",
-            None,
-            &v(&[("id", &[&id]), ("content", &["two\n"])]),
-        )
-        .unwrap();
+    pages.change(&id, &set("content", &["two\n"])).unwrap();
     let revs = backend(&w, "Revision");
     let list = revs.list(&v(&[("page", &[&id])])).unwrap();
     assert_eq!(list.len(), 2);

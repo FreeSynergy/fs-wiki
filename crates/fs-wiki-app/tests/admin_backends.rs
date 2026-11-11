@@ -17,25 +17,11 @@ fn a_page_is_created_listed_changed_partly_and_found() {
     assert_eq!(all.len(), 1);
     assert_eq!(all[0].values["path"], ["manual/start"]);
     assert!(all[0].values["content"][0].contains("Hello"));
-    // only the summary is sent: the content stays (a field not sent is unchanged)
-    pages
-        .run(
-            "change",
-            None,
-            &v(&[("id", &[&id]), ("summary", &["note"])]),
-        )
-        .unwrap();
+    // nothing is in the edit: the content stays (a field not sent is unchanged)
+    pages.change(&id, &Edit::new()).unwrap();
     assert!(pages.list(&Values::new()).unwrap()[0].values["content"][0].contains("Hello"));
     pages
-        .run(
-            "change",
-            None,
-            &v(&[
-                ("id", &[&id]),
-                ("content", &["# Start\n\nChanged\n"]),
-                ("summary", &["edit"]),
-            ]),
-        )
+        .change(&id, &set("content", &["# Start\n\nChanged\n"]))
         .unwrap();
     let changed = pages.list(&v(&[("term", &["changed"])])).unwrap();
     assert_eq!(changed.len(), 1);

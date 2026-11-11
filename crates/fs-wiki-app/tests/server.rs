@@ -34,26 +34,28 @@ fn nothing_listening_is_an_error_that_names_the_socket_and_how_to_start_the_serv
 }
 
 #[test]
-fn the_binary_without_a_server_fails_with_that_message_and_creates_no_store() {
+fn the_binary_starts_the_server_of_its_version_on_a_given_socket_and_it_ends_with_the_window() {
     let dir = temp_dir("sv-bin");
-    let (socket, docs) = (dir.join("none.sock"), dir.join("docs"));
-    std::fs::create_dir_all(&docs).unwrap();
+    let socket = dir.join("own.sock");
+    // `--check`: no window, but the same way to the server (handshake, start). The data goes to the temp folder.
     let out = Command::new(env!("CARGO_BIN_EXE_fs-wiki-app"))
-        .args(["--socket", &socket.display().to_string()])
-        .args(["--docs", &docs.display().to_string()])
-        .args(["--origins", &dir.join("o").display().to_string()])
-        .args(["--drafts", &dir.join("drafts").display().to_string()])
+        .args(["--check", "--socket", &socket.display().to_string()])
+        .env("XDG_DATA_HOME", dir.join("data"))
+        .env("XDG_RUNTIME_DIR", &dir)
         .output()
         .unwrap();
-    let err = String::from_utf8_lossy(&out.stderr);
-    assert!(!out.status.success());
+    let said = String::from_utf8_lossy(&out.stdout);
     assert!(
-        err.contains("cannot reach the wiki server") && err.contains("fs-wiki-server"),
-        "{err}"
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
     );
-    assert!(
-        !dir.join("o").exists(),
-        "nothing was started without a server"
-    );
+    assert!(said.contains("Page:"), "{said}");
+    // Nobody holds the lease any more: the server ends by itself and takes its socket with it.
+    let began = std::time::Instant::now();
+    while socket.exists() && began.elapsed() < std::time::Duration::from_secs(30) {
+        std::thread::sleep(std::time::Duration::from_millis(200));
+    }
+    assert!(!socket.exists(), "the server it started did not end");
     std::fs::remove_dir_all(dir).unwrap();
 }
