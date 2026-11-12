@@ -14,6 +14,7 @@ use fs_objects::StoreId;
 use fs_wiki_core::{FileOrigin, Origins, Texts};
 
 use crate::check::present_ids;
+use crate::hash::digest;
 use crate::report::Report;
 use crate::source::Failure;
 use crate::sync::sync_file;
@@ -33,10 +34,47 @@ pub async fn import_folder_within<W: Texts + Origins + ?Sized>(
     root: &Path,
     limit: Duration,
 ) -> Report {
+    import_source(wiki, root, "", limit).await
+}
+
+/// Several folders into ONE wiki, each below its own path prefix (`en/…`, `de/…`): the text path and the key of the record
+/// are `prefix/relative path`. The reports are added up. A prefix is one path segment or more, without a leading or
+/// trailing `/`.
+pub async fn import_sources<W: Texts + Origins + ?Sized>(
+    wiki: &W,
+    sources: &[(String, PathBuf)],
+    limit: Duration,
+) -> Report {
+    let mut total = Report::default();
+    for (prefix, root) in sources {
+        let one = import_source(wiki, root, prefix, limit).await;
+        total.absorb(one);
+    }
+    total
+}
+
+/// [`import_folder_within`] below `prefix` (`""` = no prefix).
+pub async fn import_source<W: Texts + Origins + ?Sized>(
+    wiki: &W,
+    root: &Path,
+    prefix: &str,
+    limit: Duration,
+) -> Report {
     let mut report = Report::default();
     let mut files = Vec::new();
     collect(root, root, &mut files, &mut report);
     files.sort();
+    if !prefix.is_empty() {
+        // What the walk reported is named as the texts are: below the prefix of its source.
+        for f in report
+            .failures
+            .iter_mut()
+            .chain(&mut report.skipped)
+            .chain(&mut report.attachments)
+        {
+            f.path = format!("{prefix}/{}", f.path);
+        }
+    }
     // Whose records they are is the store's identity (`Texts::identity`): the records of the store
     // we are connected to are used, those of other stores are kept in the file and not used.
     let identity = wiki.identity();
@@ -114,14 +152,36 @@ pub async fn import_folder_within<W: Texts + Origins + ?Sized>(
         }
     };
     let mut seen = std::collections::HashSet::new();
+    let below = if prefix.is_empty() {
+        String::new()
+    } else {
+        format!("{prefix}/")
+    };
     for relative in files {
-        let path = relative.join("/");
+        let path = format!("{below}{}", relative.join("/"));
         let file = root.join(relative.iter().collect::<PathBuf>());
         sync_file(wiki, &path, &file, known.get(&path), &present, &mut report).await;
         seen.insert(path);
     }
+    note_gone(wiki, known, &below, &seen, &mut report).await;
+    report.gone.sort_by(|a, b| a.path.cmp(&b.path));
+    report
+}
+
+/// The files of this source that were imported once and are not there now (their texts are kept).
+async fn note_gone<W: Texts + ?Sized>(
+    wiki: &W,
+    known: HashMap<String, FileOrigin>,
+    below: &str,
+    seen: &std::collections::HashSet<String>,
+    report: &mut Report,
+) {
     for (file, origin) in known {
-        if seen.contains(&file) || report.skipped.iter().any(|s| s.path == file) {
+        // The records of the other sources are theirs to report.
+        if !file.starts_with(below)
+            || seen.contains(&file)
+            || report.skipped.iter().any(|s| s.path == file)
+        {
             continue;
         }
         if let Ok(Some(text)) = wiki.get(origin.text).await {
@@ -131,8 +191,6 @@ pub async fn import_folder_within<W: Texts + Origins + ?Sized>(
             });
         }
     }
-    report.gone.sort_by(|a, b| a.path.cmp(&b.path));
-    report
 }
 
 /// The section of the records of a provider that tells no identity, in a file that has stores.
@@ -219,8 +277,29 @@ fn collect(root: &Path, dir: &Path, files: &mut Vec<Vec<String>>, report: &mut R
             files.push(parts);
         } else if kind.is_file() && other_case {
             skip(report, "the extension must be written .md (lower case)");
+        } else if kind.is_file() && !is_config(&path) {
+            // Not a text: named, with its hash, never dropped silently (the wiki has no place for files yet).
+            let said = match std::fs::read(&path) {
+                Ok(bytes) => format!(
+                    "attachment, {} bytes, sha256 {}: not stored by this version, a link to it shows as missing",
+                    bytes.len(),
+                    digest(&bytes)
+                ),
+                Err(e) => {
+                    format!("attachment that cannot be read ({e}): not stored by this version")
+                }
+            };
+            report.attachments.push(Failure {
+                path: display(root, &path),
+                reason: said,
+            });
         }
     }
+}
+
+/// What only configures the reading (`.pages`, read by `nav.rs`): neither a text nor an attachment.
+fn is_config(path: &Path) -> bool {
+    path.file_name().is_some_and(|n| n == ".pages")
 }
 
 fn display(root: &Path, p: &Path) -> String {

@@ -20,7 +20,9 @@ pub mod hash;
 pub mod import;
 pub mod map;
 mod mode_admin;
+mod mode_read;
 mod mode_reader;
+pub mod nav;
 pub mod origins;
 mod origins_log;
 pub mod report;
@@ -32,7 +34,7 @@ pub mod wiki;
 pub mod words;
 
 pub use drafts::FileDraftStore;
-pub use import::{import_folder, import_folder_within};
+pub use import::{import_folder, import_folder_within, import_source, import_sources};
 pub use map::to_document;
 pub use origins::{FileOrigins, OriginsError};
 pub use report::{Conflict, Report};

@@ -14,6 +14,7 @@ Latest tag: `v0.0.6`; `v0.0.7` is in preparation (fs-components v0.0.8: Blinc on
 - Move a text or a folder and rewrite the links to it.
 - Import Markdown (a changed file becomes ordinary edits) and export Markdown.
 - Refuse an overwrite when someone else saved first.
+- Read the documentation: `fs-wiki --read --docs-root <checkout of fs-documentation>` imports its four folders into one wiki (prefixes `en/`, `de/`, `adr/`, `research/`), orders the pages by the documentation's navigation and shows them read only, with a sidebar and search. The import is byte for byte (4199 files measured).
 - Tell other programs when a text changes.
 - A small server that offers all of this over a local socket.
 - A first window, the reader: a tree of pages, reading with formatting, following links, back, search, editing and saving, and an explicit Export button. Unsaved drafts are backed up and offered back after a crash.

@@ -33,6 +33,8 @@ pub struct Notes {
     pub skipped: Vec<Failure>,
     /// Files whose text the server does not have.
     pub missing: Vec<Failure>,
+    /// Files that are not texts, left out with their hash.
+    pub attachments: Vec<Failure>,
 }
 
 impl Notes {
@@ -43,6 +45,7 @@ impl Notes {
             + self.gone.len()
             + self.skipped.len()
             + self.missing.len()
+            + self.attachments.len()
     }
 }
 
@@ -124,6 +127,12 @@ pub fn problems_document(notes: &Notes) -> Document {
         "Not looked at",
         "These entries of the folder were left out.",
         &notes.skipped,
+        &mut blocks,
+    );
+    list(
+        "Attachments, not stored",
+        "These files are not texts (images, style sheets). They are named here with their size and hash and are not in the wiki; a link to one shows as missing.",
+        &notes.attachments,
         &mut blocks,
     );
     Document::new("Import problems", blocks)

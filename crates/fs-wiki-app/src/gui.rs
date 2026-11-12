@@ -27,7 +27,14 @@ pub fn run(words: &[String]) -> Result<(), String> {
     }
     let socket = socket_path(args.socket.as_deref())?;
     let texts = connect_or_start(&socket, args.socket.is_some(), args.facet.as_deref())?;
-    if args.reader {
+    if args.read {
+        if args.sources.is_empty() {
+            return Err(
+                "--read needs sources: --docs-root <checkout> or --source <prefix>=<folder>".into(),
+            );
+        }
+        crate::mode_read::run(&args, texts)
+    } else if args.reader {
         crate::mode_reader::run(&args, texts)
     } else {
         crate::mode_admin::run(&args, texts)

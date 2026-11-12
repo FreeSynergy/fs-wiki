@@ -82,3 +82,41 @@ fn the_facet_is_read_by_the_shared_parser_of_fs_interfaces() {
     assert!(parse(&args(&["--facet"])).is_err(), "needs a value");
     assert!(parse(&args(&["--facet", "Not A Name"])).is_err());
 }
+
+#[test]
+fn sources_have_a_prefix_and_a_docs_root_names_the_four_of_the_documentation() {
+    let a = parse(&args(&[
+        "--read",
+        "--source",
+        "en=/d/en",
+        "--source",
+        "manual/de=/d/de",
+        "--nav",
+        "/d/mkdocs.yml",
+    ]))
+    .unwrap();
+    assert!(a.read);
+    assert_eq!(
+        a.sources,
+        [
+            ("en".to_owned(), "/d/en".into()),
+            ("manual/de".to_owned(), "/d/de".into())
+        ]
+    );
+    assert_eq!(a.nav, Some("/d/mkdocs.yml".into()));
+    for bad in [
+        "en", "=/d", "../x=/d", "a//b=/d", "a#b=/d", "/a=/d", "a/=/d",
+    ] {
+        assert!(parse(&args(&["--source", bad])).is_err(), "{bad}");
+    }
+    let root = temp_dir("args-root");
+    for d in ["docs/en", "docs/de", "conventions/decisions"] {
+        std::fs::create_dir_all(root.join(d)).unwrap();
+    }
+    std::fs::write(root.join("mkdocs.yml"), "site_name: x\n").unwrap();
+    let r = parse(&args(&["--docs-root", &root.display().to_string()])).unwrap();
+    let prefixes: Vec<&str> = r.sources.iter().map(|(p, _)| p.as_str()).collect();
+    assert_eq!(prefixes, ["en", "de", "adr"], "only folders that exist");
+    assert_eq!(r.nav, Some(root.join("mkdocs.yml")));
+    std::fs::remove_dir_all(root).unwrap();
+}

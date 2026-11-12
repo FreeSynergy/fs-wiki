@@ -36,6 +36,8 @@ pub struct Report {
     pub gone: Vec<Failure>,
     /// Entries that were not looked at, with the reason (symbolic links, `.MD`, unreadable).
     pub skipped: Vec<Failure>,
+    /// Files that are not texts (images, style sheets): named with their size and hash, not stored by this version.
+    pub attachments: Vec<Failure>,
     /// Files as recorded whose text the server does not have: not imported again, listed.
     pub missing: Vec<Failure>,
     /// Records of imported files that were ignored because the server holds none of their texts:
@@ -50,6 +52,21 @@ impl Report {
             && self.conflicts.is_empty()
             && self.gone.is_empty()
             && self.missing.is_empty()
-            && self.skipped.is_empty())
+            && self.skipped.is_empty()
+            && self.attachments.is_empty())
+    }
+
+    /// Add what `other` found to this report (several sources, one wiki).
+    pub fn absorb(&mut self, other: Report) {
+        self.imported += other.imported;
+        self.updated += other.updated;
+        self.unchanged += other.unchanged;
+        self.records_ignored += other.records_ignored;
+        self.failures.extend(other.failures);
+        self.conflicts.extend(other.conflicts);
+        self.gone.extend(other.gone);
+        self.skipped.extend(other.skipped);
+        self.attachments.extend(other.attachments);
+        self.missing.extend(other.missing);
     }
 }

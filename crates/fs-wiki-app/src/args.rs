@@ -8,6 +8,7 @@ use std::path::PathBuf;
 pub const DEFAULT_DOCS: &str = "../fs-documentation/docs/en";
 
 /// What was asked for on the command line.
+#[allow(clippy::struct_excessive_bools)] // one flag per option of the command line
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct Args {
     /// Folder of Markdown files to import.
@@ -33,6 +34,12 @@ pub struct Args {
     pub check: bool,
     /// The facet to show (`--facet NAME`, the link `fs-<facet>`, ADR 0063), read by the parser of `fs-interfaces`.
     pub facet: Option<String>,
+    /// The reading wiki (`--read`): the sources below, read only.
+    pub read: bool,
+    /// The folders to import into one wiki, each below a path prefix (`--source PREFIX=DIR`, `--docs-root`).
+    pub sources: Vec<(String, PathBuf)>,
+    /// The `mkdocs.yml` whose navigation orders the pages (`--nav`, or the one of `--docs-root`).
+    pub nav: Option<PathBuf>,
     /// `--help` was given.
     pub help: bool,
 }
@@ -71,6 +78,10 @@ pub fn parse(args: &[String]) -> Result<Args, String> {
             "--step" => out.steps.push(value("--step")?),
             "--size" => out.size = size(&value("--size")?)?,
             "--reader" => out.reader = true,
+            "--read" => out.read = true,
+            "--source" => out.sources.push(source(&value("--source")?)?),
+            "--docs-root" => docs_root(&mut out, &PathBuf::from(value("--docs-root")?)),
+            "--nav" => out.nav = Some(PathBuf::from(value("--nav")?)),
             "--check" => out.check = true,
             "--facet" => out.facet = Some(fs_interfaces::rpc::parse_facet(&value("--facet")?)?),
             "-h" | "--help" => out.help = true,
@@ -78,6 +89,43 @@ pub fn parse(args: &[String]) -> Result<Args, String> {
         }
     }
     Ok(out)
+}
+
+/// `PREFIX=DIR`: the prefix is a path of names with `/` between them.
+fn source(text: &str) -> Result<(String, PathBuf), String> {
+    let bad = || format!("--source wants PREFIX=FOLDER (prefix like en or manual/de), not {text}");
+    let (prefix, dir) = text.split_once('=').ok_or_else(bad)?;
+    let fine = !prefix.is_empty()
+        && prefix.split('/').all(|p| {
+            !p.is_empty()
+                && p != "."
+                && p != ".."
+                && !p.contains(['#', '\\'])
+                && !p.chars().any(char::is_control)
+        });
+    if !fine || dir.is_empty() {
+        return Err(bad());
+    }
+    Ok((prefix.to_owned(), PathBuf::from(dir)))
+}
+
+/// The checkout of the documentation: its four sources and its `mkdocs.yml`.
+fn docs_root(out: &mut Args, root: &std::path::Path) {
+    for (prefix, folder) in [
+        ("en", "docs/en"),
+        ("de", "docs/de"),
+        ("adr", "conventions/decisions"),
+        ("research", "temp/research"),
+    ] {
+        let dir = root.join(folder);
+        if dir.is_dir() {
+            out.sources.push((prefix.to_owned(), dir));
+        }
+    }
+    let mkdocs = root.join("mkdocs.yml");
+    if mkdocs.is_file() && out.nav.is_none() {
+        out.nav = Some(mkdocs);
+    }
 }
 
 fn size(text: &str) -> Result<(u32, u32), String> {
@@ -89,6 +137,11 @@ fn size(text: &str) -> Result<(u32, u32), String> {
 /// The help text.
 pub const HELP: &str = "fs-wiki-app: the wiki in a window (Admin view of pages, folders, history, trash and links)
 
+  --read              the reading wiki: the sources below in one wiki, read only (sidebar, page, search)
+  --docs-root <dir>   with --read: a checkout of the documentation (docs/en as en/, docs/de as de/,
+                      conventions/decisions as adr/, temp/research as research/, its mkdocs.yml for the order)
+  --source <p>=<dir>  with --read, repeatable: import <dir> below the path prefix <p>
+  --nav <mkdocs.yml>  with --read: the navigation that orders the pages (and the .pages files in the folders)
   --reader            open the documentation reader and editor instead (the options below belong to it)
   --facet <name>      the facet to show (the link fs-<facet> sets it); the server it starts gets it too
   --check             no window: connect, read the descriptions and the pages, and say what was found

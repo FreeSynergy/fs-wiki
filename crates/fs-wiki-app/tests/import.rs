@@ -27,6 +27,9 @@ fn imports_with_relative_paths_and_lists_failures_and_leaves_the_folder_alone() 
     let report = rt.block_on(import_folder(&**wiki, &dir));
     assert_eq!(fingerprint(&dir), before, "the docs folder must not change");
     assert_eq!(report.imported, 2);
+    // the text file is named as an attachment, not dropped silently
+    assert_eq!(report.attachments.len(), 1);
+    assert_eq!(report.attachments[0].path, "a/notes.txt");
     let failed: Vec<&str> = report.failures.iter().map(|f| f.path.as_str()).collect();
     assert_eq!(failed, ["a/c#d.md", "a/latin.md"]);
     assert!(

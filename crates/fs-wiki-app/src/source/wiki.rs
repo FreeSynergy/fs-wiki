@@ -43,6 +43,10 @@ pub struct WikiSource {
     pub(super) origins: Option<(Arc<dyn Origins>, PathBuf)>,
     /// The difference that made the last export a conflict, for a screen that shows it.
     pub(super) difference: Mutex<Option<Asked>>,
+    /// The order of the pages (`nav.rs`); empty = by path.
+    pub(super) nav: crate::nav::Nav,
+    /// Reading only: no editing, no export (the first cut of the reading wiki).
+    pub(super) read_only: bool,
 }
 
 fn failed(e: &dyn std::fmt::Display) -> SourceError {
@@ -91,10 +95,14 @@ impl DocumentSource for WikiSource {
                 format!("Import problems ({})", self.notes.count()),
             ));
         }
-        let texts = self
+        let mut texts = self
             .runtime
             .block_on(self.texts.list(prefix, Paging::default()))
             .map_err(|e| failed(&e))?;
+        // The reader keeps the order it is given: the navigation's, then the rest by path (the list is by path already).
+        if !self.nav.is_empty() {
+            texts.sort_by_key(|t| self.nav.rank(&t.path).unwrap_or(usize::MAX));
+        }
         out.extend(
             texts
                 .into_iter()
@@ -129,11 +137,19 @@ impl DocumentSource for WikiSource {
     }
 
     fn start(&self) -> Option<String> {
-        self.exists("index.md").then(|| "index.md".to_string())
+        if self.exists("index.md") {
+            return Some("index.md".to_string());
+        }
+        // Several sources: the first page of the navigation (`en/index.md`), else the first page there is.
+        self.entries("")
+            .ok()?
+            .into_iter()
+            .map(|e| e.path)
+            .find(|p| p != PROBLEMS_PATH)
     }
 
     fn can_edit(&self, path: &str) -> bool {
-        path != PROBLEMS_PATH
+        !self.read_only && path != PROBLEMS_PATH
     }
 
     fn source_text(&self, path: &str) -> Result<EditableText, SourceError> {
@@ -173,7 +189,7 @@ impl DocumentSource for WikiSource {
     }
 
     fn can_export(&self, path: &str) -> bool {
-        path != PROBLEMS_PATH
+        !self.read_only && path != PROBLEMS_PATH
     }
 
     fn export(&self, path: &str, target: &str, overwrite: bool) -> Result<String, SourceError> {

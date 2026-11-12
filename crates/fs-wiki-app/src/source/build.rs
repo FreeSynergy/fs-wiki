@@ -27,6 +27,8 @@ impl WikiSource {
             notes,
             origins: None,
             difference: Mutex::new(None),
+            nav: crate::nav::Nav::default(),
+            read_only: false,
         }
     }
 
@@ -38,6 +40,7 @@ impl WikiSource {
             gone: report.gone,
             skipped: report.skipped,
             missing: report.missing,
+            attachments: report.attachments,
         };
         Self {
             texts,
@@ -45,6 +48,8 @@ impl WikiSource {
             notes,
             origins: None,
             difference: Mutex::new(None),
+            nav: crate::nav::Nav::default(),
+            read_only: false,
         }
     }
 
@@ -53,6 +58,20 @@ impl WikiSource {
     #[must_use]
     pub fn with_origins(mut self, origins: Arc<dyn Origins>, docs: PathBuf) -> Self {
         self.origins = Some((origins, docs));
+        self
+    }
+
+    /// List the pages in the order of `nav`.
+    #[must_use]
+    pub fn with_nav(mut self, nav: crate::nav::Nav) -> Self {
+        self.nav = nav;
+        self
+    }
+
+    /// Reading only: the pages cannot be edited or exported from the window.
+    #[must_use]
+    pub fn read_only(mut self) -> Self {
+        self.read_only = true;
         self
     }
 
