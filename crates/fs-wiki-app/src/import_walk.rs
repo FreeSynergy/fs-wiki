@@ -2,7 +2,7 @@
 //!
 //! Pattern: Iterator over a folder tree (a recursive walk that fills the report).
 
-use std::path::Path;
+use std::path::{Component, Path};
 
 use crate::hash::digest;
 use crate::report::Report;
@@ -89,6 +89,41 @@ fn is_config(path: &Path) -> bool {
     path.file_name().is_some_and(|n| n == ".pages")
 }
 
+/// The path relative to `root` as the wiki writes it (always `/`, on every platform).
 pub(crate) fn display(root: &Path, p: &Path) -> String {
-    p.strip_prefix(root).unwrap_or(p).display().to_string()
+    wiki_path(p.strip_prefix(root).unwrap_or(p))
+}
+
+/// Wiki paths are not platform paths: the parts of a path are joined with `/`, never with the
+/// separator of the system. A backslash inside a part (valid on Linux) stays as it is.
+pub(crate) fn wiki_path(p: &Path) -> String {
+    p.components()
+        .map(|c| match c {
+            Component::RootDir => String::new(),
+            c => c.as_os_str().to_string_lossy().into_owned(),
+        })
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use super::wiki_path;
+
+    #[test]
+    fn parts_are_joined_with_a_slash() {
+        let p = PathBuf::from("a").join("notes.txt");
+        assert_eq!(wiki_path(&p), "a/notes.txt");
+        assert_eq!(wiki_path(&PathBuf::from("a").join("b").join("c.svg")), "a/b/c.svg");
+    }
+
+    #[test]
+    fn a_backslash_in_a_part_is_left_alone_where_it_is_a_name_character() {
+        if cfg!(unix) {
+            assert_eq!(wiki_path(&PathBuf::from("a\\b")), "a\\b");
+            assert_eq!(wiki_path(&PathBuf::from("x").join("a\\b")), "x/a\\b");
+        }
+    }
 }
