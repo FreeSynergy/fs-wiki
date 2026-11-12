@@ -10,6 +10,7 @@ use std::time::Instant;
 
 use crate::nav::Nav;
 use crate::store_path::{data_dir, origins_file};
+use crate::variants::PageIndex;
 use crate::{FileOrigins, Wiki, WikiSource, import::CHECK_LIMIT, import_sources, words};
 use fs_components_workbenches::{Labels, Options, Picture, Step, launch, snapshot};
 use fs_wiki_client::RpcTexts;
@@ -57,11 +58,24 @@ pub fn run(args: &Args, texts: RpcTexts) -> Result<(), String> {
     for note in notes {
         eprintln!("fs-wiki: {note}");
     }
-    let source = Arc::new(
-        WikiSource::from_report(wiki.texts(), runtime.handle().clone(), report)
-            .with_nav(nav)
-            .read_only(),
-    );
+    let mut source = WikiSource::from_report(wiki.texts(), runtime.handle().clone(), report)
+        .with_nav(nav)
+        .read_only();
+    if !args.variants.is_empty() {
+        let index = link_pages(&runtime, wiki.texts().as_ref(), args, &records)?;
+        let pages = index.pages.len();
+        let two = index
+            .pages
+            .values()
+            .filter(|p| p.variants.len() > 1)
+            .count();
+        eprintln!("{pages} pages, {two} in more than one language");
+        source = source.with_pages(
+            index,
+            &args.lang.clone().unwrap_or_else(environment_language),
+        );
+    }
+    let source = Arc::new(source);
     let mut labels = Labels::default();
     labels.search = "Search pages".into();
     if let Some(file) = &args.snapshot {
@@ -80,6 +94,38 @@ pub fn run(args: &Args, texts: RpcTexts) -> Result<(), String> {
     options.title = "FreeSynergy Wiki".into();
     options.labels = labels;
     launch(&options, source).map_err(|e| e.to_string())
+}
+
+/// The pages with variants: the earlier ones from `<records>.pages`, brought in step with the texts, and written back.
+fn link_pages(
+    runtime: &tokio::runtime::Runtime,
+    texts: &dyn fs_wiki_core::Texts,
+    args: &Args,
+    records: &std::path::Path,
+) -> Result<PageIndex, String> {
+    let file = PathBuf::from(format!("{}.pages", records.display()));
+    let origin = args.origin_langs.iter().cloned().collect();
+    let index = PageIndex::load(&file, origin)?;
+    let index = runtime.block_on(index.link(texts, &args.variants))?;
+    if let Err(e) = index.save(&file) {
+        eprintln!(
+            "fs-wiki: the pages are not saved ({e}); a translation then forgets which original it was made from"
+        );
+    }
+    Ok(index)
+}
+
+/// `de` for `de_DE.UTF-8`, else `en`.
+fn environment_language() -> String {
+    let lang = ["LC_ALL", "LC_MESSAGES", "LANG"]
+        .into_iter()
+        .filter_map(|v| std::env::var(v).ok())
+        .find(|v| !v.is_empty())
+        .unwrap_or_default();
+    match lang.get(..2) {
+        Some("de") => "de".into(),
+        _ => "en".into(),
+    }
 }
 
 /// What names the records file of a set of sources: the prefixes, and a hash of the folders.

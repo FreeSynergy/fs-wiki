@@ -15,6 +15,7 @@
 )]
 
 pub mod anchor;
+pub mod component;
 pub mod doc;
 pub mod external;
 pub mod format;
@@ -28,6 +29,7 @@ pub mod template;
 pub mod text;
 
 pub use anchor::{Anchor, Bias};
+pub use component::{find_components, ComponentRef, ComponentSpec, DataSource};
 pub use doc::{Align, Block, BlockAttrs, BlockKind, Container, Document, Source};
 pub use external::{
     diff_edits, import_external, plan_external_import, plan_external_import_with, TextEdit,

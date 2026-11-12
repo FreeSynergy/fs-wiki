@@ -19,6 +19,7 @@ pub mod gui;
 pub mod hash;
 pub mod import;
 mod import_walk;
+mod lang_words;
 pub mod map;
 mod mode_admin;
 mod mode_read;
@@ -33,6 +34,7 @@ pub mod server;
 pub mod source;
 pub mod store_path;
 pub mod sync;
+pub mod variants;
 pub mod wiki;
 pub mod words;
 

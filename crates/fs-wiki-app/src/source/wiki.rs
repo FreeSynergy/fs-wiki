@@ -47,6 +47,8 @@ pub struct WikiSource {
     pub(super) nav: crate::nav::Nav,
     /// Reading only: no editing, no export (the first cut of the reading wiki).
     pub(super) read_only: bool,
+    /// Pages with language variants (`pages.rs`); none = every text is a page of its own.
+    pub(super) pages: Option<super::pages::PagesView>,
 }
 
 fn failed(e: &dyn std::fmt::Display) -> SourceError {
@@ -95,6 +97,14 @@ impl DocumentSource for WikiSource {
                 format!("Import problems ({})", self.notes.count()),
             ));
         }
+        if let Some(view) = &self.pages {
+            let texts = self
+                .runtime
+                .block_on(self.texts.list("", Paging::default()))
+                .map_err(|e| failed(&e))?;
+            out.extend(self.page_entries(view, &texts, prefix));
+            return Ok(out);
+        }
         let mut texts = self
             .runtime
             .block_on(self.texts.list(prefix, Paging::default()))
@@ -115,14 +125,33 @@ impl DocumentSource for WikiSource {
         if path == PROBLEMS_PATH {
             return Ok(problems_document(&self.notes));
         }
+        if let Some(view) = &self.pages
+            && let Some(doc) = self.read_page(view, path)?
+        {
+            return Ok(doc);
+        }
         let t = self.entry(path)?;
         Ok(to_document(&t.envelope.name, &t.document).with_revision(revision_of(&t)))
     }
 
     fn resolve(&self, from: &str, href: &str) -> LinkTarget {
-        resolve_with_folders(from, href, &|p| self.exists(p), &|folder| {
+        let Some(view) = &self.pages else {
+            return resolve_with_folders(from, href, &|p| self.exists(p), &|folder| {
+                self.first_in(folder)
+            });
+        };
+        // The language bar: `?lang=de` opens this page in German and makes German the language of the next pages too.
+        if let Some(lang) = href.strip_prefix("?lang=") {
+            return LinkTarget::Document(view.switch(from, lang));
+        }
+        // Links are written between the texts (`../x.md` next to `en/a.md`); a page is where its variants are.
+        let from_text = view.text_path(from);
+        match resolve_with_folders(&from_text, href, &|p| self.exists(p), &|folder| {
             self.first_in(folder)
-        })
+        }) {
+            LinkTarget::Document(text) => LinkTarget::Document(view.page_of(&text)),
+            other => other,
+        }
     }
 
     fn find(&self, term: &str) -> Result<Vec<Hit>, SourceError> {
@@ -130,9 +159,18 @@ impl DocumentSource for WikiSource {
             .runtime
             .block_on(self.texts.find(term, Paging::new(MAX_HITS, 0)))
             .map_err(|e| failed(&e))?;
+        let Some(view) = &self.pages else {
+            return Ok(found
+                .into_iter()
+                .map(|t| Hit::new(t.path, t.envelope.name))
+                .collect());
+        };
+        // A page found in both languages is one hit.
+        let mut seen = std::collections::HashSet::new();
         Ok(found
             .into_iter()
-            .map(|t| Hit::new(t.path, t.envelope.name))
+            .map(|t| Hit::new(view.page_of(&t.path), t.envelope.name))
+            .filter(|h| seen.insert(h.path.clone()))
             .collect())
     }
 

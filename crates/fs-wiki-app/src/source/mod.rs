@@ -9,6 +9,7 @@ pub mod export;
 mod export_fs;
 mod export_page;
 mod export_report;
+mod pages;
 mod problems;
 mod resolve;
 mod wiki;
@@ -17,6 +18,7 @@ pub use export::{
     Differs, ExportError, export_markdown_checked, export_markdown_if_seen, export_markdown_to,
     read_current,
 };
+pub use pages::PagesView;
 pub use problems::{Failure, Notes, PROBLEMS_PATH};
 pub use resolve::{resolve, resolve_with_folders};
 pub use wiki::WikiSource;

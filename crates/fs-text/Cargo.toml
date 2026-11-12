@@ -11,11 +11,11 @@ uuid = { version = "1", features = ["v7", "serde"] }
 serde = { version = "1", features = ["derive"] }
 pulldown-cmark = { version = "0.13", default-features = false }
 similar = "2"
+serde_json = "1"
 thiserror = "2"
 unicode-segmentation = "1"
 
 [dev-dependencies]
 similar = "2"
 proptest = "1"
-serde_json = "1"
 pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }

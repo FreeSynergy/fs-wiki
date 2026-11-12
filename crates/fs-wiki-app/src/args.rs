@@ -38,6 +38,12 @@ pub struct Args {
     pub read: bool,
     /// The folders to import into one wiki, each below a path prefix (`--source PREFIX=DIR`, `--docs-root`).
     pub sources: Vec<(String, PathBuf)>,
+    /// Which sources are language variants of one page family (`--variant PREFIX=GROUP/LANG`, set by `--docs-root`).
+    pub variants: Vec<crate::variants::VariantSource>,
+    /// The origin language of a family (`--origin-language GROUP=LANG`; default `en`).
+    pub origin_langs: Vec<(String, String)>,
+    /// The language to read in first (`--lang`; default the one of the environment, else `en`).
+    pub lang: Option<String>,
     /// The `mkdocs.yml` whose navigation orders the pages (`--nav`, or the one of `--docs-root`).
     pub nav: Option<PathBuf>,
     /// `--help` was given.
@@ -81,6 +87,11 @@ pub fn parse(args: &[String]) -> Result<Args, String> {
             "--read" => out.read = true,
             "--source" => out.sources.push(source(&value("--source")?)?),
             "--docs-root" => docs_root(&mut out, &PathBuf::from(value("--docs-root")?)),
+            "--variant" => out.variants.push(variant(&value("--variant")?)?),
+            "--origin-language" => out
+                .origin_langs
+                .push(origin_language(&value("--origin-language")?)?),
+            "--lang" => out.lang = Some(language(&value("--lang")?)?),
             "--nav" => out.nav = Some(PathBuf::from(value("--nav")?)),
             "--check" => out.check = true,
             "--facet" => out.facet = Some(fs_interfaces::rpc::parse_facet(&value("--facet")?)?),
@@ -109,19 +120,60 @@ fn source(text: &str) -> Result<(String, PathBuf), String> {
     Ok((prefix.to_owned(), PathBuf::from(dir)))
 }
 
+/// `PREFIX=GROUP/LANG`: the source at `PREFIX` holds the language `LANG` of the pages of `GROUP`.
+fn variant(text: &str) -> Result<crate::variants::VariantSource, String> {
+    let bad = || format!("--variant wants PREFIX=GROUP/LANG (en=docs/en), not {text}");
+    let (prefix, rest) = text.split_once('=').ok_or_else(bad)?;
+    let (group, lang) = rest.rsplit_once('/').ok_or_else(bad)?;
+    if prefix.is_empty() || group.is_empty() {
+        return Err(bad());
+    }
+    Ok(crate::variants::VariantSource {
+        prefix: prefix.to_owned(),
+        group: group.to_owned(),
+        lang: language(lang)?,
+    })
+}
+
+/// `GROUP=LANG`.
+fn origin_language(text: &str) -> Result<(String, String), String> {
+    let (group, lang) = text
+        .split_once('=')
+        .filter(|(g, _)| !g.is_empty())
+        .ok_or_else(|| format!("--origin-language wants GROUP=LANG (adr=de), not {text}"))?;
+    Ok((group.to_owned(), language(lang)?))
+}
+
+/// A language code: lower-case letters and `-` (`de`, `en`, `pt-br`).
+fn language(text: &str) -> Result<String, String> {
+    if !text.is_empty() && text.chars().all(|c| c.is_ascii_lowercase() || c == '-') {
+        Ok(text.to_owned())
+    } else {
+        Err(format!("a language is written like de or en, not {text}"))
+    }
+}
+
 /// The checkout of the documentation: its four sources and its `mkdocs.yml`.
 fn docs_root(out: &mut Args, root: &std::path::Path) {
-    for (prefix, folder) in [
-        ("en", "docs/en"),
-        ("de", "docs/de"),
-        ("adr", "conventions/decisions"),
-        ("research", "temp/research"),
+    // prefix, folder, family, language: English and German of `docs` are one page; the decisions are German only (and
+    // their origin), the research English only.
+    for (prefix, folder, group, lang) in [
+        ("en", "docs/en", "docs", "en"),
+        ("de", "docs/de", "docs", "de"),
+        ("adr", "conventions/decisions", "adr", "de"),
+        ("research", "temp/research", "research", "en"),
     ] {
         let dir = root.join(folder);
         if dir.is_dir() {
             out.sources.push((prefix.to_owned(), dir));
+            out.variants.push(crate::variants::VariantSource {
+                prefix: prefix.to_owned(),
+                group: group.to_owned(),
+                lang: lang.to_owned(),
+            });
         }
     }
+    out.origin_langs.push(("adr".to_owned(), "de".to_owned()));
     let mkdocs = root.join("mkdocs.yml");
     if mkdocs.is_file() && out.nav.is_none() {
         out.nav = Some(mkdocs);
@@ -141,6 +193,10 @@ pub const HELP: &str = "fs-wiki-app: the wiki in a window (Admin view of pages, 
   --docs-root <dir>   with --read: a checkout of the documentation (docs/en as en/, docs/de as de/,
                       conventions/decisions as adr/, temp/research as research/, its mkdocs.yml for the order)
   --source <p>=<dir>  with --read, repeatable: import <dir> below the path prefix <p>
+  --variant <p>=<g>/<l>  with --read, repeatable: the source at <p> is the language <l> of the pages of family <g>;
+                      sources of one family with equal relative paths are ONE page (en/a.md and de/a.md)
+  --origin-language <g>=<l>  the language a family's translations are made from (default en)
+  --lang <l>          the language to read in first (default: that of the environment, else en)
   --nav <mkdocs.yml>  with --read: the navigation that orders the pages (and the .pages files in the folders)
   --reader            open the documentation reader and editor instead (the options below belong to it)
   --facet <name>      the facet to show (the link fs-<facet> sets it); the server it starts gets it too

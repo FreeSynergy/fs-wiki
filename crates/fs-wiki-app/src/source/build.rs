@@ -29,6 +29,7 @@ impl WikiSource {
             difference: Mutex::new(None),
             nav: crate::nav::Nav::default(),
             read_only: false,
+            pages: None,
         }
     }
 
@@ -50,6 +51,7 @@ impl WikiSource {
             difference: Mutex::new(None),
             nav: crate::nav::Nav::default(),
             read_only: false,
+            pages: None,
         }
     }
 
@@ -65,6 +67,13 @@ impl WikiSource {
     #[must_use]
     pub fn with_nav(mut self, nav: crate::nav::Nav) -> Self {
         self.nav = nav;
+        self
+    }
+
+    /// The pages with language variants, and the language to read in first.
+    #[must_use]
+    pub fn with_pages(mut self, index: crate::variants::PageIndex, lang: &str) -> Self {
+        self.pages = Some(super::pages::PagesView::new(index, lang));
         self
     }
 
