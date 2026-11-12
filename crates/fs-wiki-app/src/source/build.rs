@@ -30,6 +30,8 @@ impl WikiSource {
             nav: crate::nav::Nav::default(),
             read_only: false,
             pages: None,
+            bare: false,
+            heads: None,
         }
     }
 
@@ -52,6 +54,8 @@ impl WikiSource {
             nav: crate::nav::Nav::default(),
             read_only: false,
             pages: None,
+            bare: false,
+            heads: None,
         }
     }
 
@@ -74,6 +78,20 @@ impl WikiSource {
     #[must_use]
     pub fn with_pages(mut self, index: crate::variants::PageIndex, lang: &str) -> Self {
         self.pages = Some(super::pages::PagesView::new(index, lang));
+        self
+    }
+
+    /// The heads of all texts, read before (the sidebar is made from them).
+    #[must_use]
+    pub fn with_heads(mut self, heads: Vec<crate::heads::Head>) -> Self {
+        self.heads = Some(heads);
+        self
+    }
+
+    /// The frontend draws the language switch and the notices itself (from `page_info`): the text gets no language bar on top.
+    #[must_use]
+    pub fn bare_pages(mut self) -> Self {
+        self.bare = true;
         self
     }
 

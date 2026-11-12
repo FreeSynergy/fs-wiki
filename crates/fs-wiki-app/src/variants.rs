@@ -119,25 +119,37 @@ impl PageIndex {
     ///
     /// # Errors
     /// A source cannot be listed.
-    pub async fn link(
-        mut self,
-        texts: &dyn Texts,
-        sources: &[VariantSource],
-    ) -> Result<Self, String> {
-        let mut found: BTreeMap<(String, String), BTreeMap<String, Variant>> = BTreeMap::new();
+    pub async fn link(self, texts: &dyn Texts, sources: &[VariantSource]) -> Result<Self, String> {
+        let mut heads = Vec::new();
         for s in sources {
             let below = format!("{}/", s.prefix);
             let list = texts
                 .list(&below, Paging::default())
                 .await
                 .map_err(|e| format!("{}: {e}", s.prefix))?;
-            for t in list {
+            heads.extend(list.into_iter().map(|t| crate::heads::Head {
+                id: t.id,
+                path: t.path,
+                title: t.envelope.name,
+                revision: t.revision,
+            }));
+        }
+        Ok(self.link_heads(&heads, sources))
+    }
+
+    /// [`link`](Self::link) over heads already read (the file of `--index` or one list of everything).
+    #[must_use]
+    pub fn link_heads(mut self, heads: &[crate::heads::Head], sources: &[VariantSource]) -> Self {
+        let mut found: BTreeMap<(String, String), BTreeMap<String, Variant>> = BTreeMap::new();
+        for s in sources {
+            let below = format!("{}/", s.prefix);
+            for t in heads.iter().filter(|h| h.path.starts_with(&below)) {
                 let key = t.path[below.len()..].to_string();
                 found.entry((s.group.clone(), key)).or_default().insert(
                     s.lang.clone(),
                     Variant {
                         text: t.id,
-                        path: t.path,
+                        path: t.path.clone(),
                         rev: t.revision,
                         source_rev: None,
                     },
@@ -171,7 +183,7 @@ impl PageIndex {
             );
         }
         self.pages = pages;
-        Ok(self)
+        self
     }
 }
 
