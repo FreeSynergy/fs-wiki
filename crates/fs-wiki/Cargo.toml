@@ -16,6 +16,9 @@ path = "src/main.rs"
 default = ["gui"]
 # The window (Blinc). Without it the binary has the server only: `cargo build --no-default-features`.
 gui = ["dep:fs-wiki-app"]
+# Only for the typing test, in a debug build (see fs-wiki-app): the window writes the text of its fields to
+# FS_TEST_ACCESS_FILE. Never in a release.
+test-access = ["gui", "fs-wiki-app/test-access"]
 
 [dependencies]
 fs-wiki-server = { path = "../fs-wiki-server" }

@@ -15,8 +15,8 @@ path = "src/main.rs"
 [dependencies]
 fs-wiki-core = { path = "../fs-wiki-core" }
 fs-text = { path = "../fs-text" }
-fs-types = { git = "https://github.com/FreeSynergy/fs-interfaces", tag = "v0.0.18", features = ["rpc"] }
-fs-interfaces = { git = "https://github.com/FreeSynergy/fs-interfaces", tag = "v0.0.18", features = ["rpc"] }
+fs-types = { git = "https://github.com/FreeSynergy/fs-interfaces", tag = "v0.0.19", features = ["rpc"] }
+fs-interfaces = { git = "https://github.com/FreeSynergy/fs-interfaces", tag = "v0.0.19", features = ["rpc"] }
 fs-objects = { git = "https://github.com/FreeSynergy/fs-objects", tag = "v0.0.1" }
 async-trait = "0.1"
 tokio = { version = "1", features = ["sync", "time", "rt"] }

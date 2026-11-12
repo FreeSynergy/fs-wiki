@@ -20,6 +20,10 @@ use crate::words::{self, say};
 /// # Errors
 /// A message for the person.
 pub fn run(words: &[String]) -> Result<(), String> {
+    // The typing test reads what is typed into the fields: the registry must be on BEFORE the first field is made
+    // (fields made earlier are not noted), so before the window is built. A debug-only feature, off in a release.
+    #[cfg(feature = "test-access")]
+    fs_components_widgets::test_access::start_from_env();
     let args = parse(words)?;
     if args.help {
         println!("{HELP}");

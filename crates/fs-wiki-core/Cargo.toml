@@ -10,8 +10,8 @@ version.workspace = true
 fs-text = { path = "../fs-text" }
 fs-objects = { git = "https://github.com/FreeSynergy/fs-objects", tag = "v0.0.1" }
 # The contract and the provider rule (ADR 0045).
-fs-interfaces = { git = "https://github.com/FreeSynergy/fs-interfaces", tag = "v0.0.18" }
-fs-types = { git = "https://github.com/FreeSynergy/fs-interfaces", tag = "v0.0.18" }
+fs-interfaces = { git = "https://github.com/FreeSynergy/fs-interfaces", tag = "v0.0.19" }
+fs-types = { git = "https://github.com/FreeSynergy/fs-interfaces", tag = "v0.0.19" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
