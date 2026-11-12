@@ -116,7 +116,10 @@ mod tests {
     fn parts_are_joined_with_a_slash() {
         let p = PathBuf::from("a").join("notes.txt");
         assert_eq!(wiki_path(&p), "a/notes.txt");
-        assert_eq!(wiki_path(&PathBuf::from("a").join("b").join("c.svg")), "a/b/c.svg");
+        assert_eq!(
+            wiki_path(&PathBuf::from("a").join("b").join("c.svg")),
+            "a/b/c.svg"
+        );
     }
 
     #[test]
