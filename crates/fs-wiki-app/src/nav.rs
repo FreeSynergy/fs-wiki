@@ -12,6 +12,9 @@ use std::path::{Path, PathBuf};
 
 use yaml_serde::Value;
 
+use crate::nav_config::{listed_files, numbered_titles, split_number};
+use crate::nav_order::sort_key;
+
 /// The rank of every page (its text path, with the prefix of its source).
 #[derive(Clone, Debug, Default)]
 pub struct Nav {
@@ -89,62 +92,8 @@ impl Nav {
     }
 }
 
-/// The numbers the configuration gives to names: `nav_translations: {"6 Manifesto": …}` says that `manifesto` is sixth.
-fn numbered_titles(config: &Value) -> HashMap<String, u32> {
-    let mut out = HashMap::new();
-    let mut stack = vec![config];
-    while let Some(v) = stack.pop() {
-        match v {
-            Value::Mapping(m) => {
-                for (k, x) in m {
-                    if k.as_str() == Some("nav_translations")
-                        && let Some(t) = x.as_mapping()
-                    {
-                        for key in t.keys().filter_map(Value::as_str) {
-                            if let Some((n, name)) = split_number(key) {
-                                out.entry(name.to_lowercase().replace(' ', "-"))
-                                    .or_insert(n);
-                            }
-                        }
-                    }
-                    stack.push(x);
-                }
-            }
-            Value::Sequence(s) => stack.extend(s),
-            _ => {}
-        }
-    }
-    out
-}
-
-/// `"3 Components"` is (3, `Components`).
-fn split_number(title: &str) -> Option<(u32, &str)> {
-    let (n, rest) = title.split_once(' ')?;
-    Some((n.parse().ok()?, rest.trim()))
-}
-
-/// The files a `nav:` list names, in its order (titles and nesting do not matter here).
-fn listed_files(nav: &Value) -> Vec<String> {
-    let mut out = Vec::new();
-    match nav {
-        Value::Sequence(items) => {
-            for item in items {
-                out.extend(listed_files(item));
-            }
-        }
-        Value::Mapping(m) => {
-            for (_, v) in m {
-                out.extend(listed_files(v));
-            }
-        }
-        Value::String(s) if is_md(s) => out.push(s.trim_start_matches("./").to_string()),
-        _ => {}
-    }
-    out
-}
-
 /// A Markdown file by its name: written `.md`, lower case, as the import wants it.
-fn is_md(name: &str) -> bool {
+pub(crate) fn is_md(name: &str) -> bool {
     Path::new(name).extension().is_some_and(|e| e == "md")
 }
 
@@ -155,12 +104,12 @@ struct Walk<'a> {
 }
 
 /// One entry of a folder, for ordering.
-struct Item {
+pub(crate) struct Item {
     /// The name in the folder (`start`, `index.md`).
-    name: String,
-    folder: bool,
+    pub(crate) name: String,
+    pub(crate) folder: bool,
     /// The number its title or the configuration gives it.
-    number: Option<u32>,
+    pub(crate) number: Option<u32>,
 }
 
 impl Walk<'_> {
@@ -271,45 +220,6 @@ fn nav_names(nav: &Value) -> Vec<String> {
         .collect()
 }
 
-/// The order within a folder: the index first, the numbered ones by number, the rest by natural name.
-fn sort_key(i: &Item) -> (u8, u32, Vec<Part>) {
-    let index = !i.folder && (i.name == "index.md" || i.name == "README.md");
-    (
-        u8::from(!index),
-        i.number.unwrap_or(u32::MAX),
-        natural(&i.name.to_lowercase()),
-    )
-}
-
-/// A piece of a name for the natural order: numbers compare as numbers.
-#[derive(PartialEq, Eq, PartialOrd, Ord)]
-enum Part {
-    Number(u64),
-    Text(String),
-}
-
-fn natural(name: &str) -> Vec<Part> {
-    let mut out = Vec::new();
-    let mut chars = name.chars().peekable();
-    while let Some(&c) = chars.peek() {
-        let digit = c.is_ascii_digit();
-        let mut piece = String::new();
-        while let Some(&d) = chars.peek() {
-            if d.is_ascii_digit() != digit {
-                break;
-            }
-            piece.push(d);
-            chars.next();
-        }
-        out.push(if digit {
-            Part::Number(piece.parse().unwrap_or(u64::MAX))
-        } else {
-            Part::Text(piece)
-        });
-    }
-    out
-}
-
 /// `names` (already in default order) arranged by a `.pages` `nav:`: the listed ones in its order, `...` stands for the
 /// rest, and without it the rest follows the listed ones (nothing is hidden). A listed name may omit `.md`.
 fn arrange(names: &[String], nav: &[String]) -> Vec<String> {
@@ -342,18 +252,6 @@ fn arrange(names: &[String], nav: &[String]) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn numbers_order_as_numbers_and_the_index_comes_first() {
-        let mut v = ["b10.md", "b2.md", "index.md", "a.md"].map(|n| Item {
-            name: n.into(),
-            folder: false,
-            number: None,
-        });
-        v.sort_by_key(sort_key);
-        let names: Vec<_> = v.iter().map(|i| i.name.as_str()).collect();
-        assert_eq!(names, ["index.md", "a.md", "b2.md", "b10.md"]);
-    }
 
     #[test]
     fn a_pages_nav_lists_first_and_dots_stand_for_the_rest() {
