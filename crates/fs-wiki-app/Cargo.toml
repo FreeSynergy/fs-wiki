@@ -45,4 +45,6 @@ rustix = { version = "1", default-features = false, features = ["std", "fs"] }
 # The real server, started inside the tests; the app code itself uses no store.
 fs-wiki-testserver = { path = "../fs-wiki-testserver" }
 tempfile = "3"
+# Reads the picture of the window to measure the editor (already in the lock through the drawing code).
+png = "0.18"
 tokio = { version = "1", features = ["full"] }

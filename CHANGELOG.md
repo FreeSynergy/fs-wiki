@@ -8,7 +8,8 @@
 - **New option `--read-only`** (the window only reads). A documentation read from folders (`--read` with sources) stays read only unless `--edit`.
 - `--snapshot` prints a `state:` line (page, editability, editor text, stored text, notice, pages) and understands the steps `new[:title]`, `subpage[:title]`, `save`, `cancel`.
 - Tests: `crates/fs-wiki/tests/workflows.rs` runs the flows make, type and paste, save, open again, edit and subpage on the real binary; `crates/fs-wiki-app/tests/page_menu.rs` drives the menu. Linux only, like the start tests. The key chord Ctrl+V itself is not driven (no window with input in the test); a paste is given to the editor as the whole new text.
-- Known gaps (follow-ups): a name dialog with the parent from the page tree; the refusals of the Admin window (path taken, conflict, not empty) still show as "unavailable" there.
+- **Editor width:** the editor takes the whole width of its column in Confluence and Classic (a 430 px column held a 312 px text area; the layouts' paddings are overridden in the styles of the app); Notion's blocks use their reading column. Measured on the picture of the window (`tests/editor_width.rs`). `--snapshot` now draws the whole window (title bar with the menus, status line), not the bare reader; the step `expand:` has no effect there (the window opens the folders of the shown page).
+- Known gaps (follow-ups): the page tree shows a page and the folder of its subpages as two nodes (`handbook.md` and `handbook/`): the tree is built in `fs-components` (`PageTree`) from the paths and must merge a page `a` and a folder `a` into one node; a name dialog with the parent from the page tree; the refusals of the Admin window (path taken, conflict, not empty) still show as "unavailable" there.
 
 ### Deutsch
 
@@ -16,7 +17,8 @@
 - **Neue Option `--read-only`** (das Fenster liest nur). Eine aus Ordnern gelesene Dokumentation (`--read` mit Quellen) bleibt nur lesend, außer mit `--edit`.
 - `--snapshot` gibt eine Zeile `state:` aus (Seite, Bearbeitbarkeit, Editortext, gespeicherter Text, Hinweis, Seiten) und kennt die Schritte `new[:Titel]`, `subpage[:Titel]`, `save`, `cancel`.
 - Tests: `crates/fs-wiki/tests/workflows.rs` führt die Abläufe Anlegen, Tippen und Einfügen, Speichern, Wieder-Öffnen, Bearbeiten und Unterseite am echten Programm aus; `crates/fs-wiki-app/tests/page_menu.rs` steuert das Menü. Nur unter Linux wie die Starttests. Die Tastenkombination Strg+V selbst wird nicht ausgelöst (im Test gibt es kein Fenster mit Eingabe); ein Einfügen wird dem Editor als ganzer neuer Text gegeben.
-- Bekannte Lücken (Folgeaufträge): ein Namens-Dialog mit der Elternseite aus dem Seitenbaum; die Ablehnungen des Admin-Fensters (Pfad vergeben, Konflikt, nicht leer) erscheinen dort weiter als „unavailable“.
+- **Breite des Editors:** der Editor nimmt in Confluence und Classic die ganze Spaltenbreite (in einer 430-px-Spalte stand ein 312-px-Textfeld; die Abstände der Layouts werden in den Styles der App überschrieben); die Blöcke in Notion nutzen ihre Lesespalte. Gemessen am Bild des Fensters (`tests/editor_width.rs`). `--snapshot` zeichnet jetzt das ganze Fenster (Titelleiste mit Menüs, Statuszeile), nicht den nackten Leser; der Schritt `expand:` wirkt dort nicht (das Fenster öffnet die Ordner der gezeigten Seite selbst).
+- Bekannte Lücken (Folgeaufträge): der Seitenbaum zeigt eine Seite und den Ordner ihrer Unterseiten als zwei Knoten (`handbook.md` und `handbook/`): der Baum wird in `fs-components` (`PageTree`) aus den Pfaden gebaut und muss Seite `a` und Ordner `a` zu einem Knoten verbinden; ein Namens-Dialog mit der Elternseite aus dem Seitenbaum; die Ablehnungen des Admin-Fensters (Pfad vergeben, Konflikt, nicht leer) erscheinen dort weiter als „unavailable“.
 
 ## 0.0.9 (in progress)
 

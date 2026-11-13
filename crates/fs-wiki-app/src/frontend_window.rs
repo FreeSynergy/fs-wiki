@@ -83,6 +83,15 @@ pub fn menus(shown: Frontend, german: bool) -> Vec<Menu> {
     ]
 }
 
+/// The editor takes the whole width of its column (the layouts of `fs-components` give it a page padding of 40 px and the
+/// editor 12 px more, so a 430 px column held a 312 px text area; `max-width` keeps it from running wide in a big window
+/// only where the layout set none). Later rules win, so these come after the styles of the workbench.
+pub const EDITOR_STYLES: &str = "
+.fs-wk-a-page { padding-left: 12px; padding-right: 12px; }
+.fs-rd-editor { padding: 0; }
+.fs-rd-bar { padding-left: 0; padding-right: 0; }
+";
+
 struct ReaderSurface(Mutex<ReaderWidget>);
 
 impl Surface for ReaderSurface {
@@ -96,7 +105,7 @@ impl Surface for ReaderSurface {
     }
 
     fn styles(&self) -> String {
-        styles()
+        format!("{}{EDITOR_STYLES}", styles())
     }
 }
 

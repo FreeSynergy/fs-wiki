@@ -1756,6 +1756,7 @@ dependencies = [
  "fs-wiki-core",
  "fs-wiki-testserver",
  "futures",
+ "png 0.18.1",
  "rustix 1.1.6",
  "serde",
  "serde_json",

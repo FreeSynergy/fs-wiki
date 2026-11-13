@@ -19,9 +19,7 @@ use crate::{
     FileDraftStore, FileOrigins, Wiki, WikiSource, import::CHECK_LIMIT, import_sources, words,
 };
 use fs_components_app::{WindowOptions, launch};
-use fs_components_workbenches::{
-    DraftStore, Labels, Picture, ReaderWidget, register_fonts, snapshot,
-};
+use fs_components_workbenches::{DraftStore, Labels, ReaderWidget, register_fonts};
 use fs_wiki_client::RpcTexts;
 
 use crate::args::Args;
@@ -135,23 +133,21 @@ fn show(
     let german = crate::frontend::is_german(args);
     let wiki_labels = crate::frontend::words(german);
     if let Some(file) = &args.snapshot {
-        let mut picture = Picture::new(source, args.size.0, args.size.1);
-        picture.labels = labels;
-        picture.layout = shown.layout();
-        picture.wiki_labels = wiki_labels;
-        picture.steps = crate::mode_read_steps::steps(&args.steps, source_maker.as_ref(), german);
-        let shot = snapshot(picture, file).map_err(|e| e.to_string())?;
-        eprintln!(
-            "wrote {}, showing {:?}, frontend {}",
-            file.display(),
-            shot.reader.current_path(),
-            shown.id()
+        // The picture is the whole window (title bar with the menus, status line, the styles of the app), not the bare reader.
+        let reader = ReaderWidget::new(source, labels, None);
+        let setup = Setup {
+            labels: wiki_labels,
+            german,
+            bare,
+            settings: None,
+            pages: Some(Arc::clone(&source_maker)),
+        };
+        return crate::mode_read_steps::picture(
+            args,
+            file,
+            (reader, setup, shown),
+            (source_maker.as_ref(), probe.as_ref()),
         );
-        eprintln!(
-            "{}",
-            crate::mode_read_steps::state_line(&shot.reader, probe.as_ref())
-        );
-        return Ok(());
     }
     let mut reader = ReaderWidget::new(source, labels, None);
     // Where pages can be edited, what is typed is backed up as a draft (the reader of `--reader` does the same).
