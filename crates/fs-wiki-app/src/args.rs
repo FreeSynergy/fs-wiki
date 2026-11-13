@@ -53,8 +53,10 @@ pub struct Args {
     pub frontend: Option<String>,
     /// `--index FILE` with `--read`: the heads (id, path, title, revision) of all texts are read from this file when it is there, else listed and written to it (listing the whole documentation takes minutes).
     pub index: Option<PathBuf>,
-    /// `--edit` with `--read`: the pages can be edited.
+    /// `--edit`: the pages can be edited, also of imported sources (`--read` with sources is read only without it).
     pub edit: bool,
+    /// `--read-only`: the wiki window does not edit and makes no pages, whatever else is asked.
+    pub read_only: bool,
     /// `--help` was given.
     pub help: bool,
 }
@@ -105,6 +107,7 @@ pub fn parse(args: &[String]) -> Result<Args, String> {
             "--nav" => out.nav = Some(PathBuf::from(value("--nav")?)),
             "--check" => out.check = true,
             "--edit" => out.edit = true,
+            "--read-only" => out.read_only = true,
             "--index" => out.index = Some(PathBuf::from(value("--index")?)),
             "--frontend" => {
                 let v = value("--frontend")?;
@@ -209,7 +212,7 @@ fn size(text: &str) -> Result<(u32, u32), String> {
 pub const HELP: &str = "fs-wiki-app: the wiki in a window (the wiki window; --admin: the Admin window)
 
   (no option)         the wiki window with the frontend remembered from the menu View > Frontend (first start:
-                      Confluence), over the wiki of the server; read only unless --edit
+                      Confluence), over the wiki of the server; pages can be made (menu Page) and edited
   --admin             the Admin window (pages, folders, history, trash, links) instead
   --read              the same window, and the sources below are imported into the wiki first (kept for
                       compatibility: without sources it is the plain start)
@@ -223,7 +226,9 @@ pub const HELP: &str = "fs-wiki-app: the wiki in a window (the wiki window; --ad
   --frontend a|b|classic  the frontend for this run (not remembered): a = page tree, head and outline;
                       b = calm sidebar and block editor; classic = the plain reader. Without it the window
                       starts with the frontend remembered from the menu View > Frontend (first start: a)
-  --edit              the pages can be edited (the wiki window, also without --read)
+  --edit              the pages can be edited, also those of the sources imported with --read (they are read
+                      only without it: the documentation folder stays the truth); the plain start edits anyway
+  --read-only         the wiki window only reads: no editing, no new pages (the menu Page says why it is locked)
   --index <file>      read the heads of all texts from this file (else list them once and write it)
   --nav <mkdocs.yml>  with --read: the navigation that orders the pages (and the .pages files in the folders)
   --reader            open the documentation reader and editor instead (the options below belong to it)
@@ -236,7 +241,8 @@ pub const HELP: &str = "fs-wiki-app: the wiki in a window (the wiki window; --ad
   --origins <file>    keep the records of imported files here (default: one file per docs folder in
                       the data directory, ~/.local/share/freesynergy/fs-wiki)
   --snapshot <png>    draw a picture instead of opening a window
-  --step <step>       with --snapshot, repeatable: open:<path> follow:<href> back search:<term>
+  --step <step>       with --snapshot, repeatable: open:<path> follow:<href> back search:<term> edit type:<text>
+                      save new:<title> (new page, as the menu Page) subpage:<title> (below the page shown)
   --drafts <folder>   where unsaved drafts are backed up (default ~/.local/share/fs-wiki/drafts)
   --export <folder>   enable the Export button, writing pages there (e.g. the docs folder)
   --size <WxH>        picture size (default 1200x800)

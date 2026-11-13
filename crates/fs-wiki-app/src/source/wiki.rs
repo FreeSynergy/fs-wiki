@@ -78,7 +78,7 @@ impl WikiSource {
         first.ok()?.into_iter().next().map(|t| t.path)
     }
 
-    fn exists(&self, path: &str) -> bool {
+    pub(super) fn exists(&self, path: &str) -> bool {
         matches!(
             self.runtime.block_on(self.texts.get_by_path(path)),
             Ok(Some(_))

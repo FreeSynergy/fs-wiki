@@ -10,62 +10,11 @@
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
-/// The temporary folder of one test. Dropping it ends every server that was started on a socket inside it (also after a
-/// failed assertion), waits until they are gone and removes the folder.
-struct Home(PathBuf);
+mod common;
 
-impl Home {
-    fn new(name: &str) -> Home {
-        let dir = std::env::temp_dir().join(format!("fs-wiki-start-{name}-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
-        Home(dir)
-    }
-
-    fn path(&self) -> &Path {
-        &self.0
-    }
-}
-
-impl Drop for Home {
-    fn drop(&mut self) {
-        for pid in servers_in(&self.0) {
-            let _ = Command::new("kill").arg(pid.to_string()).status();
-        }
-        wait_until_gone(&self.0, Duration::from_secs(10));
-        let _ = std::fs::remove_dir_all(&self.0);
-    }
-}
-
-/// The processes `fs-wiki serve ...` that have a word of their command line inside `dir` (Linux: `/proc`).
-fn servers_in(dir: &Path) -> Vec<u32> {
-    let Ok(procs) = std::fs::read_dir("/proc") else {
-        return Vec::new();
-    };
-    let dir = dir.to_string_lossy().into_owned();
-    procs
-        .filter_map(|p| {
-            let p = p.ok()?;
-            let pid: u32 = p.file_name().to_str()?.parse().ok()?;
-            let line = std::fs::read(p.path().join("cmdline")).ok()?;
-            let words: Vec<String> = line
-                .split(|b| *b == 0)
-                .map(|w| String::from_utf8_lossy(w).into_owned())
-                .collect();
-            let serves = words.iter().any(|w| w == "serve");
-            (serves && words.iter().any(|w| w.starts_with(&dir))).then_some(pid)
-        })
-        .collect()
-}
-
-fn wait_until_gone(dir: &Path, within: Duration) {
-    let began = Instant::now();
-    while !servers_in(dir).is_empty() && began.elapsed() < within {
-        std::thread::sleep(Duration::from_millis(50));
-    }
-}
+use common::{Home, servers_in, wait_until_gone};
 
 /// Start the program as the desktop file does (no mode option), only with a picture and a socket of the test.
 fn start(home: &Path, extra: &[&str]) -> String {

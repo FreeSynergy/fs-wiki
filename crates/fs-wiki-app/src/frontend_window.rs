@@ -11,11 +11,17 @@ use fs_components_app::{AppError, AppWidget, Element, Menu, MenuEntry, Screen, S
 use fs_components_workbenches::{ReaderWidget, WikiLabels, styles};
 
 use crate::frontend::{self, Frontend};
+use crate::page_words::{PageWords, create_error, page_words};
+use crate::source::PageMaker;
 
 /// Id of the entry that ends the program.
 pub const QUIT: &str = "program-quit";
 /// Prefix of the ids of the entries that choose a frontend (`frontend-classic`, `frontend-a`, `frontend-b`).
 pub const FRONTEND_PREFIX: &str = "frontend-";
+/// Id of the entry that makes a page at the top level.
+pub const PAGE_NEW: &str = "page-new";
+/// Id of the entry that makes a page below the open page.
+pub const PAGE_SUB: &str = "page-subpage";
 
 /// What the window needs besides the reader.
 pub struct Setup {
@@ -27,6 +33,26 @@ pub struct Setup {
     pub bare: Arc<AtomicBool>,
     /// Where the choice is remembered; none = not remembered (a run with `--frontend`).
     pub settings: Option<PathBuf>,
+    /// Makes the pages of the menu Page; none = the window has no such menu (a source that cannot make pages).
+    pub pages: Option<Arc<dyn PageMaker>>,
+}
+
+/// The menu Page: new page, new subpage. A window that cannot edit shows the entries locked and says why.
+pub fn page_menu(words: &PageWords, can_create: bool) -> Menu {
+    let entry = |id: &str, name: &str| {
+        if can_create {
+            MenuEntry::new(id, name)
+        } else {
+            MenuEntry::new(id, format!("{name} ({})", words.read_only)).disabled()
+        }
+    };
+    Menu::new(
+        words.menu,
+        vec![
+            entry(PAGE_NEW, words.new_page),
+            entry(PAGE_SUB, words.new_subpage),
+        ],
+    )
 }
 
 /// The menus: Program (Quit) and View (German: Ansicht) with one line per frontend, the shown one marked.
@@ -80,24 +106,32 @@ struct Switcher {
     surface: Arc<ReaderSurface>,
     base: ReaderWidget,
     setup: Setup,
+    shown: Mutex<Frontend>,
 }
 
 impl Switcher {
     fn install(self: &Arc<Self>, shown: Frontend) -> Result<(), AppError> {
         let me = Arc::clone(self);
-        self.app
-            .set_menus(menus(shown, self.setup.german), move |id| me.chosen(id))
+        let mut all = menus(shown, self.setup.german);
+        if let Some(pages) = &self.setup.pages {
+            let words = page_words(self.setup.german);
+            all.insert(1, page_menu(&words, pages.can_create()));
+        }
+        self.app.set_menus(all, move |id| me.chosen(id))
     }
 
     fn chosen(self: &Arc<Self>, id: &str) {
         if id == QUIT {
             self.app.quit();
+        } else if id == PAGE_NEW || id == PAGE_SUB {
+            self.make_page(id == PAGE_SUB);
         } else if let Some(chosen) = id.strip_prefix(FRONTEND_PREFIX).and_then(Frontend::parse) {
             self.show(chosen);
         }
     }
 
-    fn show(self: &Arc<Self>, chosen: Frontend) {
+    /// The reader in the layout of `chosen`: the page tree is made again from the list of the source (a new page is in it).
+    fn relayout(self: &Arc<Self>, chosen: Frontend) {
         self.setup
             .bare
             .store(chosen.has_own_head(), Ordering::Relaxed);
@@ -119,6 +153,55 @@ impl Switcher {
             .0
             .lock()
             .unwrap_or_else(PoisonError::into_inner) = widget;
+        *self.shown.lock().unwrap_or_else(PoisonError::into_inner) = chosen;
+    }
+
+    fn shown(&self) -> Frontend {
+        *self.shown.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Menu Page: make a page (below the open one when `sub`), open it in the editor and say what to do next.
+    fn make_page(self: &Arc<Self>, sub: bool) {
+        let Some(maker) = self.setup.pages.clone() else {
+            return;
+        };
+        let words = page_words(self.setup.german);
+        let widget = self
+            .surface
+            .0
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
+        let (open, unsaved) =
+            widget.with_reader(|r| (r.current_path().map(str::to_owned), r.editing().is_some_and(|e| e.changed())));
+        let problem = |text: String| self.app.set_status(Some(Status::Problem(text)));
+        if unsaved {
+            return problem(words.finish_edit.into());
+        }
+        if sub && open.is_none() {
+            return problem(words.need_page.into());
+        }
+        let parent = if sub { open.as_deref() } else { None };
+        match maker.create_page(parent, words.title) {
+            Ok(path) => {
+                widget.with_reader(|r| {
+                    r.refresh_entries();
+                    r.open(&path);
+                    r.begin_edit();
+                });
+                self.relayout(self.shown());
+                let told = crate::words::say(words.created, &[("path", &path)]);
+                self.app.set_status(Some(Status::Info(told)));
+            }
+            Err(e) => return problem(create_error(&e, self.setup.german)),
+        }
+        if let Err(e) = self.install(self.shown()) {
+            eprintln!("fs-wiki: the menus are not set ({e})");
+        }
+    }
+
+    fn show(self: &Arc<Self>, chosen: Frontend) {
+        self.relayout(chosen);
         if let Some(file) = &self.setup.settings
             && let Err(e) = frontend::save(file, chosen)
         {
@@ -160,6 +243,7 @@ pub fn window(
         surface,
         base: reader,
         setup,
+        shown: Mutex::new(shown),
     });
     switcher.install(shown)?;
     Ok(app)

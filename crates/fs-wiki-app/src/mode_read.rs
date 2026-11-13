@@ -14,9 +14,10 @@ use crate::frontend_window::{Setup, window};
 use crate::nav::Nav;
 use crate::store_path::{data_dir, origins_file};
 use crate::variants::PageIndex;
-use crate::{FileOrigins, Wiki, WikiSource, import::CHECK_LIMIT, import_sources, words};
+use crate::source::PageMaker;
+use crate::{FileDraftStore, FileOrigins, Wiki, WikiSource, import::CHECK_LIMIT, import_sources, words};
 use fs_components_app::{WindowOptions, launch};
-use fs_components_workbenches::{Labels, Picture, ReaderWidget, Step, register_fonts, snapshot};
+use fs_components_workbenches::{DraftStore, Labels, Picture, ReaderWidget, register_fonts, snapshot};
 use fs_wiki_client::RpcTexts;
 
 use crate::args::Args;
@@ -70,7 +71,9 @@ pub fn run(args: &Args, texts: RpcTexts) -> Result<(), String> {
     }
     let mut source =
         WikiSource::from_report(wiki.texts(), runtime.handle().clone(), report).with_nav(nav);
-    if !args.edit {
+    // The plain start edits the wiki of the server; the documentation read from folders (`--read` with sources) stays
+    // read only unless `--edit`; `--read-only` always wins.
+    if args.read_only || (!args.sources.is_empty() && !args.edit) {
         source = source.read_only();
     }
     // An override on the command line never writes: no settings file is given to the window then. (A picture only
@@ -121,6 +124,8 @@ fn show(
 ) -> Result<(), String> {
     let bare = source.bare_switch();
     let source = Arc::new(source);
+    let source_maker: Arc<dyn PageMaker> = source.clone();
+    let probe = Arc::clone(&source);
     let mut labels = Labels::default();
     labels.search = "Search pages".into();
     let german = crate::frontend::is_german(args);
@@ -130,7 +135,7 @@ fn show(
         picture.labels = labels;
         picture.layout = shown.layout();
         picture.wiki_labels = wiki_labels;
-        picture.steps = args.steps.iter().filter_map(|s| step(s)).collect();
+        picture.steps = crate::mode_read_steps::steps(&args.steps, source_maker.as_ref(), german);
         let shot = snapshot(picture, file).map_err(|e| e.to_string())?;
         eprintln!(
             "wrote {}, showing {:?}, frontend {}",
@@ -138,14 +143,23 @@ fn show(
             shot.reader.current_path(),
             shown.id()
         );
+        eprintln!(
+            "{}",
+            crate::mode_read_steps::state_line(&shot.reader, probe.as_ref())
+        );
         return Ok(());
     }
-    let reader = ReaderWidget::new(source, labels, None);
+    let mut reader = ReaderWidget::new(source, labels, None);
+    // Where pages can be edited, what is typed is backed up as a draft (the reader of `--reader` does the same).
+    if source_maker.can_create() {
+        reader = with_drafts(reader, args);
+    }
     let setup = Setup {
         labels: wiki_labels,
         german,
         bare,
         settings,
+        pages: Some(source_maker),
     };
     register_fonts();
     let app = window("FreeSynergy Wiki", reader, shown, setup).map_err(|e| e.to_string())?;
@@ -205,20 +219,18 @@ fn records_key(sources: &[(String, PathBuf)]) -> PathBuf {
     ))
 }
 
-/// `open:<path>`, `follow:<href>`, `back`, `search:<term>`, `scroll:<n>`.
-fn step(text: &str) -> Option<Step> {
-    match text.split_once(':') {
-        Some(("open", p)) => Some(Step::Open(p.into())),
-        Some(("follow", h)) => Some(Step::Follow(h.into())),
-        Some(("search", t)) => Some(Step::Search(t.into())),
-        Some(("scroll", n)) => n.parse().ok().map(Step::Scroll),
-        Some(("expand", k)) => Some(Step::Expand(k.into())),
-        Some(("type", t)) => Some(Step::Type(t.replace("\\n", "\n"))),
-        None if text == "edit" => Some(Step::Edit),
-        None if text == "back" => Some(Step::Back),
-        _ => {
-            eprintln!("fs-wiki-app: ignoring unknown step {text:?}");
-            None
+/// The reader with its drafts backed up in the data folder (one subfolder for this server's wiki); without a data
+/// folder, or when the store cannot be made, it is left as it is and the reason goes to stderr.
+fn with_drafts(reader: ReaderWidget, args: &Args) -> ReaderWidget {
+    let Some(dir) = args.drafts.clone().or_else(crate::drafts::default_dir) else {
+        return reader;
+    };
+    let wiki = args.socket.clone().unwrap_or_else(|| PathBuf::from("/wiki"));
+    match FileDraftStore::new(dir, &wiki) {
+        Ok(store) => reader.drafts(Arc::new(store) as Arc<dyn DraftStore>),
+        Err(e) => {
+            eprintln!("fs-wiki: drafts are not backed up ({e})");
+            reader
         }
     }
 }
