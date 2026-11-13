@@ -29,7 +29,12 @@ pub fn backend_for(name: &str, ctx: &Ctx) -> Option<Arc<dyn Backend>> {
 
 /// One view per described type that has a backend, in the order of the navigation: pages first.
 pub fn views(registry: &TypeRegistry, ctx: &Ctx) -> Vec<TypeView> {
-    let say: Arc<dyn Say> = Arc::new(Words);
+    views_in(registry, ctx, false)
+}
+
+/// [`views`] with the words of the interface language.
+pub fn views_in(registry: &TypeRegistry, ctx: &Ctx, german: bool) -> Vec<TypeView> {
+    let say: Arc<dyn Say> = Arc::new(Words::new(german));
     ["Page", "Folder", "Revision", "TrashEntry", "Link"]
         .into_iter()
         .filter_map(|name| {
@@ -68,11 +73,24 @@ pub fn about(origin: &str) -> AboutInfo {
 /// # Errors
 /// The shell cannot be built (two views of one id).
 pub fn shell(registry: &TypeRegistry, ctx: &Ctx, origin: &str) -> Result<AppWidget, AppError> {
-    let say: Arc<dyn Say> = Arc::new(Words);
+    shell_in(registry, ctx, origin, false)
+}
+
+/// [`shell`] with the words of the interface language.
+///
+/// # Errors
+/// The shell cannot be built (two views of one id).
+pub fn shell_in(
+    registry: &TypeRegistry,
+    ctx: &Ctx,
+    origin: &str,
+    german: bool,
+) -> Result<AppWidget, AppError> {
+    let say: Arc<dyn Say> = Arc::new(Words::new(german));
     admin_window(
         "FreeSynergy Wiki",
         &say,
-        views(registry, ctx),
+        views_in(registry, ctx, german),
         about(origin),
         "https://github.com/FreeSynergy/fs-wiki".into(),
     )
@@ -82,6 +100,6 @@ pub fn shell(registry: &TypeRegistry, ctx: &Ctx, origin: &str) -> Result<AppWidg
 ///
 /// # Errors
 /// The window or the graphics cannot be started.
-pub fn open(registry: &TypeRegistry, ctx: &Ctx, origin: &str) -> Result<(), AppError> {
-    launch(WindowOptions::default(), shell(registry, ctx, origin)?)
+pub fn open(registry: &TypeRegistry, ctx: &Ctx, origin: &str, german: bool) -> Result<(), AppError> {
+    launch(WindowOptions::default(), shell_in(registry, ctx, origin, german)?)
 }

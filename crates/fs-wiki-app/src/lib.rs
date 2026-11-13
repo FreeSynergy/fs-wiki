@@ -38,9 +38,13 @@ pub mod report;
 pub mod server;
 pub mod source;
 pub mod store_path;
+pub mod ui_texts;
 pub mod sync;
 pub mod variants;
 pub mod wiki;
+pub mod window_menu;
+pub mod window_modal;
+mod window_pages;
 pub mod words;
 
 pub use drafts::FileDraftStore;

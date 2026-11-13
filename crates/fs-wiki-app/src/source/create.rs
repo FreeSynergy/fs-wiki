@@ -3,8 +3,8 @@
 //! Pattern: Factory + Adapter — `PageMaker` is what the window needs (so a test can put a small source in its place);
 //! `WikiSource` implements it over `Texts::create`. The path is derived from the title and the parent page, never typed
 //! by the person: `<folder of the parent>/<title as a word>.md`. A taken path is not an error of the person: the title
-//! gets a number (`New page 2`), because a new page is made at once and named in the editor (the Confluence way: an
-//! untitled draft, no dialog in between).
+//! gets a number (`New page 2`) in `create_page` (the steps of a picture); the dialog of the window uses `create_exact`, which
+//! reports a taken path (`ops.rs`).
 
 use std::sync::Arc;
 
@@ -22,8 +22,20 @@ const WORD_MAX: usize = 80;
 pub enum CreateError {
     /// The window is read only.
     ReadOnly,
-    /// The title has no letter or digit to make a path from.
+    /// The name is empty (only blanks).
     EmptyTitle,
+    /// The name has no letter or digit to make a path from.
+    NoLetter,
+    /// The name has a slash, a backslash or a control character.
+    BadChars,
+    /// There is no page at this path (any more).
+    NotFound(String),
+    /// The page has language variants; they are not changed in the window.
+    Variants,
+    /// The page was renamed (moved), but its title in the text could not be changed; the reason.
+    Partial(String),
+    /// The page is an index page (`x/index.md`), which has the name of its folder.
+    IndexPage,
     /// The path (and all numbered ones) is taken.
     Taken(String),
     /// The path is not allowed; the core's reason.
@@ -46,6 +58,42 @@ pub trait PageMaker: Send + Sync {
     /// # Errors
     /// [`CreateError`] with the reason; nothing is made then.
     fn create_page(&self, parent: Option<&str>, title: &str) -> Result<String, CreateError>;
+
+    /// Make a page called exactly `title` below `parent` and return its path: a taken path is [`CreateError::Taken`], the
+    /// title is never numbered (the person named it in a dialog and is told).
+    ///
+    /// # Errors
+    /// [`CreateError`] with the reason; nothing is made then.
+    fn create_exact(&self, _parent: Option<&str>, _title: &str) -> Result<String, CreateError> {
+        Err(CreateError::ReadOnly)
+    }
+
+    /// Give the page at `path` the name `title`: the page, its subpages and the links to them move (the id and the history
+    /// stay), and the title in its text changes. Returns the new path.
+    ///
+    /// # Errors
+    /// [`CreateError`] with the reason; a failure before the move changes nothing.
+    fn rename_page(&self, _path: &str, _title: &str) -> Result<String, CreateError> {
+        Err(CreateError::ReadOnly)
+    }
+
+    /// Move the page at `path` and its subpages to the trash (they can be restored from there); how many pages moved.
+    ///
+    /// # Errors
+    /// [`CreateError`] with the reason.
+    fn trash_page(&self, _path: &str) -> Result<usize, CreateError> {
+        Err(CreateError::ReadOnly)
+    }
+
+    /// How many subpages the page at `path` has.
+    fn subpage_count(&self, _path: &str) -> usize {
+        0
+    }
+
+    /// The revision of the text at `path` (changes with every write), none when there is no such text.
+    fn revision(&self, _path: &str) -> Option<String> {
+        None
+    }
 
     /// Call `hook` after every saved edit, from the thread that saves (it must not wait for the reader). The default never
     /// calls it.
@@ -117,6 +165,26 @@ impl PageMaker for WikiSource {
             .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(hook);
     }
 
+    fn create_exact(&self, parent: Option<&str>, title: &str) -> Result<String, CreateError> {
+        self.create_named(parent, title)
+    }
+
+    fn rename_page(&self, path: &str, title: &str) -> Result<String, CreateError> {
+        self.rename(path, title)
+    }
+
+    fn trash_page(&self, path: &str) -> Result<usize, CreateError> {
+        self.trash_with_subpages(path)
+    }
+
+    fn subpage_count(&self, path: &str) -> usize {
+        self.subpages(path)
+    }
+
+    fn revision(&self, path: &str) -> Option<String> {
+        self.entry(path).ok().map(|e| e.revision.to_string())
+    }
+
     fn create_page(&self, parent: Option<&str>, title: &str) -> Result<String, CreateError> {
         if self.read_only {
             return Err(CreateError::ReadOnly);
@@ -129,7 +197,7 @@ impl PageMaker for WikiSource {
             } else {
                 format!("{title} {n}")
             };
-            let path = page_path(parent, &numbered).ok_or(CreateError::EmptyTitle)?;
+            let path = page_path(parent, &numbered).ok_or(CreateError::NoLetter)?;
             last.clone_from(&path);
             if self.exists(&path) {
                 continue;

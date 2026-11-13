@@ -8,12 +8,14 @@ use fs_wiki_core::is_hidden_block;
 
 use super::inline::inline_of;
 use super::nest::nest;
+use super::page_title::page_title;
 use super::table::table;
 
-/// The document as the components draw it, titled `title`.
-pub fn to_document(title: &str, doc: &Doc) -> Document {
+/// The document as the components draw it. `name` is the name the wiki derived for the text; the title is made by
+/// `page_title` (front matter, else the first level-1 heading, else `name`), so it equals that heading and is drawn once.
+pub fn to_document(name: &str, doc: &Doc) -> Document {
     let shown: Vec<&Block> = doc.blocks.iter().filter(|b| !is_hidden_block(b)).collect();
-    Document::new(title, nest(&shown, 0))
+    Document::new(page_title(name, doc), nest(&shown, 0))
 }
 
 /// One block without its containers.

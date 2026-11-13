@@ -10,12 +10,14 @@ pub mod export;
 mod export_fs;
 mod export_page;
 mod export_report;
+mod ops;
 mod pages;
 mod problems;
 mod resolve;
 mod wiki;
 
 pub use create::{CreateError, PageMaker, SavedHook};
+pub use ops::{check_name, retitle};
 pub use export::{
     Differs, ExportError, export_markdown_checked, export_markdown_if_seen, export_markdown_to,
     read_current,

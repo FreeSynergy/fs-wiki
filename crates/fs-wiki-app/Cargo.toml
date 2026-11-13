@@ -17,12 +17,16 @@ fs-wiki-core = { path = "../fs-wiki-core" }
 fs-wiki-client = { path = "../fs-wiki-client" }
 fs-objects = { git = "https://github.com/FreeSynergy/fs-objects", tag = "v0.0.1" }
 # One tag of fs-components for everything; Blinc comes only through it (`fs_components::blinc`), never as a dependency here.
-fs-components-widgets = { git = "https://github.com/FreeSynergy/fs-components", tag = "v0.0.14" }
-fs-components-workbenches = { git = "https://github.com/FreeSynergy/fs-components", tag = "v0.0.14" }
-fs-components-app = { git = "https://github.com/FreeSynergy/fs-components", tag = "v0.0.14" }
-fs-components-fields = { git = "https://github.com/FreeSynergy/fs-components", tag = "v0.0.14" }
-fs-components-styles = { git = "https://github.com/FreeSynergy/fs-components", tag = "v0.0.14" }
-fs-admin-frontend = { git = "https://github.com/FreeSynergy/fs-components", tag = "v0.0.14" }
+fs-components-widgets = { git = "https://github.com/FreeSynergy/fs-components", tag = "v0.0.17" }
+fs-components-workbenches = { git = "https://github.com/FreeSynergy/fs-components", tag = "v0.0.17" }
+fs-components-app = { git = "https://github.com/FreeSynergy/fs-components", tag = "v0.0.17" }
+fs-components-fields = { git = "https://github.com/FreeSynergy/fs-components", tag = "v0.0.17" }
+fs-components-styles = { git = "https://github.com/FreeSynergy/fs-components", tag = "v0.0.17" }
+fs-components = { git = "https://github.com/FreeSynergy/fs-components", tag = "v0.0.17" }
+fs-components-primitives = { git = "https://github.com/FreeSynergy/fs-components", tag = "v0.0.17" }
+fs-components-mf2 = { git = "https://github.com/FreeSynergy/fs-components", tag = "v0.0.17" }
+fs-components-words = { git = "https://github.com/FreeSynergy/fs-components", tag = "v0.0.17" }
+fs-admin-frontend = { git = "https://github.com/FreeSynergy/fs-components", tag = "v0.0.17" }
 # The descriptions as the server sends them and as the frontend reads them: one fs-types, one source in the tree.
 fs-types = { git = "https://github.com/FreeSynergy/fs-interfaces", tag = "v0.0.19" }
 async-trait = "0.1"

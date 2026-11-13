@@ -9,7 +9,7 @@ use std::time::Instant;
 
 use crate::store_path::{data_dir, old_store_file, origins_file};
 use crate::{Conflict, FileDraftStore, FileOrigins, Wiki, WikiSource, import_folder, words};
-use fs_components_workbenches::{DraftStore, Labels, Options, Picture, Step, launch, snapshot};
+use fs_components_workbenches::{DraftStore, Options, Picture, Step, launch, snapshot};
 use fs_wiki_client::RpcTexts;
 use fs_wiki_core::Texts;
 
@@ -69,8 +69,7 @@ pub fn run(args: &Args, texts: RpcTexts) -> Result<(), String> {
             .with_origins(wiki.origins_store(), args.docs.clone()),
     );
     let export_target = args.export.as_ref().map(|p| p.display().to_string());
-    let mut labels = Labels::default();
-    labels.search = "Search pages".into();
+    let labels = crate::ui_texts::UiTexts::new(crate::frontend::is_german(args)).reader_labels();
     if let Some(file) = &args.snapshot {
         let mut picture = Picture::new(source, args.size.0, args.size.1);
         picture.labels = labels;

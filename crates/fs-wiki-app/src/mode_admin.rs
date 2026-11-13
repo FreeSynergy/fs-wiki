@@ -26,7 +26,7 @@ pub fn run(args: &Args, texts: RpcTexts) -> Result<(), String> {
         check(&registry, &ctx);
         return Ok(());
     }
-    open(&registry, &ctx, "source").map_err(|e| e.to_string())
+    open(&registry, &ctx, "source", crate::frontend::is_german(args)).map_err(|e| e.to_string())
 }
 
 /// One line per data type: how many records its list has; no window.

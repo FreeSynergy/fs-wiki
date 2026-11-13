@@ -142,34 +142,9 @@ fn env_is_german() -> bool {
         .is_some_and(|v| v.starts_with("de"))
 }
 
-/// The words of the wiki layouts.
+/// The words of the wiki layouts, in the interface language (`texts/`, `ui_texts.rs`).
 pub(crate) fn words(german: bool) -> WikiLabels {
-    if german {
-        german_words()
-    } else {
-        WikiLabels::default()
-    }
-}
-
-fn german_words() -> WikiLabels {
-    let mut w = WikiLabels::default();
-    let s = |t: &str| t.to_string();
-    w.program = s("FreeSynergy Wiki");
-    w.pages = s("Seiten");
-    w.filter = s("Nach Titel suchen");
-    w.outline = s("Gliederung");
-    w.no_headings = s("Diese Seite hat keine Überschriften.");
-    w.history = s("Verlauf");
-    w.no_history = s("Keine früheren Fassungen bekannt.");
-    w.state_current = s("Aktuell");
-    w.state_outdated = s("Veraltet");
-    w.state_fallback = s("Andere Sprache");
-    w.language = s("Sprache");
-    w.edit = s("Bearbeiten");
-    w.share = s("Teilen");
-    w.block_hint = s("Schreiben, oder / für Befehle");
-    w.page_count = s("{} Seiten");
-    w
+    crate::ui_texts::UiTexts::new(german).wiki_labels()
 }
 
 #[cfg(test)]

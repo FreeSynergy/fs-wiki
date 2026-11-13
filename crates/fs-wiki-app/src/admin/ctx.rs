@@ -53,8 +53,15 @@ pub fn fail(e: Error) -> BackendError {
         | Error::NoSuchNode(_)
         | Error::NoSuchRevision { .. }
         | Error::NoSuchFolder(_) => BackendError::NotFound,
-        Error::Unsupported(u) => BackendError::Unavailable(format!("unsupported:{u}")),
-        other => BackendError::Unavailable(other.to_string()),
+        // The window shows a code and its sentence (`say.rs`); the reason of the core goes to the log.
+        Error::Unsupported(u) => {
+            eprintln!("fs-wiki: the wiki does not offer this yet ({u})");
+            BackendError::Unavailable(format!("unsupported:{u}"))
+        }
+        other => {
+            eprintln!("fs-wiki: the wiki refused: {other}");
+            BackendError::Unavailable(other.to_string())
+        }
     }
 }
 

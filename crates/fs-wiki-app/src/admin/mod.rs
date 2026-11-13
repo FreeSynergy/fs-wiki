@@ -23,4 +23,4 @@ pub use page::PageBackend;
 pub use revision::RevisionBackend;
 pub use say::Words;
 pub use trash::TrashBackend;
-pub use window::{about, backend_for, open, shell, views};
+pub use window::{about, backend_for, open, shell, shell_in, views, views_in};

@@ -42,7 +42,7 @@ pub(crate) fn steps(words: &[String], maker: &dyn PageMaker, german: bool) -> Ve
             }
             continue;
         };
-        match maker.create_page(parent.as_deref(), if t.is_empty() { title } else { t }) {
+        match maker.create_page(parent.as_deref(), if t.is_empty() { &title } else { t }) {
             Ok(path) => {
                 open = Some(path.clone());
                 out.extend([Step::Open(path), Step::Edit]);

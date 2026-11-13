@@ -6,6 +6,7 @@
 mod blocks;
 mod inline;
 mod nest;
+mod page_title;
 mod table;
 mod title;
 

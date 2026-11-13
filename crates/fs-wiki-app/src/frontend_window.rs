@@ -1,27 +1,30 @@
 //! The window of the reading wiki: the menu View > Frontend switches between Classic, Confluence and Notion while it runs.
 //!
 //! Pattern: Strategy in a shell — the reader of `fs-components` is the one surface; a choice in the menu puts the same
-//! reader (its state is shared by the clones) into another layout, remembers the choice (`frontend.rs`) and redraws.
+//! reader (its state is shared by the clones) into another layout, remembers the choice (`frontend.rs`) and redraws. The
+//! menu Page (`window_menu.rs`) and what it does (`window_pages.rs`, dialogs in `window_modal.rs`) belong to the same window.
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
-use fs_components_app::{AppError, AppWidget, Element, Menu, MenuEntry, Screen, Status, Surface};
-use fs_components_workbenches::{Editing, ReaderWidget, WikiLabels, styles};
+use fs_components::blinc::layout::div::{Div, div};
+use fs_components::blinc::layout::prelude::text;
+use fs_components_app::{AppError, AppWidget, Element, Screen, Status, Surface};
+use fs_components_primitives::{FieldSize, SearchField};
+use fs_components_widgets::icon::{Glyph, Tone, icon};
+use fs_components_workbenches::{ReaderWidget, WikiLabels, styles};
 
 use crate::frontend::{self, Frontend};
-use crate::page_words::{PageWords, create_error, page_words};
+use crate::page_words::page_words;
 use crate::source::PageMaker;
+use crate::ui_texts::UiTexts;
+use crate::window_modal::{self, ModalSlot};
 
-/// Id of the entry that ends the program.
-pub const QUIT: &str = "program-quit";
-/// Prefix of the ids of the entries that choose a frontend (`frontend-classic`, `frontend-a`, `frontend-b`).
-pub const FRONTEND_PREFIX: &str = "frontend-";
-/// Id of the entry that makes a page at the top level.
-pub const PAGE_NEW: &str = "page-new";
-/// Id of the entry that makes a page below the open page.
-pub const PAGE_SUB: &str = "page-subpage";
+pub use crate::window_menu::{
+    FRONTEND_PREFIX, PAGE_DELETE, PAGE_DISCARD, PAGE_NEW, PAGE_RENAME, PAGE_SUB, PageState, QUIT, menus, page_menu,
+};
 
 /// What the window needs besides the reader.
 pub struct Setup {
@@ -37,117 +40,170 @@ pub struct Setup {
     pub pages: Option<Arc<dyn PageMaker>>,
 }
 
-/// The menu Page: new page, new subpage. A window that cannot edit shows the entries locked and says why.
-pub fn page_menu(words: &PageWords, can_create: bool) -> Menu {
-    let entry = |id: &str, name: &str| {
-        if can_create {
-            MenuEntry::new(id, name)
-        } else {
-            MenuEntry::new(id, format!("{name} ({})", words.read_only)).disabled()
-        }
-    };
-    Menu::new(
-        words.menu,
-        vec![
-            entry(PAGE_NEW, words.new_page),
-            entry(PAGE_SUB, words.new_subpage),
-        ],
-    )
-}
-
-/// The menus: Program (Quit) and View (German: Ansicht) with one line per frontend, the shown one marked.
-pub fn menus(shown: Frontend, german: bool) -> Vec<Menu> {
-    let (program, quit, view) = if german {
-        ("Programm", "Beenden", "Ansicht")
-    } else {
-        ("Program", "Quit", "View")
-    };
-    let entries = Frontend::ALL
-        .into_iter()
-        .map(|f| {
-            let name = match f {
-                Frontend::Classic => "Classic",
-                Frontend::Confluence => "Confluence",
-                Frontend::Notion => "Notion",
-            };
-            let mark = if f == shown { "✓ " } else { "   " };
-            MenuEntry::new(
-                format!("{FRONTEND_PREFIX}{}", f.id()),
-                format!("{mark}Frontend: {name}"),
-            )
-        })
-        .collect();
-    vec![
-        Menu::new(program, vec![MenuEntry::new(QUIT, quit)]),
-        Menu::new(view, entries),
-    ]
-}
-
 /// The editor takes the whole width of its column (the layouts of `fs-components` give it a page padding of 40 px and the
 /// editor 12 px more, so a 430 px column held a 312 px text area; `max-width` keeps it from running wide in a big window
-/// only where the layout set none). Later rules win, so these come after the styles of the workbench.
+/// only where the layout set none). Later rules win, so these come after the styles of the workbench. Confluence's own top
+/// bar is not drawn: the window has ONE bar at the top (`ReaderSurface::bar`) with the menus, the name and the search.
 pub const EDITOR_STYLES: &str = "
 .fs-wk-a-page { padding-left: 12px; padding-right: 12px; }
 .fs-rd-editor { padding: 0; }
 .fs-rd-bar { padding-left: 0; padding-right: 0; }
+.fs-wk-a-top { display: none; height: 0px; }
+.fs-wiki-bar { display: flex; flex-direction: row; align-items: center; gap: var(--space-4); width: 100%; }
+.fs-wiki-brand { display: flex; flex-direction: row; align-items: center; gap: var(--space-2); font-weight: 700; }
 ";
 
-struct ReaderSurface(Mutex<ReaderWidget>);
+/// The one surface: the reader, the bar of Confluence and the modal over the page.
+pub(crate) struct ReaderSurface {
+    pub(crate) widget: Mutex<ReaderWidget>,
+    pub(crate) modal: Arc<ModalSlot>,
+    confluence: AtomicBool,
+    program: String,
+    search: SearchField,
+}
+
+impl ReaderSurface {
+    fn new(widget: ReaderWidget, program: &str, search_hint: &str, shown: Frontend) -> Self {
+        let search = {
+            let widget = widget.clone();
+            SearchField::new(search_hint)
+                .size(FieldSize::Small)
+                .on_change(Arc::new(move |term| {
+                    widget.with_reader(|r| r.search(term));
+                    widget.refresh();
+                }))
+        };
+        Self {
+            widget: Mutex::new(widget),
+            modal: Arc::new(ModalSlot::default()),
+            confluence: AtomicBool::new(shown == Frontend::Confluence),
+            program: program.to_owned(),
+            search,
+        }
+    }
+
+    pub(crate) fn current(&self) -> ReaderWidget {
+        self.widget.lock().unwrap_or_else(PoisonError::into_inner).clone()
+    }
+}
 
 impl Surface for ReaderSurface {
     fn build(&self, width: f32, height: f32) -> Box<dyn Element> {
-        let widget = self
-            .0
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clone();
-        Box::new(widget.build(width, height))
+        Box::new(self.modal.over(self.current().build(width, height), width, height))
     }
 
     fn styles(&self) -> String {
-        format!("{}{EDITOR_STYLES}", styles())
+        format!("{}{}{EDITOR_STYLES}", styles(), window_modal::STYLES)
+    }
+
+    /// Confluence: one line on top with the name, the search and the menus (the shell's title bar and the layout's own top
+    /// bar, two lines saying the same name, are not drawn). The other frontends keep the shell's title bar.
+    fn bar(&self, menus: Option<Div>, _width: f32) -> Option<(Div, f32)> {
+        if !self.confluence.load(Ordering::Relaxed) {
+            return None;
+        }
+        let mut bar = div().class("fs-app-bar").class("fs-wiki-bar").h(BAR_HEIGHT);
+        bar = bar
+            .child(
+                div()
+                    .class("fs-wiki-brand")
+                    .child(icon(Glyph::FileText, 22.0, Tone::Accent))
+                    .child(text(&self.program).no_wrap()),
+            )
+            .child(div().w(SEARCH_WIDTH).child(self.search.build()));
+        if let Some(menus) = menus {
+            bar = bar.child(menus);
+        }
+        Some((bar, BAR_HEIGHT))
     }
 }
 
+/// The height of the shell's own bar (`fs-components-app` `BAR_HEIGHT`), so the window loses no room.
+const BAR_HEIGHT: f32 = 44.0;
+/// The width of the search field in the bar.
+const SEARCH_WIDTH: f32 = 360.0;
+
 /// What a choice in the menu does.
-struct Switcher {
-    app: AppWidget,
-    surface: Arc<ReaderSurface>,
-    base: ReaderWidget,
-    setup: Setup,
-    shown: Mutex<Frontend>,
+pub(crate) struct Switcher {
+    pub(crate) app: AppWidget,
+    pub(crate) surface: Arc<ReaderSurface>,
+    pub(crate) base: ReaderWidget,
+    pub(crate) setup: Setup,
+    pub(crate) shown: Mutex<Frontend>,
+    /// Pages made in this window and not saved since: path -> the revision they had when made.
+    pub(crate) fresh: Mutex<HashMap<String, String>>,
+    /// The state the menus were last set for.
+    menu_state: Mutex<Option<PageState>>,
 }
 
 impl Switcher {
-    fn install(self: &Arc<Self>, shown: Frontend) -> Result<(), AppError> {
+    pub(crate) fn texts(&self) -> UiTexts {
+        UiTexts::new(self.setup.german)
+    }
+
+    /// What decides the entries of the menu Page now.
+    fn page_state(&self) -> PageState {
+        let (open, editing) = self
+            .surface
+            .current()
+            .with_reader(|r| (r.current_path().is_some(), r.editing().is_some()));
+        PageState {
+            can_edit: self.setup.pages.as_ref().is_some_and(|p| p.can_create()),
+            open,
+            editing,
+        }
+    }
+
+    pub(crate) fn install(self: &Arc<Self>, shown: Frontend) -> Result<(), AppError> {
         let me = Arc::clone(self);
         let mut all = menus(shown, self.setup.german);
-        if let Some(pages) = &self.setup.pages {
-            let words = page_words(self.setup.german);
-            all.insert(1, page_menu(&words, pages.can_create()));
+        let state = self.page_state();
+        if self.setup.pages.is_some() {
+            all.insert(1, page_menu(&page_words(self.setup.german), state));
         }
+        *self.menu_state.lock().unwrap_or_else(PoisonError::into_inner) = Some(state);
         self.app.set_menus(all, move |id| me.chosen(id))
     }
 
+    /// Set the menus again when what decides them changed (a page was opened, an edit began or ended): the reader changes by
+    /// clicks the window does not see, so a small thread of the window looks now and then. A menu that is open is left
+    /// alone (setting menus closes it); the next look sets it.
+    fn watch_state(self: &Arc<Self>) {
+        let me = Arc::downgrade(self);
+        std::thread::spawn(move || {
+            while let Some(me) = me.upgrade() {
+                let open = me.app.with_shell(fs_components_app::Shell::open_menu).is_some();
+                let last = *me.menu_state.lock().unwrap_or_else(PoisonError::into_inner);
+                if !open && last != Some(me.page_state()) && me.setup.pages.is_some() {
+                    let _ = me.install(me.shown());
+                }
+                drop(me);
+                std::thread::sleep(std::time::Duration::from_millis(200));
+            }
+        });
+    }
+
     fn chosen(self: &Arc<Self>, id: &str) {
-        if id == QUIT {
-            self.app.quit();
-        } else if id == PAGE_NEW || id == PAGE_SUB {
-            self.make_page(id == PAGE_SUB);
-        } else if let Some(chosen) = id.strip_prefix(FRONTEND_PREFIX).and_then(Frontend::parse) {
-            self.show(chosen);
+        match id {
+            QUIT => {
+                self.app.quit();
+            }
+            PAGE_NEW | PAGE_SUB | PAGE_RENAME | PAGE_DELETE | PAGE_DISCARD => self.page_action(id),
+            _ => {
+                if let Some(chosen) = id.strip_prefix(FRONTEND_PREFIX).and_then(Frontend::parse) {
+                    self.show(chosen);
+                }
+            }
         }
     }
 
     /// The reader in the layout of `chosen`: the page tree is made again from the list of the source (a new page is in it).
-    fn relayout(self: &Arc<Self>, chosen: Frontend) {
-        self.setup
-            .bare
-            .store(chosen.has_own_head(), Ordering::Relaxed);
-        let widget = self
-            .base
-            .clone()
-            .layout(chosen.layout(), self.setup.labels.clone());
+    pub(crate) fn relayout(self: &Arc<Self>, chosen: Frontend) {
+        self.setup.bare.store(chosen.has_own_head(), Ordering::Relaxed);
+        self.surface
+            .confluence
+            .store(chosen == Frontend::Confluence, Ordering::Relaxed);
+        let widget = self.base.clone().layout(chosen.layout(), self.setup.labels.clone());
         // The page is read again: the plain frontend has the language bar in the text of the page, the others draw it
         // themselves. An edit in progress is left alone.
         widget.with_reader(|r| {
@@ -157,11 +213,7 @@ impl Switcher {
                 r.open(&path);
             }
         });
-        *self
-            .surface
-            .0
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner) = widget;
+        *self.surface.widget.lock().unwrap_or_else(PoisonError::into_inner) = widget;
         *self.shown.lock().unwrap_or_else(PoisonError::into_inner) = chosen;
     }
 
@@ -184,52 +236,8 @@ impl Switcher {
         }));
     }
 
-    fn shown(&self) -> Frontend {
+    pub(crate) fn shown(&self) -> Frontend {
         *self.shown.lock().unwrap_or_else(PoisonError::into_inner)
-    }
-
-    /// Menu Page: make a page (below the open one when `sub`), open it in the editor and say what to do next.
-    fn make_page(self: &Arc<Self>, sub: bool) {
-        let Some(maker) = self.setup.pages.clone() else {
-            return;
-        };
-        let words = page_words(self.setup.german);
-        let widget = self
-            .surface
-            .0
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clone();
-        let (open, unsaved) = widget.with_reader(|r| {
-            (
-                r.current_path().map(str::to_owned),
-                r.editing().is_some_and(Editing::changed),
-            )
-        });
-        let problem = |text: String| self.app.set_status(Some(Status::Problem(text)));
-        if unsaved {
-            return problem(words.finish_edit.into());
-        }
-        if sub && open.is_none() {
-            return problem(words.need_page.into());
-        }
-        let parent = if sub { open.as_deref() } else { None };
-        match maker.create_page(parent, words.title) {
-            Ok(path) => {
-                widget.with_reader(|r| {
-                    r.refresh_entries();
-                    r.open(&path);
-                    r.begin_edit();
-                });
-                self.relayout(self.shown());
-                let told = crate::words::say(words.created, &[("path", &path)]);
-                self.app.set_status(Some(Status::Info(told)));
-            }
-            Err(e) => return problem(create_error(&e, self.setup.german)),
-        }
-        if let Err(e) = self.install(self.shown()) {
-            eprintln!("fs-wiki: the menus are not set ({e})");
-        }
     }
 
     fn show(self: &Arc<Self>, chosen: Frontend) {
@@ -237,16 +245,9 @@ impl Switcher {
         if let Some(file) = &self.setup.settings
             && let Err(e) = frontend::save(file, chosen)
         {
-            eprintln!(
-                "fs-wiki: the frontend is not remembered ({}: {e})",
-                file.display()
-            );
-            let words = if self.setup.german {
-                "Das Frontend konnte nicht gemerkt werden."
-            } else {
-                "The frontend could not be remembered."
-            };
-            self.app.set_status(Some(Status::Problem(words.into())));
+            eprintln!("fs-wiki: the frontend is not remembered ({}: {e})", file.display());
+            let said = self.texts().plain("msg-frontend-not-kept");
+            self.app.set_status(Some(Status::Problem(said)));
         }
         // Setting the menus draws everything again, with the mark on the new frontend.
         if let Err(e) = self.install(chosen) {
@@ -265,9 +266,25 @@ pub fn window(
     shown: Frontend,
     setup: Setup,
 ) -> Result<AppWidget, AppError> {
+    window_with_modal(title, reader, shown, setup).map(|(app, _)| app)
+}
+
+/// [`window`], and the slot of its modal: what a test (or another part of the program) uses to answer a dialog without a
+/// click (`ModalSlot::submit`, `yes`, `no`).
+///
+/// # Errors
+/// The shell cannot be built.
+pub fn window_with_modal(
+    title: &str,
+    reader: ReaderWidget,
+    shown: Frontend,
+    setup: Setup,
+) -> Result<(AppWidget, Arc<ModalSlot>), AppError> {
     setup.bare.store(shown.has_own_head(), Ordering::Relaxed);
     let widget = reader.clone().layout(shown.layout(), setup.labels.clone());
-    let surface = Arc::new(ReaderSurface(Mutex::new(widget)));
+    let hint = reader.with_reader(|r| r.labels().search.clone());
+    let surface = Arc::new(ReaderSurface::new(widget, &setup.labels.program, &hint, shown));
+    let modal = Arc::clone(&surface.modal);
     let screen = Screen::new("reader", title, Arc::clone(&surface) as Arc<dyn Surface>);
     let app = AppWidget::new(title, vec![screen])?;
     let switcher = Arc::new(Switcher {
@@ -276,8 +293,11 @@ pub fn window(
         base: reader,
         setup,
         shown: Mutex::new(shown),
+        fresh: Mutex::default(),
+        menu_state: Mutex::default(),
     });
     switcher.watch_saves();
     switcher.install(shown)?;
-    Ok(app)
+    switcher.watch_state();
+    Ok((app, modal))
 }

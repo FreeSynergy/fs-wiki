@@ -274,7 +274,7 @@ Start (needs a graphical session). The wiki lives in the server, so **start the 
 cp -r /srv/FreeSynergy/fs-documentation/docs/en /tmp/fs-docs-copy
 cd /srv/FreeSynergy/fs-wiki
 cargo run --release -p fs-wiki-server -- --socket /tmp/fs-wiki.sock --data /tmp/fs-wiki-data      # terminal 1
-cargo run --release -p fs-wiki-app -- --socket /tmp/fs-wiki.sock --docs /tmp/fs-docs-copy --export /tmp/fs-docs-copy   # terminal 2
+cargo run --release -p fs-wiki-app -- --reader --socket /tmp/fs-wiki.sock --docs /tmp/fs-docs-copy --export /tmp/fs-docs-copy   # terminal 2
 ```
 
 Without a server the app stops with that command line in its message; it never starts a store of its own. Stop the server with Ctrl-C when done.

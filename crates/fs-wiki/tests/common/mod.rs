@@ -39,6 +39,8 @@ pub fn servers_in(dir: &Path) -> Vec<u32> {
         return Vec::new();
     };
     let dir = dir.to_string_lossy().into_owned();
+    // A word is inside `dir` when it is `dir` or starts with `dir/` (`/tmp/a` is not inside `/tmp/ab`).
+    let inside = format!("{}/", dir.trim_end_matches('/'));
     procs
         .filter_map(|p| {
             let p = p.ok()?;
@@ -49,7 +51,7 @@ pub fn servers_in(dir: &Path) -> Vec<u32> {
                 .map(|w| String::from_utf8_lossy(w).into_owned())
                 .collect();
             let serves = words.iter().any(|w| w == "serve");
-            (serves && words.iter().any(|w| w.starts_with(&dir))).then_some(pid)
+            (serves && words.iter().any(|w| *w == dir || w.starts_with(&inside))).then_some(pid)
         })
         .collect()
 }

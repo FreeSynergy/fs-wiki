@@ -19,7 +19,7 @@ use crate::{
     FileDraftStore, FileOrigins, Wiki, WikiSource, import::CHECK_LIMIT, import_sources, words,
 };
 use fs_components_app::{WindowOptions, launch};
-use fs_components_workbenches::{DraftStore, Labels, ReaderWidget, register_fonts};
+use fs_components_workbenches::{DraftStore, ReaderWidget, register_fonts};
 use fs_wiki_client::RpcTexts;
 
 use crate::args::Args;
@@ -128,9 +128,8 @@ fn show(
     let source = Arc::new(source);
     let source_maker: Arc<dyn PageMaker> = source.clone();
     let probe = Arc::clone(&source);
-    let mut labels = Labels::default();
-    labels.search = "Search pages".into();
     let german = crate::frontend::is_german(args);
+    let labels = crate::ui_texts::UiTexts::new(german).reader_labels();
     let wiki_labels = crate::frontend::words(german);
     if let Some(file) = &args.snapshot {
         // The picture is the whole window (title bar with the menus, status line, the styles of the app), not the bare reader.

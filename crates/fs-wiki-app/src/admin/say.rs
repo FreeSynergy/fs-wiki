@@ -1,55 +1,13 @@
 //! The words of the Admin frontend for this program, until translation exists (ADR 0053).
 //!
-//! Pattern: Strategy behind `Say` — a translation key goes in, English comes out. The words of the frontend itself are in
-//! `FIXED`; for the keys of this program's descriptions (`wiki.<type>.<part>`, `wiki.<type>.command.<name>`) the last
+//! Pattern: Strategy behind `Say` — a translation key goes in, the words of the interface language come out. The words of
+//! the frontend itself are in the `MessageFormat` 2 files of the app (`texts/`, ids `admin-<key with dashes>`); for the keys of this program's descriptions (`wiki.<type>.<part>`, `wiki.<type>.command.<name>`) the last
 //! part is spelled out (`redirect-to` becomes "Redirect to"), because the descriptions only ever carry such keys. An
 //! unknown key comes back as itself, so a missing word is seen, not hidden.
 
 use fs_components_fields::Say;
 
-/// Words of the frontend itself and of the choices.
-const FIXED: &[(&str, &str)] = &[
-    ("menu.program", "Program"),
-    ("menu.view", "View"),
-    ("menu.help", "Help"),
-    ("menu.quit", "Quit"),
-    ("menu.about", "About"),
-    ("action.add", "Add"),
-    ("action.back", "Back"),
-    ("action.cancel", "Cancel"),
-    ("action.close", "Close"),
-    ("action.remove", "Remove"),
-    ("action.save", "Save"),
-    ("message.done", "Done."),
-    (
-        "message.rejected",
-        "The wiki refused this; check the marked fields.",
-    ),
-    (
-        "message.not-found",
-        "There is no such page, folder or command.",
-    ),
-    (
-        "message.unavailable",
-        "The wiki cannot do this now (see the log), or the command is still to come.",
-    ),
-    ("message.unsaved", "There is text that is not sent yet."),
-    ("list.empty", "Nothing here."),
-    ("list.stale", "The list may be old."),
-    ("detail.not-loaded", "Not loaded."),
-    ("confirm.sure", "Are you sure?"),
-    ("value.none", "none"),
-    ("about.version", "Version"),
-    ("about.origin", "Origin"),
-    ("about.licence", "Licence"),
-    ("about.repository", "Repository"),
-    ("about.unoffered", "Not offered"),
-    ("type.page", "Pages"),
-    ("type.folder", "Folders"),
-    ("type.revision", "History"),
-    ("type.trash", "Trash"),
-    ("type.link", "Links"),
-];
+use crate::ui_texts::UiTexts;
 
 fn spelled(part: &str) -> String {
     let mut s = part.replace('-', " ");
@@ -59,14 +17,25 @@ fn spelled(part: &str) -> String {
     s
 }
 
-/// The words, English.
+/// The words, in German or English (English by default).
 #[derive(Clone, Copy, Debug, Default)]
-pub struct Words;
+pub struct Words {
+    german: bool,
+}
+
+impl Words {
+    /// The words of the interface language.
+    pub fn new(german: bool) -> Self {
+        Self { german }
+    }
+}
 
 impl Say for Words {
     fn say(&self, key: &str) -> String {
-        if let Some((_, text)) = FIXED.iter().find(|(k, _)| *k == key) {
-            return (*text).to_owned();
+        let id = format!("admin-{}", key.replace('.', "-"));
+        let said = UiTexts::new(self.german).plain(&id);
+        if said != id {
+            return said;
         }
         match key.strip_prefix("wiki.") {
             Some(rest) => rest
@@ -75,5 +44,22 @@ impl Say for Words {
                 .map_or_else(|| key.to_owned(), spelled),
             None => key.to_owned(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_frontends_words_come_in_both_languages_and_a_refusal_has_its_reason() {
+        let (en, de) = (Words::new(false), Words::new(true));
+        assert_eq!(en.say("action.save"), "Save");
+        assert_eq!(de.say("action.save"), "Speichern");
+        assert!(en.say("message.rejected").contains("path is taken"));
+        assert!(de.say("message.rejected").contains("Pfad ist vergeben"));
+        assert!(!en.say("message.unavailable").contains("unavailable"));
+        assert_eq!(en.say("wiki.page.redirect-to"), "Redirect to");
+        assert_eq!(en.say("something.unknown"), "something.unknown");
     }
 }
