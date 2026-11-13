@@ -49,6 +49,10 @@ pub struct WikiSource {
     pub(super) read_only: bool,
     /// Pages with language variants (`pages.rs`); none = every text is a page of its own.
     pub(super) pages: Option<super::pages::PagesView>,
+    /// The frontend draws the language switch and the notices itself: the page text has no language bar on top.
+    pub(super) bare: bool,
+    /// The heads of all texts, read once (`heads.rs`); the sidebar is made from them, not from a list of whole documents.
+    pub(super) heads: Option<Vec<crate::heads::Head>>,
 }
 
 fn failed(e: &dyn std::fmt::Display) -> SourceError {
@@ -98,11 +102,14 @@ impl DocumentSource for WikiSource {
             ));
         }
         if let Some(view) = &self.pages {
-            let texts = self
-                .runtime
-                .block_on(self.texts.list("", Paging::default()))
-                .map_err(|e| failed(&e))?;
-            out.extend(self.page_entries(view, &texts, prefix));
+            let heads = match &self.heads {
+                Some(h) => h.clone(),
+                None => self
+                    .runtime
+                    .block_on(crate::heads::load_or_list(self.texts.as_ref(), None))
+                    .map_err(SourceError::failed)?,
+            };
+            out.extend(self.page_entries(view, &heads, prefix));
             return Ok(out);
         }
         let mut texts = self
@@ -174,6 +181,10 @@ impl DocumentSource for WikiSource {
             .collect())
     }
 
+    fn page_info(&self, path: &str) -> fs_components_workbenches::PageInfo {
+        self.info_of(path)
+    }
+
     fn start(&self) -> Option<String> {
         if self.exists("index.md") {
             return Some("index.md".to_string());
@@ -191,7 +202,7 @@ impl DocumentSource for WikiSource {
     }
 
     fn source_text(&self, path: &str) -> Result<EditableText, SourceError> {
-        let entry = self.entry(path)?;
+        let entry = self.entry(&self.text_for(path))?;
         let text = self
             .runtime
             .block_on(self.texts.export_text(entry.id, MARKDOWN))
@@ -202,7 +213,7 @@ impl DocumentSource for WikiSource {
     /// The edit goes to the database as the difference to the stored text (`Texts::edit`); layers
     /// stay with the text. No file is written.
     fn save(&self, path: &str, text: &str, revision: Option<&str>) -> Result<(), SourceError> {
-        let entry = self.entry(path)?;
+        let entry = self.entry(&self.text_for(path))?;
         let conflict = || {
             SourceError::conflict(
                 "Someone else changed this document since you started. Your text is kept; \

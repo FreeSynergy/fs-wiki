@@ -1,5 +1,8 @@
 # Changelog
 
+## Unreleased
+* Wiki frontends A and B (`--frontend a|b`), start from an index file (`--index`), language switch and state in the page head, text edit of language variants (page path maps to its text).
+
 ## 0.0.7 (in progress)
 
 ### English

@@ -9,8 +9,7 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use fs_components_widgets::{Block, Document, Inline, Mark, MarkKind};
-use fs_components_workbenches::{Entry, SourceError};
-use fs_wiki_core::TextEntry;
+use fs_components_workbenches::{Entry, LangChoice, PageInfo, PageState, RevisionRow, SourceError};
 
 use super::wiki::WikiSource;
 use crate::lang_words as words;
@@ -120,13 +119,13 @@ impl WikiSource {
     pub(super) fn page_entries(
         &self,
         view: &PagesView,
-        texts: &[TextEntry],
+        texts: &[crate::heads::Head],
         prefix: &str,
     ) -> Vec<Entry> {
         let wanted = view.language();
         let names: HashMap<&str, &str> = texts
             .iter()
-            .map(|t| (t.path.as_str(), t.envelope.name.as_str()))
+            .map(|t| (t.path.as_str(), t.title.as_str()))
             .collect();
         let mut seen = std::collections::HashSet::new();
         let mut out: Vec<(usize, Entry)> = Vec::new();
@@ -139,7 +138,7 @@ impl WikiSource {
             let title = record
                 .and_then(|r| view.pick(r, &wanted).map(|l| &r.variants[&l].path))
                 .and_then(|p| names.get(p.as_str()))
-                .map_or(t.envelope.name.as_str(), |n| *n);
+                .map_or(t.title.as_str(), |n| *n);
             let rank = record.map_or_else(
                 || self.nav.rank(&t.path).unwrap_or(usize::MAX),
                 |r| PagesView::rank(r, &|p| self.nav.rank(p)),
@@ -168,6 +167,11 @@ impl WikiSource {
         let entry = self.entry(&text)?;
         let mut doc = to_document(&entry.envelope.name, &entry.document);
         let mut top = Vec::new();
+        // A frontend with its own head (language switch, state) shows these itself, from `page_info`.
+        if self.bare {
+            doc.revision = Some(entry.revision.to_string());
+            return Ok(Some(doc));
+        }
         if record.variants.len() > 1 {
             top.push(language_bar(&ui, &shown, record));
         }
@@ -183,6 +187,60 @@ impl WikiSource {
         top.append(&mut doc.blocks);
         doc.blocks = top;
         Ok(Some(doc.with_revision(entry.revision.to_string())))
+    }
+}
+
+impl WikiSource {
+    /// What the wiki layouts show about a page: its languages, whether it is outdated or in another language, its revision.
+    pub(super) fn info_of(&self, path: &str) -> PageInfo {
+        let mut info = PageInfo::default();
+        let Some(view) = &self.pages else {
+            return info;
+        };
+        let (page, asked) = split(path);
+        let Some(record) = view.index.pages.get(page) else {
+            return info;
+        };
+        info.canonical = Some(page.to_owned());
+        let ui = asked.map_or_else(|| view.language(), str::to_owned);
+        let Some((text, shown)) = view.text_of(path) else {
+            return info;
+        };
+        info.langs = record
+            .variants
+            .keys()
+            .map(|l| {
+                LangChoice::new(
+                    l,
+                    words::language_name(l),
+                    format!("?lang={l}"),
+                    *l == shown,
+                )
+            })
+            .collect();
+        if shown != ui {
+            info.state = PageState::Fallback;
+            info.notice = Some(words::only_in(&ui, &shown));
+        } else if view.index.outdated(record, &shown) {
+            info.state = PageState::Outdated;
+            info.notice = Some(words::outdated(&ui, view.index.origin_of(&record.group)));
+        }
+        if self.entry(&text).is_ok() {
+            let label = if ui == "de" {
+                "Aktuelle Fassung"
+            } else {
+                "Current version"
+            };
+            info.revisions = vec![RevisionRow::new(label, text)];
+        }
+        info
+    }
+
+    /// The text a page path stands for (`docs/x.md@de` is the German text), for editing.
+    pub(super) fn text_for(&self, path: &str) -> String {
+        self.pages
+            .as_ref()
+            .map_or_else(|| path.to_owned(), |v| v.text_path(path))
     }
 }
 

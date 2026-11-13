@@ -59,7 +59,7 @@ fn connect_or_start(
     hold_lease(&lease);
     let starter = starter(socket, &lease, own_socket, facet)?;
     let expected = Expected::new(env!("CARGO_PKG_VERSION"));
-    RpcTexts::connect_matching(socket, &expected, &starter, Timeouts::default()).map_err(|e| {
+    RpcTexts::connect_matching(socket, &expected, &starter, timeouts()).map_err(|e| {
         say(
             words::HANDSHAKE,
             &[("path", &socket.display()), ("error", &e)],
@@ -128,4 +128,17 @@ fn make_private_dir(dir: &Path) {
     #[cfg(unix)]
     std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);
     let _ = builder.create(dir);
+}
+
+/// The deadlines of the calls: the defaults, or `FS_WIKI_CALL_TIMEOUT` seconds for a call (listing the whole documentation
+/// takes longer than the default on a server that has not got it cached).
+fn timeouts() -> Timeouts {
+    let mut t = Timeouts::default();
+    if let Some(secs) = std::env::var("FS_WIKI_CALL_TIMEOUT")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+    {
+        t.call = std::time::Duration::from_secs(secs);
+    }
+    t
 }

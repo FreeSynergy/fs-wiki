@@ -58,11 +58,22 @@ pub fn run(args: &Args, texts: RpcTexts) -> Result<(), String> {
     for note in notes {
         eprintln!("fs-wiki: {note}");
     }
-    let mut source = WikiSource::from_report(wiki.texts(), runtime.handle().clone(), report)
-        .with_nav(nav)
-        .read_only();
+    let mut source =
+        WikiSource::from_report(wiki.texts(), runtime.handle().clone(), report).with_nav(nav);
+    if !args.edit {
+        source = source.read_only();
+    }
+    if args.frontend.is_some() {
+        source = source.bare_pages();
+    }
     if !args.variants.is_empty() {
-        let index = link_pages(&runtime, wiki.texts().as_ref(), args, &records)?;
+        let heads = runtime.block_on(crate::heads::load_or_list(
+            wiki.texts().as_ref(),
+            args.index.as_deref(),
+        ))?;
+        eprintln!("{} text heads, in {:.1?}", heads.len(), started.elapsed());
+        let index = link_pages(&runtime, &heads, args, &records)?;
+        source = source.with_heads(heads);
         let pages = index.pages.len();
         let two = index
             .pages
@@ -78,9 +89,12 @@ pub fn run(args: &Args, texts: RpcTexts) -> Result<(), String> {
     let source = Arc::new(source);
     let mut labels = Labels::default();
     labels.search = "Search pages".into();
+    let (layout, wiki_labels) = crate::frontend::choice(args);
     if let Some(file) = &args.snapshot {
         let mut picture = Picture::new(source, args.size.0, args.size.1);
         picture.labels = labels;
+        picture.layout = layout;
+        picture.wiki_labels = wiki_labels;
         picture.steps = args.steps.iter().filter_map(|s| step(s)).collect();
         let shot = snapshot(picture, file).map_err(|e| e.to_string())?;
         eprintln!(
@@ -93,20 +107,22 @@ pub fn run(args: &Args, texts: RpcTexts) -> Result<(), String> {
     let mut options = Options::default();
     options.title = "FreeSynergy Wiki".into();
     options.labels = labels;
+    options.layout = layout;
+    options.wiki_labels = wiki_labels;
     launch(&options, source).map_err(|e| e.to_string())
 }
 
 /// The pages with variants: the earlier ones from `<records>.pages`, brought in step with the texts, and written back.
 fn link_pages(
-    runtime: &tokio::runtime::Runtime,
-    texts: &dyn fs_wiki_core::Texts,
+    _runtime: &tokio::runtime::Runtime,
+    heads: &[crate::heads::Head],
     args: &Args,
     records: &std::path::Path,
 ) -> Result<PageIndex, String> {
     let file = PathBuf::from(format!("{}.pages", records.display()));
     let origin = args.origin_langs.iter().cloned().collect();
     let index = PageIndex::load(&file, origin)?;
-    let index = runtime.block_on(index.link(texts, &args.variants))?;
+    let index = index.link_heads(heads, &args.variants);
     if let Err(e) = index.save(&file) {
         eprintln!(
             "fs-wiki: the pages are not saved ({e}); a translation then forgets which original it was made from"
@@ -156,6 +172,9 @@ fn step(text: &str) -> Option<Step> {
         Some(("follow", h)) => Some(Step::Follow(h.into())),
         Some(("search", t)) => Some(Step::Search(t.into())),
         Some(("scroll", n)) => n.parse().ok().map(Step::Scroll),
+        Some(("expand", k)) => Some(Step::Expand(k.into())),
+        Some(("type", t)) => Some(Step::Type(t.replace("\\n", "\n"))),
+        None if text == "edit" => Some(Step::Edit),
         None if text == "back" => Some(Step::Back),
         _ => {
             eprintln!("fs-wiki-app: ignoring unknown step {text:?}");
