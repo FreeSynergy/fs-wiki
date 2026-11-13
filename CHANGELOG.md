@@ -8,7 +8,7 @@
 - **Renamed: "face" is now "frontend"** (menu View > Frontend, messages, documentation, code). The remembered choice moves from the file `face` to `frontend` in the data folder: the new file is read first; when it is missing, the old `face` file is read, written as `frontend` (atomically) and left in place.
 - **Fix: a server that a window started no longer outlives its window.** It ended only when it could open its lease file; when the folder of the lease was gone (every test that cleans up) it stayed forever. Now a missing lease counts as unused. A server started by a window also closes every descriptor it inherited (a build tool's lock was kept open by such servers and blocked the build slots).
 - **Fix: the typing-test workflow starts the Admin window** (`--admin`), as its scenario expects.
-- Tests start the real binary like the desktop file and check the frontend; every option of `--help` is checked against the parser; the start test ends every server it made and proves that none is left behind.
+- Tests start the real binary like the desktop file and check the frontend; every option of `--help` is checked against the parser; the start test ends every server it made and proves that none is left behind. The start tests (`tests/start.rs`, `tests/detached.rs`) run on Linux only (Unix-socket server, `/proc`, software Vulkan in the Linux CI); Windows is covered by the unit tests and the other test files.
 
 ### Deutsch
 
@@ -16,7 +16,7 @@
 - **Umbenannt: „Gesicht“ heißt jetzt „Frontend“** (Menü Ansicht > Frontend, Meldungen, Dokumentation, Code). Die gemerkte Wahl zieht im Datenordner von der Datei `face` nach `frontend` um: zuerst wird die neue Datei gelesen; fehlt sie, wird die alte `face` gelesen, atomar als `frontend` geschrieben und stehen gelassen.
 - **Fehlerbehebung: ein von einem Fenster gestarteter Server überlebt sein Fenster nicht mehr.** Er endete nur, wenn er seine Lease-Datei öffnen konnte; fehlte der Ordner der Lease (jeder Test, der aufräumt), blieb er für immer. Jetzt zählt eine fehlende Lease als unbenutzt. Ein von einem Fenster gestarteter Server schließt außerdem alle geerbten Deskriptoren (die Sperre eines Build-Werkzeugs wurde von solchen Servern offen gehalten und blockierte die Build-Slots).
 - **Fehlerbehebung: der Typing-Test-Workflow startet das Admin-Fenster** (`--admin`), wie sein Szenario es erwartet.
-- Tests starten das echte Programm wie die Desktop-Datei und prüfen das Frontend; jede Option von `--help` wird gegen den Parser geprüft; der Starttest beendet jeden Server, den er gemacht hat, und belegt, dass keiner zurückbleibt.
+- Tests starten das echte Programm wie die Desktop-Datei und prüfen das Frontend; jede Option von `--help` wird gegen den Parser geprüft; der Starttest beendet jeden Server, den er gemacht hat, und belegt, dass keiner zurückbleibt. Die Starttests (`tests/start.rs`, `tests/detached.rs`) laufen nur unter Linux (Unix-Socket-Server, `/proc`, Software-Vulkan in der Linux-CI); Windows wird von den Unit-Tests und den übrigen Testdateien abgedeckt.
 
 ## 0.0.8 (in progress)
 

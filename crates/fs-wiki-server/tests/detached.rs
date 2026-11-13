@@ -2,6 +2,7 @@
 //!
 //! Pattern: Example-based tests of the real binary; the guard kills the server whatever the test does (no orphan).
 
+// Linux only: it looks at the descriptors of the server (`/proc`) and the server of a window is a Unix-socket server.
 #![cfg(target_os = "linux")]
 
 use std::path::Path;

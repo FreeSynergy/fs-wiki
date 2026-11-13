@@ -4,7 +4,9 @@
 //! `--snapshot` (a picture instead of the window), which reports the frontend it drew. Nothing of the real user is touched.
 //! A start also starts a server (`fs-wiki serve --lease`); `Home` is the guard that no such server outlives its test.
 
-#![cfg(feature = "gui")]
+// Linux only: the start makes a Unix-socket server (`fs-wiki serve --lease`) that the guard `Home` finds through `/proc`,
+// and the picture needs a Vulkan adapter, which only the Linux CI has (software Vulkan, lavapipe). Windows runs the other tests.
+#![cfg(all(feature = "gui", target_os = "linux"))]
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -140,7 +142,6 @@ fn an_override_on_the_command_line_wins_and_writes_nothing() {
     assert_eq!(std::fs::read_to_string(settings_file(home)).unwrap(), "b\n");
 }
 
-#[cfg(target_os = "linux")]
 #[test]
 fn the_server_a_start_made_ends_with_the_window_even_when_its_folder_is_gone() {
     let home = Home::new("ends");
