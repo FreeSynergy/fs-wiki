@@ -27,7 +27,13 @@ struct One {
 
 impl DocumentSource for One {
     fn entries(&self, _prefix: &str) -> Result<Vec<Entry>, SourceError> {
-        let title = self.text.lock().unwrap().trim_start_matches("# ").trim().to_owned();
+        let title = self
+            .text
+            .lock()
+            .unwrap()
+            .trim_start_matches("# ")
+            .trim()
+            .to_owned();
         Ok(vec![Entry::new("a.md", title)])
     }
     fn read(&self, path: &str) -> Result<Document, SourceError> {
@@ -118,11 +124,17 @@ fn saved_changes_the_sidebar(call_hook: bool) -> bool {
 
 #[test]
 fn the_tree_shows_the_title_that_was_saved() {
-    assert!(saved_changes_the_sidebar(true), "the sidebar did not change after the save");
+    assert!(
+        saved_changes_the_sidebar(true),
+        "the sidebar did not change after the save"
+    );
 }
 
 #[test]
 fn without_the_hook_the_tree_stays_as_it_was() {
     // The counter-proof of the test above, kept as a test: the same run, the source does not tell the window.
-    assert!(!saved_changes_the_sidebar(false), "the sidebar changed without the hook");
+    assert!(
+        !saved_changes_the_sidebar(false),
+        "the sidebar changed without the hook"
+    );
 }
