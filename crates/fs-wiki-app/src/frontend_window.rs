@@ -172,8 +172,12 @@ impl Switcher {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .clone();
-        let (open, unsaved) =
-            widget.with_reader(|r| (r.current_path().map(str::to_owned), r.editing().is_some_and(Editing::changed)));
+        let (open, unsaved) = widget.with_reader(|r| {
+            (
+                r.current_path().map(str::to_owned),
+                r.editing().is_some_and(Editing::changed),
+            )
+        });
         let problem = |text: String| self.app.set_status(Some(Status::Problem(text)));
         if unsaved {
             return problem(words.finish_edit.into());

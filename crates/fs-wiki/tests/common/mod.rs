@@ -60,4 +60,3 @@ pub fn wait_until_gone(dir: &Path, within: Duration) {
         std::thread::sleep(Duration::from_millis(50));
     }
 }
-

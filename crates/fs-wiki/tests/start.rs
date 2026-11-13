@@ -14,7 +14,7 @@ use std::time::Duration;
 
 mod common;
 
-use common::{Home, servers_in, wait_until_gone};
+use common::{servers_in, wait_until_gone, Home};
 
 /// Start the program as the desktop file does (no mode option), only with a picture and a socket of the test.
 fn start(home: &Path, extra: &[&str]) -> String {

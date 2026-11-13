@@ -70,9 +70,17 @@ fn flow_1_a_new_page_is_made_in_every_frontend_without_any_option() {
     for frontend in ["a", "b", "classic"] {
         let home = Home::new(&format!("w1-{frontend}"));
         let said = run(home.path(), frontend, &[], &["new"]);
-        assert_eq!(part(&said, "can_edit", "editing"), "true", "{frontend}: {said}");
+        assert_eq!(
+            part(&said, "can_edit", "editing"),
+            "true",
+            "{frontend}: {said}"
+        );
         assert_eq!(part(&said, "path", "can_edit"), "Some(\"new-page.md\")");
-        assert_eq!(part(&said, "editing", "stored"), "Some(\"# New page\\n\")", "{said}");
+        assert_eq!(
+            part(&said, "editing", "stored"),
+            "Some(\"# New page\\n\")",
+            "{said}"
+        );
         assert!(pages(&said).contains("new-page.md = New page"), "{said}");
     }
 }
@@ -94,7 +102,11 @@ fn flows_2_and_3_typed_and_pasted_text_is_saved() {
     let pasted = "\\nPasted:\\n\\n- Zeile ä ö ü ß €\\n- tab\there\\n\\n> a quote\\n";
     let text = format!("type:{typed}{pasted}");
     let said = run(home.path(), "a", &[], &["new:Notes", &text, "save"]);
-    assert_eq!(part(&said, "editing", "stored"), "None", "saving ends the edit: {said}");
+    assert_eq!(
+        part(&said, "editing", "stored"),
+        "None",
+        "saving ends the edit: {said}"
+    );
     let held = stored(&said);
     for wanted in ["Typed by hand.", "Zeile ä ö ü ß €", "a quote", "Pasted:"] {
         assert!(held.contains(wanted), "{wanted} is not in {held}");
@@ -105,7 +117,12 @@ fn flows_2_and_3_typed_and_pasted_text_is_saved() {
 #[test]
 fn flows_4_and_5_a_saved_page_is_opened_again_and_edited() {
     let home = Home::new("w45");
-    run(home.path(), "a", &[], &["new:Plan", "type:# Plan\\nfirst version\\n", "save"]);
+    run(
+        home.path(),
+        "a",
+        &[],
+        &["new:Plan", "type:# Plan\\nfirst version\\n", "save"],
+    );
     // A new process, a new window: the page is in the wiki.
     let again = run(home.path(), "b", &[], &["open:plan.md"]);
     assert!(stored(&again).contains("first version"), "{again}");
@@ -114,7 +131,12 @@ fn flows_4_and_5_a_saved_page_is_opened_again_and_edited() {
         home.path(),
         "a",
         &[],
-        &["open:plan.md", "edit", "type:# Plan\\nsecond version\\n", "save"],
+        &[
+            "open:plan.md",
+            "edit",
+            "type:# Plan\\nsecond version\\n",
+            "save",
+        ],
     );
     assert!(stored(&edited).contains("second version"), "{edited}");
     let last = run(home.path(), "classic", &[], &["open:plan.md"]);
@@ -129,14 +151,28 @@ fn flow_6_a_subpage_lives_below_the_page_that_was_shown() {
         home.path(),
         "a",
         &[],
-        &["new:Handbook", "subpage:Chapter one", "type:# Chapter one\\ntext\\n", "save"],
+        &[
+            "new:Handbook",
+            "subpage:Chapter one",
+            "type:# Chapter one\\ntext\\n",
+            "save",
+        ],
     );
     assert!(pages(&said).contains("handbook.md = Handbook"), "{said}");
-    assert!(pages(&said).contains("handbook/chapter-one.md = Chapter one"), "{said}");
-    assert_eq!(part(&said, "path", "can_edit"), "Some(\"handbook/chapter-one.md\")");
+    assert!(
+        pages(&said).contains("handbook/chapter-one.md = Chapter one"),
+        "{said}"
+    );
+    assert_eq!(
+        part(&said, "path", "can_edit"),
+        "Some(\"handbook/chapter-one.md\")"
+    );
     // Without a page shown a subpage is refused (and says so); a second page with the same title is numbered.
     let numbered = run(home.path(), "b", &[], &["new:Handbook"]);
-    assert!(pages(&numbered).contains("handbook-2.md = Handbook 2"), "{numbered}");
+    assert!(
+        pages(&numbered).contains("handbook-2.md = Handbook 2"),
+        "{numbered}"
+    );
     let refused = run(home.path(), "a", &[], &["subpage:Orphan"]);
     assert!(refused.contains("needs a page shown"), "{refused}");
     assert!(!pages(&refused).contains("orphan"), "{refused}");

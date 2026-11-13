@@ -9,7 +9,8 @@ use std::sync::{Arc, Mutex};
 use fs_components_app::{AppWidget, Status};
 use fs_components_widgets::Document;
 use fs_components_workbenches::{
-    DocumentSource, EditableText, Entry, Hit, Labels, LinkTarget, Reader, ReaderWidget, SourceError, WikiLabels,
+    DocumentSource, EditableText, Entry, Hit, Labels, LinkTarget, Reader, ReaderWidget,
+    SourceError, WikiLabels,
 };
 use fs_wiki_app::frontend::Frontend;
 use fs_wiki_app::frontend_window::{PAGE_NEW, PAGE_SUB, Setup, window};
@@ -25,7 +26,10 @@ struct Mem {
 impl DocumentSource for Mem {
     fn entries(&self, _prefix: &str) -> Result<Vec<Entry>, SourceError> {
         let pages = self.pages.lock().unwrap();
-        Ok(pages.iter().map(|(p, t)| Entry::new(p, t.trim_start_matches("# ").trim())).collect())
+        Ok(pages
+            .iter()
+            .map(|(p, t)| Entry::new(p, t.trim_start_matches("# ").trim()))
+            .collect())
     }
     fn read(&self, path: &str) -> Result<Document, SourceError> {
         Ok(Document::new(path, Vec::new()))
@@ -41,7 +45,10 @@ impl DocumentSource for Mem {
     }
     fn source_text(&self, path: &str) -> Result<EditableText, SourceError> {
         let pages = self.pages.lock().unwrap();
-        let (_, text) = pages.iter().find(|(p, _)| p == path).ok_or_else(|| SourceError::not_found(path))?;
+        let (_, text) = pages
+            .iter()
+            .find(|(p, _)| p == path)
+            .ok_or_else(|| SourceError::not_found(path))?;
         Ok(EditableText::new(text.clone(), None))
     }
 }
@@ -55,7 +62,10 @@ impl PageMaker for Mem {
             return Err(e);
         }
         let path = page_path(parent, title).ok_or(CreateError::EmptyTitle)?;
-        self.pages.lock().unwrap().push((path.clone(), format!("# {title}\n")));
+        self.pages
+            .lock()
+            .unwrap()
+            .push((path.clone(), format!("# {title}\n")));
         Ok(path)
     }
 }
@@ -64,9 +74,18 @@ fn app(editable: bool, german: bool) -> (AppWidget, ReaderWidget, Arc<Mem>) {
     app_with(&[("home.md", "# Home\n")], editable, german)
 }
 
-fn app_with(pages: &[(&str, &str)], editable: bool, german: bool) -> (AppWidget, ReaderWidget, Arc<Mem>) {
+fn app_with(
+    pages: &[(&str, &str)],
+    editable: bool,
+    german: bool,
+) -> (AppWidget, ReaderWidget, Arc<Mem>) {
     let mem = Arc::new(Mem {
-        pages: Mutex::new(pages.iter().map(|(p, t)| ((*p).into(), (*t).into())).collect()),
+        pages: Mutex::new(
+            pages
+                .iter()
+                .map(|(p, t)| ((*p).into(), (*t).into()))
+                .collect(),
+        ),
         refuse: Mutex::new(None),
         editable,
     });
@@ -91,7 +110,12 @@ fn page_menu(app: &AppWidget) -> Vec<(String, String, bool)> {
         s.menus()
             .iter()
             .find(|m| m.label == "Page" || m.label == "Seite")
-            .map(|m| m.entries.iter().map(|e| (e.id.clone(), e.label.clone(), e.disabled)).collect())
+            .map(|m| {
+                m.entries
+                    .iter()
+                    .map(|e| (e.id.clone(), e.label.clone(), e.disabled))
+                    .collect()
+            })
             .unwrap_or_default()
     })
 }
@@ -125,13 +149,27 @@ fn a_window_that_cannot_edit_shows_the_entries_locked_with_the_reason() {
 fn a_new_page_opens_in_the_editor_and_a_subpage_goes_below_the_open_page() {
     let (app, reader, mem) = app(true, false);
     assert!(app.choose(PAGE_NEW));
-    let (path, editing) = reader.with_reader(|r| (r.current_path().map(str::to_owned), r.editing().map(|e| e.draft.clone())));
+    let (path, editing) = reader.with_reader(|r| {
+        (
+            r.current_path().map(str::to_owned),
+            r.editing().map(|e| e.draft.clone()),
+        )
+    });
     assert_eq!(path.as_deref(), Some("new-page.md"));
     assert_eq!(editing.as_deref(), Some("# New page\n"));
     assert!(matches!(status(&app), Some(Status::Info(t)) if t.contains("new-page.md")));
-    assert!(reader.with_reader(|r| r.entries().iter().any(|e| e.path == "new-page.md")), "in the list");
+    assert!(
+        reader.with_reader(|r| r.entries().iter().any(|e| e.path == "new-page.md")),
+        "in the list"
+    );
     assert!(app.choose(PAGE_SUB));
-    let paths: Vec<String> = mem.pages.lock().unwrap().iter().map(|(p, _)| p.clone()).collect();
+    let paths: Vec<String> = mem
+        .pages
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|(p, _)| p.clone())
+        .collect();
     assert_eq!(paths, ["home.md", "new-page.md", "new-page/new-page.md"]);
 }
 
@@ -157,5 +195,7 @@ fn what_cannot_be_done_is_said_in_words_not_by_a_dead_button() {
     reader.with_reader(Reader::cancel_edit);
     *mem.refuse.lock().unwrap() = Some(CreateError::Taken("new-page.md".into()));
     assert!(app.choose(PAGE_NEW));
-    assert!(matches!(status(&app), Some(Status::Problem(t)) if t.contains("new-page.md") && t.contains("taken")));
+    assert!(
+        matches!(status(&app), Some(Status::Problem(t)) if t.contains("new-page.md") && t.contains("taken"))
+    );
 }

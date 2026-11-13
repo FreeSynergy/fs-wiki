@@ -12,12 +12,16 @@ use crate::Report;
 use crate::frontend::Frontend;
 use crate::frontend_window::{Setup, window};
 use crate::nav::Nav;
+use crate::source::PageMaker;
 use crate::store_path::{data_dir, origins_file};
 use crate::variants::PageIndex;
-use crate::source::PageMaker;
-use crate::{FileDraftStore, FileOrigins, Wiki, WikiSource, import::CHECK_LIMIT, import_sources, words};
+use crate::{
+    FileDraftStore, FileOrigins, Wiki, WikiSource, import::CHECK_LIMIT, import_sources, words,
+};
 use fs_components_app::{WindowOptions, launch};
-use fs_components_workbenches::{DraftStore, Labels, Picture, ReaderWidget, register_fonts, snapshot};
+use fs_components_workbenches::{
+    DraftStore, Labels, Picture, ReaderWidget, register_fonts, snapshot,
+};
 use fs_wiki_client::RpcTexts;
 
 use crate::args::Args;
@@ -225,7 +229,10 @@ fn with_drafts(reader: ReaderWidget, args: &Args) -> ReaderWidget {
     let Some(dir) = args.drafts.clone().or_else(crate::drafts::default_dir) else {
         return reader;
     };
-    let wiki = args.socket.clone().unwrap_or_else(|| PathBuf::from("/wiki"));
+    let wiki = args
+        .socket
+        .clone()
+        .unwrap_or_else(|| PathBuf::from("/wiki"));
     match FileDraftStore::new(dir, &wiki) {
         Ok(store) => reader.drafts(Arc::new(store) as Arc<dyn DraftStore>),
         Err(e) => {

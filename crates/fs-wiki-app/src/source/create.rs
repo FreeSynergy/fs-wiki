@@ -128,7 +128,10 @@ mod tests {
     #[test]
     fn a_title_becomes_a_word_of_a_path() {
         assert_eq!(path_word("New page").as_deref(), Some("new-page"));
-        assert_eq!(path_word("  Neue  Seite 2 ").as_deref(), Some("neue-seite-2"));
+        assert_eq!(
+            path_word("  Neue  Seite 2 ").as_deref(),
+            Some("neue-seite-2")
+        );
         assert_eq!(path_word("Größe / Maß: #1").as_deref(), Some("größe-maß-1"));
         assert_eq!(path_word("../..").as_deref(), None);
         assert_eq!(path_word("   ").as_deref(), None);
@@ -139,7 +142,10 @@ mod tests {
         assert_eq!(page_path(None, "A").as_deref(), Some("a.md"));
         assert_eq!(page_path(Some("x.md"), "A").as_deref(), Some("x/a.md"));
         assert_eq!(page_path(Some("x/y.md"), "A").as_deref(), Some("x/y/a.md"));
-        assert_eq!(page_path(Some("x/index.md"), "A").as_deref(), Some("x/a.md"));
+        assert_eq!(
+            page_path(Some("x/index.md"), "A").as_deref(),
+            Some("x/a.md")
+        );
         assert_eq!(page_path(Some("index.md"), "A").as_deref(), Some("a.md"));
     }
 }
