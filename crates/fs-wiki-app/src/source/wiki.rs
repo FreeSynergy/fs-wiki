@@ -50,7 +50,7 @@ pub struct WikiSource {
     /// Pages with language variants (`pages.rs`); none = every text is a page of its own.
     pub(super) pages: Option<super::pages::PagesView>,
     /// The frontend draws the language switch and the notices itself: the page text has no language bar on top.
-    /// Shared with the window, which switches it with the face.
+    /// Shared with the window, which switches it with the frontend.
     pub(super) bare: Arc<std::sync::atomic::AtomicBool>,
     /// The heads of all texts, read once (`heads.rs`); the sidebar is made from them, not from a list of whole documents.
     pub(super) heads: Option<Vec<crate::heads::Head>>,

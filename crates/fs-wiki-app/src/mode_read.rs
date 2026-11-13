@@ -9,8 +9,8 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use crate::Report;
-use crate::face::Face;
-use crate::face_window::{Setup, window};
+use crate::frontend::Frontend;
+use crate::frontend_window::{Setup, window};
 use crate::nav::Nav;
 use crate::store_path::{data_dir, origins_file};
 use crate::variants::PageIndex;
@@ -81,12 +81,12 @@ pub fn run(args: &Args, texts: RpcTexts) -> Result<(), String> {
         .then(crate::frontend::settings)
         .flatten();
     // A picture of `--read` stays repeatable (the plain reader); the plain start shows what the window would show.
-    let face = if args.snapshot.is_some() && args.read {
-        crate::frontend::picture_face(args)
+    let shown = if args.snapshot.is_some() && args.read {
+        crate::frontend::picture_frontend(args)
     } else {
-        crate::frontend::start_face(args, settings.as_ref())
+        crate::frontend::start_frontend(args, settings.as_ref())
     };
-    if face.has_own_head() {
+    if shown.has_own_head() {
         source = source.bare_pages();
     }
     if !args.variants.is_empty() {
@@ -109,14 +109,14 @@ pub fn run(args: &Args, texts: RpcTexts) -> Result<(), String> {
             &args.lang.clone().unwrap_or_else(environment_language),
         );
     }
-    show(args, source, face, settings)
+    show(args, source, shown, settings)
 }
 
 /// A picture (`--snapshot`) or the window, over the finished source.
 fn show(
     args: &Args,
     source: WikiSource,
-    face: Face,
+    shown: Frontend,
     settings: Option<PathBuf>,
 ) -> Result<(), String> {
     let bare = source.bare_switch();
@@ -128,15 +128,15 @@ fn show(
     if let Some(file) = &args.snapshot {
         let mut picture = Picture::new(source, args.size.0, args.size.1);
         picture.labels = labels;
-        picture.layout = face.layout();
+        picture.layout = shown.layout();
         picture.wiki_labels = wiki_labels;
         picture.steps = args.steps.iter().filter_map(|s| step(s)).collect();
         let shot = snapshot(picture, file).map_err(|e| e.to_string())?;
         eprintln!(
-            "wrote {}, showing {:?}, face {}",
+            "wrote {}, showing {:?}, frontend {}",
             file.display(),
             shot.reader.current_path(),
-            face.id()
+            shown.id()
         );
         return Ok(());
     }
@@ -148,7 +148,7 @@ fn show(
         settings,
     };
     register_fonts();
-    let app = window("FreeSynergy Wiki", reader, face, setup).map_err(|e| e.to_string())?;
+    let app = window("FreeSynergy Wiki", reader, shown, setup).map_err(|e| e.to_string())?;
     launch(WindowOptions::default(), app).map_err(|e| e.to_string())
 }
 

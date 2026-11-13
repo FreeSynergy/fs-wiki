@@ -41,7 +41,7 @@ pub fn run(words: &[String]) -> Result<(), String> {
 /// Which window the arguments ask for.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Mode {
-    /// The wiki window with its faces (no option, or `--read`).
+    /// The wiki window with its frontends (no option, or `--read`).
     Wiki,
     /// The documentation reader and editor of one folder (`--reader`).
     Reader,

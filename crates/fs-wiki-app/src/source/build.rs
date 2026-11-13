@@ -95,7 +95,7 @@ impl WikiSource {
         self
     }
 
-    /// The switch of `bare_pages`, for a window that changes its face while it runs (`true` = bare).
+    /// The switch of `bare_pages`, for a window that changes its frontend while it runs (`true` = bare).
     pub fn bare_switch(&self) -> Arc<std::sync::atomic::AtomicBool> {
         Arc::clone(&self.bare)
     }

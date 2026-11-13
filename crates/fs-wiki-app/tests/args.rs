@@ -124,7 +124,7 @@ fn sources_have_a_prefix_and_a_docs_root_names_the_four_of_the_documentation() {
 #[test]
 fn every_option_of_the_help_is_known_to_the_parser_and_the_dispatch_matches() {
     use fs_wiki_app::gui::{Mode, mode};
-    // An option the help names but the parser does not know (or a window nobody can reach) is the bug that hid the faces
+    // An option the help names but the parser does not know (or a window nobody can reach) is the bug that hid the frontends
     // behind `--read`.
     let options: Vec<&str> = fs_wiki_app::args::HELP
         .lines()
@@ -137,7 +137,7 @@ fn every_option_of_the_help_is_known_to_the_parser_and_the_dispatch_matches() {
         assert!(!said.contains("unknown option"), "{option}: {said}");
     }
     let mode_of = |a: &[&str]| mode(&parse(&args(a)).unwrap());
-    assert_eq!(mode_of(&[]), Mode::Wiki, "the desktop file: the faces");
+    assert_eq!(mode_of(&[]), Mode::Wiki, "the desktop file: the frontends");
     assert_eq!(mode_of(&["--socket", "s", "--frontend", "b"]), Mode::Wiki);
     assert_eq!(mode_of(&["--read"]), Mode::Wiki);
     assert_eq!(mode_of(&["--reader"]), Mode::Reader);

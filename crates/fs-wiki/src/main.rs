@@ -2,6 +2,7 @@
 //!
 //! ```text
 //! fs-wiki                          the window (feature `gui`, on by default)
+//! fs-wiki --admin                  the Admin window (pages, folders, history, trash, links)
 //! fs-wiki [--socket F] [--check]   the window, options as in `fs-wiki-app --help`
 //! fs-wiki serve                    the server (Cap'n Proto, texts.capnp)
 //! fs-wiki --version                the version, without opening anything
