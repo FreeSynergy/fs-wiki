@@ -102,7 +102,8 @@ fn drawn(said: &str) -> &str {
 }
 
 #[test]
-fn the_first_start_shows_confluence_then_the_remembered_frontend_and_a_broken_file_means_the_default() {
+fn the_first_start_shows_confluence_then_the_remembered_frontend_and_a_broken_file_means_the_default(
+) {
     let home = Home::new("frontends");
     let home = home.path();
     assert_eq!(drawn(&start(home, &[])), "a", "first start: Confluence");

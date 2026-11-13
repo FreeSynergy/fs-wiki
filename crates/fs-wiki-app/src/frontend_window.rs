@@ -92,10 +92,7 @@ impl Switcher {
     fn chosen(self: &Arc<Self>, id: &str) {
         if id == QUIT {
             self.app.quit();
-        } else if let Some(chosen) = id
-            .strip_prefix(FRONTEND_PREFIX)
-            .and_then(Frontend::parse)
-        {
+        } else if let Some(chosen) = id.strip_prefix(FRONTEND_PREFIX).and_then(Frontend::parse) {
             self.show(chosen);
         }
     }

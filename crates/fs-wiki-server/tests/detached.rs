@@ -84,5 +84,8 @@ fn the_server_ends_when_the_folder_of_its_lease_is_gone() {
         std::thread::sleep(Duration::from_millis(50));
         ended = server.0.try_wait().unwrap();
     }
-    assert!(ended.is_some(), "the server outlived the folder of its lease");
+    assert!(
+        ended.is_some(),
+        "the server outlived the folder of its lease"
+    );
 }

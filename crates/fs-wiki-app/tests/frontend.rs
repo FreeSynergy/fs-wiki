@@ -199,8 +199,13 @@ fn the_help_speaks_of_frontends() {
     let help = fs_wiki_app::args::HELP;
     assert!(help.contains("View > Frontend"));
     // (`--facet` is a different word.)
-    let words = help.split(|c: char| !c.is_alphanumeric()).map(str::to_lowercase);
+    let words = help
+        .split(|c: char| !c.is_alphanumeric())
+        .map(str::to_lowercase);
     for word in words {
-        assert!(!["face", "faces", "gesicht"].contains(&word.as_str()), "{word}");
+        assert!(
+            !["face", "faces", "gesicht"].contains(&word.as_str()),
+            "{word}"
+        );
     }
 }

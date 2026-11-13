@@ -116,10 +116,7 @@ pub(crate) fn settings() -> Option<PathBuf> {
 
 /// The frontend of a window: the override, else what the settings file holds.
 pub(crate) fn start_frontend(args: &Args, settings: Option<&PathBuf>) -> Frontend {
-    pick(
-        args.frontend.as_deref(),
-        settings.and_then(|f| load(f)),
-    )
+    pick(args.frontend.as_deref(), settings.and_then(|f| load(f)))
 }
 
 /// The frontend of a picture: only the override, else the plain reader (no setting is read, a picture is repeatable).
