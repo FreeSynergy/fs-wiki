@@ -10,8 +10,8 @@ use std::sync::{Arc, Mutex};
 use fs_components_app::AppWidget;
 use fs_components_widgets::Document;
 use fs_components_workbenches::{
-    DocumentSource, EditableText, Entry, Hit, Labels, LinkTarget, Reader, ReaderWidget, SourceError,
-    WikiLabels,
+    DocumentSource, EditableText, Entry, Hit, Labels, LinkTarget, Reader, ReaderWidget,
+    SourceError, WikiLabels,
 };
 use fs_wiki_app::frontend::Frontend;
 use fs_wiki_app::frontend_window::{Setup, window};

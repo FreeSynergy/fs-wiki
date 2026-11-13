@@ -133,7 +133,8 @@ pub(crate) fn picture(
     // The pages the steps made are in the list the page tree is built from.
     reader.with_reader(Reader::refresh_entries);
     fs_components_workbenches::register_fonts();
-    let app = window("FreeSynergy Wiki", reader.clone(), shown, setup).map_err(|e| e.to_string())?;
+    let app =
+        window("FreeSynergy Wiki", reader.clone(), shown, setup).map_err(|e| e.to_string())?;
     let (path, line) = reader.with_reader(|r| {
         apply(r, &steps);
         (r.current_path().map(str::to_owned), state_line(r, source))
