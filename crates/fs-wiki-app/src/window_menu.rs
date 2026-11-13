@@ -78,7 +78,10 @@ pub fn menus(shown: Frontend, german: bool) -> Vec<Menu> {
         })
         .collect();
     vec![
-        Menu::new(t.plain("menu-program"), vec![MenuEntry::new(QUIT, t.plain("menu-quit"))]),
+        Menu::new(
+            t.plain("menu-program"),
+            vec![MenuEntry::new(QUIT, t.plain("menu-quit"))],
+        ),
         Menu::new(t.plain("menu-view"), entries),
     ]
 }

@@ -179,8 +179,9 @@ fn flow_6_a_subpage_lives_below_the_page_that_was_shown() {
 }
 
 /// How many rows of text the page tree of the picture of the last run holds: bands of rows with dark pixels in the sidebar
-/// (x 20..250, from y 150 down; the heading and the page count are above it).
-fn tree_rows(home: &Path) -> usize {
+/// (x 20..250, from `from` down; the heading and the page count are above it: Confluence has one bar of 52 px, so its rows
+/// start higher than Notion's, which has the search field above them).
+fn tree_rows(home: &Path, from: u32) -> usize {
     let decoder = png::Decoder::new(std::io::BufReader::new(
         std::fs::File::open(home.join("shot.png")).unwrap(),
     ));
@@ -195,7 +196,7 @@ fn tree_rows(home: &Path) -> usize {
         })
     };
     let (mut bands, mut inside) = (0, false);
-    for y in 150..info.height {
+    for y in from..info.height {
         let dark = dark_row(y);
         if dark && !inside {
             bands += 1;
@@ -219,7 +220,7 @@ fn flow_6_the_tree_shows_the_subpage_under_its_parent_as_one_node() {
         );
         assert!(pages(&said).contains("handbook/chapter-one.md"), "{said}");
         assert_eq!(
-            tree_rows(home.path()),
+            tree_rows(home.path(), if frontend == "a" { 104 } else { 150 }),
             2,
             "{frontend}: the tree has one node and its child"
         );

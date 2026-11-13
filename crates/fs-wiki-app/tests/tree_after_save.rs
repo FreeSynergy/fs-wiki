@@ -85,7 +85,7 @@ fn sidebar(app: &AppWidget, file: &std::path::Path) -> Vec<u8> {
     let info = reading.next_frame(&mut pixels).unwrap();
     let step = info.color_type.samples();
     let mut out = Vec::new();
-    for row in 150..260_u32 {
+    for row in 100..210_u32 {
         let from = (row * info.width) as usize * step;
         out.extend_from_slice(&pixels[from..from + 298 * step]);
     }

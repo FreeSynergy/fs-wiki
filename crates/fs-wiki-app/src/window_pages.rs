@@ -102,7 +102,8 @@ impl Switcher {
                 me.apply_name(&named, name)
             };
             if let Err(e) = result {
-                *fail.lock().unwrap_or_else(PoisonError::into_inner) = create_error(&e, me.setup.german);
+                *fail.lock().unwrap_or_else(PoisonError::into_inner) =
+                    create_error(&e, me.setup.german);
                 me.redraw();
             }
         });
@@ -144,7 +145,10 @@ impl Switcher {
         };
         let renamed = matches!(named, Named::Rename(_));
         if !renamed && let Some(revision) = maker.revision(&path) {
-            self.fresh.lock().unwrap_or_else(PoisonError::into_inner).insert(path.clone(), revision);
+            self.fresh
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .insert(path.clone(), revision);
         }
         widget.with_reader(|r| {
             r.refresh_entries();
@@ -166,7 +170,7 @@ impl Switcher {
         let body = if subs == 0 {
             t.plain("dlg-delete-body")
         } else {
-            t.say("dlg-delete-body-sub", &[("count", &subs.to_string())])
+            t.say("dlg-delete-body-sub", &[("count", &(subs + 1).to_string())])
         };
         let (yes, no, path) = (Arc::clone(self), Arc::clone(self), path.to_owned());
         let title_told = title.to_owned();
@@ -214,7 +218,11 @@ impl Switcher {
         let (yes, no, path) = (Arc::clone(self), Arc::clone(self), path.to_owned());
         self.surface.modal.set(question_view(Question {
             title: t.say("dlg-discard-title", &[("title", &open.title)]),
-            body: t.plain(if fresh { "dlg-discard-new-body" } else { "dlg-discard-body" }),
+            body: t.plain(if fresh {
+                "dlg-discard-new-body"
+            } else {
+                "dlg-discard-body"
+            }),
             yes_word: t.plain("dlg-discard-yes"),
             no_word: t.plain("dlg-keep"),
             on_yes: Arc::new(move || yes.discard(&path, fresh)),
@@ -226,7 +234,9 @@ impl Switcher {
     /// A page made in this window that was not saved since (its text is still what the window wrote).
     fn is_fresh(&self, maker: &dyn PageMaker, path: &str) -> bool {
         let fresh = self.fresh.lock().unwrap_or_else(PoisonError::into_inner);
-        fresh.get(path).is_some_and(|made| maker.revision(path).as_ref() == Some(made))
+        fresh
+            .get(path)
+            .is_some_and(|made| maker.revision(path).as_ref() == Some(made))
     }
 
     fn discard(self: &Arc<Self>, path: &str, fresh: bool) {
@@ -238,7 +248,10 @@ impl Switcher {
         });
         let t = self.texts();
         if fresh && let Some(maker) = self.setup.pages.clone() {
-            self.fresh.lock().unwrap_or_else(PoisonError::into_inner).remove(path);
+            self.fresh
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .remove(path);
             match maker.trash_page(path) {
                 Ok(_) => {
                     self.leave_gone_page();

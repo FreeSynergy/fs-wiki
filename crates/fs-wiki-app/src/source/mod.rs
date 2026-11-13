@@ -17,11 +17,11 @@ mod resolve;
 mod wiki;
 
 pub use create::{CreateError, PageMaker, SavedHook};
-pub use ops::{check_name, retitle};
 pub use export::{
     Differs, ExportError, export_markdown_checked, export_markdown_if_seen, export_markdown_to,
     read_current,
 };
+pub use ops::{check_name, retitle};
 pub use pages::PagesView;
 pub use problems::{Failure, Notes, PROBLEMS_PATH};
 pub use resolve::{resolve, resolve_with_folders};

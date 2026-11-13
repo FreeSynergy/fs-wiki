@@ -29,7 +29,7 @@ msg-frontend-not-kept = The frontend could not be remembered.
 
 dlg-delete-title = Delete {$title}?
 dlg-delete-body = The page moves to the trash. It can be restored from there.
-dlg-delete-body-sub = The page and its {$count} subpages move to the trash. They can be restored from there.
+dlg-delete-body-sub = The page and its subpages ({$count} pages in all) move to the trash. They can be restored from there.
 dlg-delete-yes = Delete
 dlg-discard-title = Discard the draft of {$title}?
 dlg-discard-body = What you typed is not saved and will be lost.

@@ -46,6 +46,8 @@ fs-interfaces = { git = "https://github.com/FreeSynergy/fs-interfaces", tag = "v
 rustix = { version = "1", default-features = false, features = ["std", "fs"] }
 
 [dev-dependencies]
+# The offscreen drawing, to draw the window together with the overlay layer of its dialogs (`AppWidget::picture` has none).
+fs-components-render = { git = "https://github.com/FreeSynergy/fs-components", tag = "v0.0.17" }
 # The real server, started inside the tests; the app code itself uses no store.
 fs-wiki-testserver = { path = "../fs-wiki-testserver" }
 tempfile = "3"

@@ -53,8 +53,14 @@ mod tests {
 
     #[test]
     fn the_front_matter_wins_then_the_first_h1_then_the_name() {
-        assert_eq!(title("---\ntitle: From front\n---\n# Heading\n", "n"), "From front");
-        assert_eq!(title("---\ntitle: \"Quoted: yes\"\n---\n", "n"), "Quoted: yes");
+        assert_eq!(
+            title("---\ntitle: From front\n---\n# Heading\n", "n"),
+            "From front"
+        );
+        assert_eq!(
+            title("---\ntitle: \"Quoted: yes\"\n---\n", "n"),
+            "Quoted: yes"
+        );
         assert_eq!(title("# Handbook\n\ntext\n", "x"), "Handbook");
         assert_eq!(title("text only\n", "the name"), "the name");
         assert_eq!(title("## second level\n", "second level"), "second level");

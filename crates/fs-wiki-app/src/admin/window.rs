@@ -100,6 +100,14 @@ pub fn shell_in(
 ///
 /// # Errors
 /// The window or the graphics cannot be started.
-pub fn open(registry: &TypeRegistry, ctx: &Ctx, origin: &str, german: bool) -> Result<(), AppError> {
-    launch(WindowOptions::default(), shell_in(registry, ctx, origin, german)?)
+pub fn open(
+    registry: &TypeRegistry,
+    ctx: &Ctx,
+    origin: &str,
+    german: bool,
+) -> Result<(), AppError> {
+    launch(
+        WindowOptions::default(),
+        shell_in(registry, ctx, origin, german)?,
+    )
 }

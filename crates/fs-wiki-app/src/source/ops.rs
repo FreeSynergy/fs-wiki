@@ -6,6 +6,8 @@
 //! `trash` (the page and its history move out of sight and can be restored), never `delete`. The names are checked here, so a
 //! window cannot ask for a path the core would refuse in a way the person cannot read.
 
+use std::fmt::Write as _;
+
 use fs_wiki_core::{Error, MARKDOWN, Paging, TextFormat};
 
 use super::create::{CreateError, folder_of, page_path, path_word};
@@ -21,7 +23,10 @@ pub fn check_name(title: &str) -> Result<String, CreateError> {
     if title.is_empty() {
         return Err(CreateError::EmptyTitle);
     }
-    if title.chars().any(|c| c == '/' || c == '\\' || c.is_control()) {
+    if title
+        .chars()
+        .any(|c| c == '/' || c == '\\' || c.is_control())
+    {
         return Err(CreateError::BadChars);
     }
     path_word(&title).ok_or(CreateError::NoLetter)?;
@@ -40,7 +45,10 @@ fn sibling(path: &str, title: &str) -> Option<String> {
 /// The first title line of `markdown` with the title `new`: the `title:` of the front matter, and the first line of the text
 /// when it is a level-1 heading that says `old` (or when there is no front matter title); a text without either gets a heading.
 pub fn retitle(markdown: &str, old: &str, new: &str) -> String {
-    let (front, body) = match markdown.strip_prefix("---\n").and_then(|r| r.split_once("\n---\n")) {
+    let (front, body) = match markdown
+        .strip_prefix("---\n")
+        .and_then(|r| r.split_once("\n---\n"))
+    {
         Some((front, body)) => (Some(front), body),
         None => (None, markdown),
     };
@@ -50,7 +58,8 @@ pub fn retitle(markdown: &str, old: &str, new: &str) -> String {
         out.push_str("---\n");
         for line in front.lines() {
             if line.starts_with("title:") {
-                out.push_str(&format!("title: \"{}\"\n", new.replace('\\', "\\\\").replace('"', "\\\"")));
+                let quoted = new.replace('\\', "\\\\").replace('"', "\\\"");
+                let _ = writeln!(out, "title: \"{quoted}\"");
             } else {
                 out.push_str(line);
                 out.push('\n');
@@ -58,7 +67,9 @@ pub fn retitle(markdown: &str, old: &str, new: &str) -> String {
         }
         out.push_str("---\n");
     }
-    let lead_end = body.find(|c: char| !c.is_whitespace()).unwrap_or(body.len());
+    let lead_end = body
+        .find(|c: char| !c.is_whitespace())
+        .unwrap_or(body.len());
     let (blank, rest) = body.split_at(lead_end);
     let first_line = rest.lines().next().unwrap_or("");
     let is_old_h1 = first_line
@@ -66,18 +77,21 @@ pub fn retitle(markdown: &str, old: &str, new: &str) -> String {
         .is_some_and(|h| h.trim() == old.trim() || !has_front_title);
     if is_old_h1 {
         out.push_str(blank);
-        out.push_str(&format!("# {new}"));
+        let _ = write!(out, "# {new}");
         out.push_str(&rest[first_line.len()..]);
     } else if has_front_title {
         out.push_str(body);
     } else {
-        out.push_str(&format!("# {new}\n\n{body}"));
+        let _ = write!(out, "# {new}\n\n{body}");
     }
     out
 }
 
 impl WikiSource {
-    fn runs<T>(&self, f: impl std::future::Future<Output = fs_wiki_core::Result<T>>) -> Result<T, CreateError> {
+    fn runs<T>(
+        &self,
+        f: impl std::future::Future<Output = fs_wiki_core::Result<T>>,
+    ) -> Result<T, CreateError> {
         self.runtime.block_on(f).map_err(|e| match e {
             Error::PathTaken(p) => CreateError::Taken(p),
             Error::TargetNotEmpty { to, .. } => CreateError::Taken(to),
@@ -102,7 +116,11 @@ impl WikiSource {
     }
 
     /// A page called exactly `title` below `parent`; a taken path is an error.
-    pub(super) fn create_named(&self, parent: Option<&str>, title: &str) -> Result<String, CreateError> {
+    pub(super) fn create_named(
+        &self,
+        parent: Option<&str>,
+        title: &str,
+    ) -> Result<String, CreateError> {
         if self.read_only {
             return Err(CreateError::ReadOnly);
         }
@@ -111,7 +129,9 @@ impl WikiSource {
         if self.exists(&path) {
             return Err(CreateError::Taken(path));
         }
-        Ok(self.runs(self.texts.create(&path, &format!("# {title}\n")))?.path)
+        Ok(self
+            .runs(self.texts.create(&path, &format!("# {title}\n")))?
+            .path)
     }
 
     /// The pages below `path` (its folder), not the page itself.
@@ -138,7 +158,9 @@ impl WikiSource {
         }
         let title = check_name(title)?;
         let new_path = sibling(path, &title).ok_or(CreateError::NoLetter)?;
-        let entry = self.entry(path).map_err(|e| CreateError::Failed(e.to_string()))?;
+        let entry = self
+            .entry(path)
+            .map_err(|e| CreateError::Failed(e.to_string()))?;
         let old_title = entry.envelope.name.clone();
         let (old_folder, new_folder) = (folder_of(Some(path)), folder_of(Some(&new_path)));
         let has_children = !self.below(path).is_empty();
@@ -183,7 +205,9 @@ impl WikiSource {
     /// Trash the page and the pages below it, the subpages first; how many.
     pub(super) fn trash_with_subpages(&self, path: &str) -> Result<usize, CreateError> {
         self.may_change(path)?;
-        let entry = self.entry(path).map_err(|e| CreateError::Failed(e.to_string()))?;
+        let entry = self
+            .entry(path)
+            .map_err(|e| CreateError::Failed(e.to_string()))?;
         let mut count = 0;
         for child in self.below(path) {
             self.runs(self.texts.trash(child.id))?;

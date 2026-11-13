@@ -10,6 +10,9 @@ use std::sync::{Arc, Mutex, PoisonError};
 use fs_components::blinc::cn::components::button::{ButtonBuilder, ButtonVariant};
 use fs_components::blinc::layout::div::{Div, div};
 use fs_components::blinc::layout::prelude::text;
+use fs_components::blinc::layout::widgets::overlay_stack::{
+    CloseReason, OverlayBuilder, OverlayHandle,
+};
 use fs_components_widgets::name_dialog::NameDialog;
 
 /// How the modal is drawn: called at every redraw (the state of the dialog lives outside the elements it draws).
@@ -34,23 +37,75 @@ pub struct Modal {
     pub no: Option<Act>,
 }
 
-/// The one modal of a window, or none.
+/// The one modal of a window, or none. It is an entry of Blinc's overlay stack (kind modal: a dimmed backdrop, input blocked
+/// below, Escape closes) because text of the page below is drawn above any element laid over it; the stack is what draws
+/// above everything.
 #[derive(Default)]
-pub struct ModalSlot(Mutex<Option<Modal>>);
+pub struct ModalSlot {
+    current: Mutex<Option<Modal>>,
+    handle: Mutex<Option<u64>>,
+}
 
 impl ModalSlot {
-    /// Show `modal` over the page.
-    pub fn set(&self, modal: Modal) {
-        *self.0.lock().unwrap_or_else(PoisonError::into_inner) = Some(modal);
+    /// Show `modal` over the page (a modal that is open goes first).
+    pub fn set(self: &Arc<Self>, modal: Modal) {
+        self.clear();
+        let (view, no) = (Arc::clone(&modal.view), modal.no.clone());
+        *self.current.lock().unwrap_or_else(PoisonError::into_inner) = Some(modal);
+        let me = Arc::clone(self);
+        let raw = OverlayBuilder::modal()
+            .centered()
+            .dismissable_by_escape(true)
+            .dismissable_by_click_outside(false)
+            .on_close(move |reason| {
+                if matches!(reason, CloseReason::Escape) {
+                    // The stack closed it already: forget the handle so `clear` does not close it again.
+                    me.handle
+                        .lock()
+                        .unwrap_or_else(PoisonError::into_inner)
+                        .take();
+                    if let Some(no) = &no {
+                        no();
+                    }
+                }
+            })
+            .content(move || view())
+            .show()
+            .raw();
+        *self.handle.lock().unwrap_or_else(PoisonError::into_inner) = Some(raw);
+    }
+
+    /// Take the modal away.
+    pub fn clear(&self) {
+        *self.current.lock().unwrap_or_else(PoisonError::into_inner) = None;
+        let raw = self
+            .handle
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take();
+        if let Some(raw) = raw {
+            OverlayHandle::from_raw(raw).close();
+        }
     }
 
     fn current(&self) -> Option<Modal> {
-        self.0.lock().unwrap_or_else(PoisonError::into_inner).clone()
+        self.current
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+
+    /// Whether a modal is shown.
+    pub fn is_open(&self) -> bool {
+        self.current().is_some()
     }
 
     /// Answer a name dialog with `name`, as Enter does; false when no name dialog is shown.
     pub fn submit(&self, name: &str) -> bool {
-        self.current().and_then(|m| m.submit).map(|f| f(name)).is_some()
+        self.current()
+            .and_then(|m| m.submit)
+            .map(|f| f(name))
+            .is_some()
     }
 
     /// Press yes of a question; false when none is shown.
@@ -62,42 +117,12 @@ impl ModalSlot {
     pub fn no(&self) -> bool {
         self.current().and_then(|m| m.no).map(|f| f()).is_some()
     }
-
-    /// Take the modal away.
-    pub fn clear(&self) {
-        *self.0.lock().unwrap_or_else(PoisonError::into_inner) = None;
-    }
-
-    /// Whether a modal is shown.
-    pub fn is_open(&self) -> bool {
-        self.0.lock().unwrap_or_else(PoisonError::into_inner).is_some()
-    }
-
-    /// The page with the modal over it (the page alone when there is none), `width` x `height`.
-    pub fn over(&self, page: impl fs_components_widgets::Element + 'static, width: f32, height: f32) -> Div {
-        let view = self.current().map(|m| m.view);
-        let root = div().w(width).h(height).relative().child(page);
-        match view {
-            None => root,
-            Some(view) => root.child(
-                div()
-                    .class("fs-wiki-scrim")
-                    .absolute()
-                    .left(0.0)
-                    .top(0.0)
-                    .w(width)
-                    .h(height)
-                    .child(view()),
-            ),
-        }
-    }
 }
 
-/// The style sheet of the modal layer: theme variables only.
+/// The style sheet of the modal: theme variables only.
 pub const STYLES: &str = "
-.fs-wiki-scrim { display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--surface-overlay); }
-.fs-wiki-modal { display: flex; flex-direction: column; width: 100%; max-width: 420px; gap: var(--space-2); }
-.fs-wiki-modal-error { color: var(--error); font-size: var(--text-sm); padding-left: var(--space-1); }
+.fs-wiki-modal { display: flex; flex-direction: column; width: 420px; gap: var(--space-2); }
+.fs-wiki-modal-error { color: var(--error); background: var(--surface); border-width: 1px; border-color: var(--border-error); font-size: var(--text-sm); padding: var(--space-2); border-radius: var(--radius-default); }
 .fs-wiki-modal-body { color: var(--text-secondary); }
 ";
 
@@ -114,7 +139,10 @@ pub fn name_view(dialog: NameDialog, error: Arc<Mutex<String>>, blank: String) -
         }
         column.on_key_down(move |ctx| {
             if ctx.key_code == 13 && dialog_keys.text().trim().is_empty() {
-                *blank_error.lock().unwrap_or_else(PoisonError::into_inner) = blank_text.clone();
+                blank_error
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .clone_from(&blank_text);
             }
         })
     })

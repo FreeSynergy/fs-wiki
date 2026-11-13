@@ -16,8 +16,8 @@ use fs_wiki_app::frontend::Frontend;
 use fs_wiki_app::frontend_window::{
     PAGE_DELETE, PAGE_DISCARD, PAGE_NEW, PAGE_RENAME, PAGE_SUB, Setup, window_with_modal,
 };
-use fs_wiki_app::window_modal::ModalSlot;
 use fs_wiki_app::source::{CreateError, PageMaker, create::page_path};
+use fs_wiki_app::window_modal::ModalSlot;
 use std::time::{Duration, Instant};
 
 /// A wiki in memory: (path, text); a name that is taken is refused.
@@ -75,8 +75,21 @@ impl PageMaker for Mem {
 }
 
 fn app(editable: bool, german: bool) -> (AppWidget, ReaderWidget, Arc<Mem>, Arc<ModalSlot>) {
+    app_with(&[("home.md", "# Home\n")], editable, german)
+}
+
+fn app_with(
+    pages: &[(&str, &str)],
+    editable: bool,
+    german: bool,
+) -> (AppWidget, ReaderWidget, Arc<Mem>, Arc<ModalSlot>) {
     let mem = Arc::new(Mem {
-        pages: Mutex::new(vec![("home.md".into(), "# Home\n".into())]),
+        pages: Mutex::new(
+            pages
+                .iter()
+                .map(|(p, t)| ((*p).into(), (*t).into()))
+                .collect(),
+        ),
         editable,
     });
     let reader = ReaderWidget::new(mem.clone(), Labels::default(), None);
@@ -134,13 +147,19 @@ fn wait_for(app: &AppWidget, want: &[&str]) -> Vec<String> {
 
 #[test]
 fn the_menu_has_five_entries_in_both_languages_and_nothing_open_locks_four() {
-    let (en, ..) = app(true, false);
+    let (en, ..) = app_with(&[], true, false);
     let ids: Vec<String> = page_menu(&en).into_iter().map(|(id, ..)| id).collect();
-    assert_eq!(ids, [PAGE_NEW, PAGE_SUB, PAGE_RENAME, PAGE_DELETE, PAGE_DISCARD]);
+    assert_eq!(
+        ids,
+        [PAGE_NEW, PAGE_SUB, PAGE_RENAME, PAGE_DELETE, PAGE_DISCARD]
+    );
     assert_eq!(page_menu(&en)[0].1, "New page");
     assert_eq!(page_menu(&en)[1].1, "New subpage (no page is open)");
-    assert_eq!(locked(&en), [PAGE_SUB, PAGE_RENAME, PAGE_DELETE, PAGE_DISCARD]);
-    let (de, ..) = app(true, true);
+    assert_eq!(
+        locked(&en),
+        [PAGE_SUB, PAGE_RENAME, PAGE_DELETE, PAGE_DISCARD]
+    );
+    let (de, ..) = app_with(&[], true, true);
     assert_eq!(page_menu(&de)[0].1, "Neue Seite");
     assert_eq!(page_menu(&de)[1].1, "Neue Unterseite (keine Seite offen)");
     assert_eq!(page_menu(&de)[3].1, "Löschen (keine Seite offen)");
@@ -161,7 +180,11 @@ fn a_window_that_cannot_edit_shows_every_entry_locked_with_the_reason() {
 fn the_entries_follow_what_is_open_and_what_is_edited() {
     let (app, reader, ..) = app(true, false);
     reader.with_reader(|r| r.open("home.md"));
-    assert_eq!(wait_for(&app, &[PAGE_DISCARD]), [PAGE_DISCARD], "a page is open: all but Discard");
+    assert_eq!(
+        wait_for(&app, &[PAGE_DISCARD]),
+        [PAGE_DISCARD],
+        "a page is open: all but Discard"
+    );
     reader.with_reader(Reader::begin_edit);
     assert_eq!(
         wait_for(&app, &[PAGE_NEW, PAGE_SUB, PAGE_RENAME, PAGE_DELETE]),
@@ -181,12 +204,21 @@ fn a_name_makes_the_page_and_a_refused_name_stays_in_its_dialog() {
     assert!(app.choose(PAGE_NEW));
     assert!(modal.submit("   "), "a blank name is answered, not taken");
     assert_eq!(mem.pages.lock().unwrap().len(), 1, "nothing was made");
-    assert!(modal.submit("Home"), "the dialog is still open: the name is taken");
+    assert!(
+        modal.submit("Home"),
+        "the dialog is still open: the name is taken"
+    );
     assert_eq!(mem.pages.lock().unwrap().len(), 1);
     assert!(modal.submit("Guide"));
-    assert!(!modal.submit("again"), "the dialog closed after the page was made");
+    assert!(
+        !modal.submit("again"),
+        "the dialog closed after the page was made"
+    );
     let (path, editing) = reader.with_reader(|r| {
-        (r.current_path().map(str::to_owned), r.editing().map(|e| e.draft.clone()))
+        (
+            r.current_path().map(str::to_owned),
+            r.editing().map(|e| e.draft.clone()),
+        )
     });
     assert_eq!(path.as_deref(), Some("guide.md"));
     assert_eq!(editing.as_deref(), Some("# Guide\n"));
@@ -207,6 +239,12 @@ fn a_subpage_goes_below_the_open_page_and_escape_leaves() {
     assert_eq!(mem.pages.lock().unwrap().len(), 1);
     assert!(app.choose(PAGE_SUB));
     assert!(modal.submit("Part"));
-    let paths: Vec<String> = mem.pages.lock().unwrap().iter().map(|(p, _)| p.clone()).collect();
+    let paths: Vec<String> = mem
+        .pages
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|(p, _)| p.clone())
+        .collect();
     assert_eq!(paths, ["home.md", "home/part.md"]);
 }
