@@ -1,5 +1,5 @@
-//! The window of the wiki program: connect to the server (starting it when none runs), then the Admin window, the
-//! headless check or the reader.
+//! The window of the wiki program: connect to the server (starting it when none runs), then the wiki window (the
+//! normal start), the Admin window, the headless check or the reader.
 //!
 //! Pattern: Facade — one entry point over the arguments, the version handshake and the two modes. A server the window
 //! starts ends itself when no window holds the lease any more (`fs-wiki-server` `lease.rs`); a server of another version
@@ -31,17 +31,35 @@ pub fn run(words: &[String]) -> Result<(), String> {
     }
     let socket = socket_path(args.socket.as_deref())?;
     let texts = connect_or_start(&socket, args.socket.is_some(), args.facet.as_deref())?;
+    match mode(&args) {
+        Mode::Wiki => crate::mode_read::run(&args, texts),
+        Mode::Reader => crate::mode_reader::run(&args, texts),
+        Mode::Admin => crate::mode_admin::run(&args, texts),
+    }
+}
+
+/// Which window the arguments ask for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Mode {
+    /// The wiki window with its faces (no option, or `--read`).
+    Wiki,
+    /// The documentation reader and editor of one folder (`--reader`).
+    Reader,
+    /// The Admin window (`--admin`) or its headless check (`--check`).
+    Admin,
+}
+
+/// The window of `args`: the wiki window unless `--reader`, `--admin` or `--check` ask for another (`--read` wins, as it
+/// always did).
+pub fn mode(args: &crate::args::Args) -> Mode {
     if args.read {
-        if args.sources.is_empty() {
-            return Err(
-                "--read needs sources: --docs-root <checkout> or --source <prefix>=<folder>".into(),
-            );
-        }
-        crate::mode_read::run(&args, texts)
+        Mode::Wiki
     } else if args.reader {
-        crate::mode_reader::run(&args, texts)
+        Mode::Reader
+    } else if args.admin || args.check {
+        Mode::Admin
     } else {
-        crate::mode_admin::run(&args, texts)
+        Mode::Wiki
     }
 }
 

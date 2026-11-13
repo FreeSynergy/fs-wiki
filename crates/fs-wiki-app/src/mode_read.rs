@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
+use crate::Report;
 use crate::face::Face;
 use crate::face_window::{Setup, window};
 use crate::nav::Nav;
@@ -36,20 +37,26 @@ pub fn run(args: &Args, texts: RpcTexts) -> Result<(), String> {
     };
     let origins = FileOrigins::open(&records).map_err(|e| e.to_string())?;
     let wiki = Arc::new(Wiki::new(Arc::new(texts), Arc::new(origins)));
-    let report = runtime.block_on(import_sources(wiki.as_ref(), &args.sources, CHECK_LIMIT));
-    eprintln!(
-        "{} sources: {} new, {} updated, {} unchanged, {} failed, {} conflict(s), {} gone, {} skipped, {} attachment(s) not stored, in {:.1?}",
-        args.sources.len(),
-        report.imported,
-        report.updated,
-        report.unchanged,
-        report.failures.len(),
-        report.conflicts.len(),
-        report.gone.len(),
-        report.skipped.len(),
-        report.attachments.len(),
-        started.elapsed()
-    );
+    // The plain start has no sources: the wiki is what the server holds, nothing is imported.
+    let report = if args.sources.is_empty() {
+        Report::default()
+    } else {
+        let report = runtime.block_on(import_sources(wiki.as_ref(), &args.sources, CHECK_LIMIT));
+        eprintln!(
+            "{} sources: {} new, {} updated, {} unchanged, {} failed, {} conflict(s), {} gone, {} skipped, {} attachment(s) not stored, in {:.1?}",
+            args.sources.len(),
+            report.imported,
+            report.updated,
+            report.unchanged,
+            report.failures.len(),
+            report.conflicts.len(),
+            report.gone.len(),
+            report.skipped.len(),
+            report.attachments.len(),
+            started.elapsed()
+        );
+        report
+    };
     if report.records_ignored > 0 {
         let count = report.records_ignored;
         eprintln!(
@@ -66,10 +73,15 @@ pub fn run(args: &Args, texts: RpcTexts) -> Result<(), String> {
     if !args.edit {
         source = source.read_only();
     }
-    let settings = (args.frontend.is_none() && args.snapshot.is_none())
+    // An override on the command line never writes: no settings file is given to the window then. (A picture only
+    // reads it.)
+    let settings = args
+        .frontend
+        .is_none()
         .then(crate::frontend::settings)
         .flatten();
-    let face = if args.snapshot.is_some() {
+    // A picture of `--read` stays repeatable (the plain reader); the plain start shows what the window would show.
+    let face = if args.snapshot.is_some() && args.read {
         crate::frontend::picture_face(args)
     } else {
         crate::frontend::start_face(args, settings.as_ref())
@@ -121,9 +133,10 @@ fn show(
         picture.steps = args.steps.iter().filter_map(|s| step(s)).collect();
         let shot = snapshot(picture, file).map_err(|e| e.to_string())?;
         eprintln!(
-            "wrote {}, showing {:?}",
+            "wrote {}, showing {:?}, face {}",
             file.display(),
-            shot.reader.current_path()
+            shot.reader.current_path(),
+            face.id()
         );
         return Ok(());
     }

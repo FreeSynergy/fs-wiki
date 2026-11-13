@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.0.9 (in progress)
+
+### English
+
+- **Fix: the normal start shows the faces.** A plain `fs-wiki` (the desktop file) opened the old Admin window; the faces were only behind `--read`. Now it opens the wiki window in the remembered face (first start: Confluence), over the wiki of the server, read only unless `--edit`. View > Face in that window switches and remembers (as before). `--admin` opens the old Admin window, `--check` still checks headless, `--reader` is unchanged, `--read` is kept and now means the same window with an import of its sources first. A picture (`--snapshot`) of the plain start shows the remembered face; `--frontend` never writes the setting.
+- Tests start the real binary like the desktop file and check the face; every option of `--help` is checked against the parser.
+
+### Deutsch
+
+- **Fehlerbehebung: der normale Start zeigt die Gesichter.** Ein einfaches `fs-wiki` (die Desktop-Datei) öffnete das alte Admin-Fenster; die Gesichter gab es nur mit `--read`. Jetzt öffnet es das Wiki-Fenster im gemerkten Gesicht (erster Start: Confluence), über dem Wiki des Servers, nur lesend außer mit `--edit`. Ansicht > Gesicht wechselt und merkt wie bisher. `--admin` öffnet das alte Admin-Fenster, `--check` prüft weiter ohne Fenster, `--reader` unverändert, `--read` bleibt und heißt jetzt dasselbe Fenster mit vorherigem Import seiner Quellen. Ein Bild (`--snapshot`) des normalen Starts zeigt das gemerkte Gesicht; `--frontend` schreibt nie die Einstellung.
+- Tests starten das echte Programm wie die Desktop-Datei und prüfen das Gesicht; jede Option von `--help` wird gegen den Parser geprüft.
+
 ## 0.0.8 (in progress)
 
 ### English

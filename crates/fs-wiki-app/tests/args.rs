@@ -120,3 +120,27 @@ fn sources_have_a_prefix_and_a_docs_root_names_the_four_of_the_documentation() {
     assert_eq!(r.nav, Some(root.join("mkdocs.yml")));
     std::fs::remove_dir_all(root).unwrap();
 }
+
+#[test]
+fn every_option_of_the_help_is_known_to_the_parser_and_the_dispatch_matches() {
+    use fs_wiki_app::gui::{Mode, mode};
+    // An option the help names but the parser does not know (or a window nobody can reach) is the bug that hid the faces
+    // behind `--read`.
+    let options: Vec<&str> = fs_wiki_app::args::HELP
+        .lines()
+        .filter_map(|l| l.split_whitespace().next())
+        .filter(|w| w.starts_with("--"))
+        .collect();
+    assert!(options.len() >= 18, "{options:?}");
+    for option in &options {
+        let said = parse(&args(&[option])).err().unwrap_or_default();
+        assert!(!said.contains("unknown option"), "{option}: {said}");
+    }
+    let mode_of = |a: &[&str]| mode(&parse(&args(a)).unwrap());
+    assert_eq!(mode_of(&[]), Mode::Wiki, "the desktop file: the faces");
+    assert_eq!(mode_of(&["--socket", "s", "--frontend", "b"]), Mode::Wiki);
+    assert_eq!(mode_of(&["--read"]), Mode::Wiki);
+    assert_eq!(mode_of(&["--reader"]), Mode::Reader);
+    assert_eq!(mode_of(&["--admin"]), Mode::Admin);
+    assert_eq!(mode_of(&["--check"]), Mode::Admin);
+}

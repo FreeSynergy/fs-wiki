@@ -28,8 +28,10 @@ pub struct Args {
     pub drafts: Option<PathBuf>,
     /// Picture size.
     pub size: (u32, u32),
-    /// Open the documentation reader instead of the Admin window.
+    /// Open the documentation reader instead of the wiki window.
     pub reader: bool,
+    /// Open the Admin window (`--admin`) instead of the wiki window.
+    pub admin: bool,
     /// Do not open a window: connect, read the descriptions, list the pages and say what was found.
     pub check: bool,
     /// The facet to show (`--facet NAME`, the link `fs-<facet>`, ADR 0063), read by the parser of `fs-interfaces`.
@@ -46,7 +48,7 @@ pub struct Args {
     pub lang: Option<String>,
     /// The `mkdocs.yml` whose navigation orders the pages (`--nav`, or the one of `--docs-root`).
     pub nav: Option<PathBuf>,
-    /// The face of `--read` for this run (`--frontend a|b|classic`): `a` page tree, head and outline; `b` calm sidebar
+    /// The face of the wiki window for this run (`--frontend a|b|classic`): `a` page tree, head and outline; `b` calm sidebar
     /// and blocks. None = the remembered face of the window's menu.
     pub frontend: Option<String>,
     /// `--index FILE` with `--read`: the heads (id, path, title, revision) of all texts are read from this file when it is there, else listed and written to it (listing the whole documentation takes minutes).
@@ -91,6 +93,7 @@ pub fn parse(args: &[String]) -> Result<Args, String> {
             "--step" => out.steps.push(value("--step")?),
             "--size" => out.size = size(&value("--size")?)?,
             "--reader" => out.reader = true,
+            "--admin" => out.admin = true,
             "--read" => out.read = true,
             "--source" => out.sources.push(source(&value("--source")?)?),
             "--docs-root" => docs_root(&mut out, &PathBuf::from(value("--docs-root")?)),
@@ -205,7 +208,11 @@ fn size(text: &str) -> Result<(u32, u32), String> {
 /// The help text.
 pub const HELP: &str = "fs-wiki-app: the wiki in a window (Admin view of pages, folders, history, trash and links)
 
-  --read              the reading wiki: the sources below in one wiki, read only (sidebar, page, search)
+  (no option)         the wiki window with the face remembered from the menu View > Face (first start:
+                      Confluence), over the wiki of the server; read only unless --edit
+  --admin             the Admin window (pages, folders, history, trash, links) instead
+  --read              the same window, and the sources below are imported into the wiki first (kept for
+                      compatibility: without sources it is the plain start)
   --docs-root <dir>   with --read: a checkout of the documentation (docs/en as en/, docs/de as de/,
                       conventions/decisions as adr/, temp/research as research/, its mkdocs.yml for the order)
   --source <p>=<dir>  with --read, repeatable: import <dir> below the path prefix <p>
