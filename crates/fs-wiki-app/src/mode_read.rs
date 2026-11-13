@@ -8,12 +8,12 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
+use crate::face::Face;
+use crate::face_window::{Setup, window};
 use crate::nav::Nav;
 use crate::store_path::{data_dir, origins_file};
 use crate::variants::PageIndex;
 use crate::{FileOrigins, Wiki, WikiSource, import::CHECK_LIMIT, import_sources, words};
-use crate::face::Face;
-use crate::face_window::{Setup, window};
 use fs_components_app::{WindowOptions, launch};
 use fs_components_workbenches::{Labels, Picture, ReaderWidget, Step, register_fonts, snapshot};
 use fs_wiki_client::RpcTexts;

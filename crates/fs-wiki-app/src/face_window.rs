@@ -61,7 +61,11 @@ struct ReaderSurface(Mutex<ReaderWidget>);
 
 impl Surface for ReaderSurface {
     fn build(&self, width: f32, height: f32) -> Box<dyn Element> {
-        let widget = self.0.lock().unwrap_or_else(PoisonError::into_inner).clone();
+        let widget = self
+            .0
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
         Box::new(widget.build(width, height))
     }
 
@@ -94,7 +98,9 @@ impl Switcher {
     }
 
     fn show(self: &Arc<Self>, face: Face) {
-        self.setup.bare.store(face.has_own_head(), Ordering::Relaxed);
+        self.setup
+            .bare
+            .store(face.has_own_head(), Ordering::Relaxed);
         let widget = self
             .base
             .clone()
@@ -108,11 +114,18 @@ impl Switcher {
                 r.open(&path);
             }
         });
-        *self.surface.0.lock().unwrap_or_else(PoisonError::into_inner) = widget;
+        *self
+            .surface
+            .0
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = widget;
         if let Some(file) = &self.setup.settings
             && let Err(e) = face::save(file, face)
         {
-            eprintln!("fs-wiki: the face is not remembered ({}: {e})", file.display());
+            eprintln!(
+                "fs-wiki: the face is not remembered ({}: {e})",
+                file.display()
+            );
             let words = if self.setup.german {
                 "Das Gesicht konnte nicht gemerkt werden."
             } else {
@@ -138,9 +151,7 @@ pub fn window(
     setup: Setup,
 ) -> Result<AppWidget, AppError> {
     setup.bare.store(face.has_own_head(), Ordering::Relaxed);
-    let widget = reader
-        .clone()
-        .layout(face.layout(), setup.labels.clone());
+    let widget = reader.clone().layout(face.layout(), setup.labels.clone());
     let surface = Arc::new(ReaderSurface(Mutex::new(widget)));
     let screen = Screen::new("reader", title, Arc::clone(&surface) as Arc<dyn Surface>);
     let app = AppWidget::new(title, vec![screen])?;

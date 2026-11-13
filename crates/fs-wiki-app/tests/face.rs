@@ -31,7 +31,11 @@ impl DocumentSource for Two {
     }
 }
 
-fn app(face: Face, settings: Option<std::path::PathBuf>, german: bool) -> (AppWidget, Arc<AtomicBool>) {
+fn app(
+    face: Face,
+    settings: Option<std::path::PathBuf>,
+    german: bool,
+) -> (AppWidget, Arc<AtomicBool>) {
     let bare = Arc::new(AtomicBool::new(false));
     let reader = ReaderWidget::new(Arc::new(Two), Labels::default(), None);
     let setup = Setup {
@@ -116,7 +120,10 @@ fn choosing_a_face_switches_marks_and_remembers() {
     assert!(lines(&app).contains(&("face-b".into(), "✓ Face: Notion".into())));
     assert!(app.choose("face-classic"));
     assert_eq!(face::load(&file), Some(Face::Classic));
-    assert!(!bare.load(Ordering::Relaxed), "the plain face has the language bar in the page");
+    assert!(
+        !bare.load(Ordering::Relaxed),
+        "the plain face has the language bar in the page"
+    );
     assert!(app.choose("face-a"));
     assert!(bare.load(Ordering::Relaxed));
     assert_eq!(face::load(&file), Some(Face::Confluence));
@@ -137,7 +144,10 @@ fn the_frontend_option_takes_classic_a_and_b() {
         let words: Vec<String> = words.iter().map(|w| (*w).to_owned()).collect();
         fs_wiki_app::args::parse(&words).unwrap()
     };
-    assert_eq!(args(&["--frontend", "classic"]).frontend.as_deref(), Some("classic"));
+    assert_eq!(
+        args(&["--frontend", "classic"]).frontend.as_deref(),
+        Some("classic")
+    );
     assert_eq!(args(&["--frontend", "b"]).frontend.as_deref(), Some("b"));
     assert!(fs_wiki_app::args::parse(&["--frontend".into(), "c".into()]).is_err());
     assert_eq!(Face::parse("classic"), Some(Face::Classic));
