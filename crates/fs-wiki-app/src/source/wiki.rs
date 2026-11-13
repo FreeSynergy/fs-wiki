@@ -54,6 +54,8 @@ pub struct WikiSource {
     pub(super) bare: Arc<std::sync::atomic::AtomicBool>,
     /// The heads of all texts, read once (`heads.rs`); the sidebar is made from them, not from a list of whole documents.
     pub(super) heads: Option<Vec<crate::heads::Head>>,
+    /// Called after every saved edit (the window rebuilds its page tree: the title may have changed).
+    pub(super) on_saved: Mutex<Option<super::create::SavedHook>>,
 }
 
 fn failed(e: &dyn std::fmt::Display) -> SourceError {
@@ -232,7 +234,10 @@ impl DocumentSource for WikiSource {
             .runtime
             .block_on(self.texts.edit_if(entry.id, entry.revision, document))
         {
-            Ok(_) => Ok(()),
+            Ok(_) => {
+                self.saved();
+                Ok(())
+            }
             Err(Error::Conflict { .. }) => Err(conflict()),
             Err(e) => Err(failed(&e)),
         }

@@ -165,6 +165,25 @@ impl Switcher {
         *self.shown.lock().unwrap_or_else(PoisonError::into_inner) = chosen;
     }
 
+    /// The page tree is made again after every saved edit: the title of the page may be another one now (it is the first
+    /// heading). The tree is shared by the clones of the reader widget, so making it on a clone is enough; the save still holds
+    /// the reader, so this waits in a thread of its own for the end of the save, then draws the page and the tree again.
+    fn watch_saves(self: &Arc<Self>) {
+        let Some(pages) = &self.setup.pages else {
+            return;
+        };
+        let me = Arc::downgrade(self);
+        pages.on_saved(Arc::new(move || {
+            if let Some(me) = me.upgrade() {
+                std::thread::spawn(move || {
+                    let layout = me.shown().layout();
+                    drop(me.base.clone().layout(layout, me.setup.labels.clone()));
+                    me.base.refresh();
+                });
+            }
+        }));
+    }
+
     fn shown(&self) -> Frontend {
         *self.shown.lock().unwrap_or_else(PoisonError::into_inner)
     }
@@ -258,6 +277,7 @@ pub fn window(
         setup,
         shown: Mutex::new(shown),
     });
+    switcher.watch_saves();
     switcher.install(shown)?;
     Ok(app)
 }

@@ -6,6 +6,8 @@
 //! gets a number (`New page 2`), because a new page is made at once and named in the editor (the Confluence way: an
 //! untitled draft, no dialog in between).
 
+use std::sync::Arc;
+
 use fs_wiki_core::Error;
 
 use super::wiki::WikiSource;
@@ -30,6 +32,9 @@ pub enum CreateError {
     Failed(String),
 }
 
+/// What is called after an edit was saved.
+pub type SavedHook = Arc<dyn Fn() + Send + Sync>;
+
 /// What the window needs to make pages.
 pub trait PageMaker: Send + Sync {
     /// Whether pages can be made (not in a read only window).
@@ -41,6 +46,24 @@ pub trait PageMaker: Send + Sync {
     /// # Errors
     /// [`CreateError`] with the reason; nothing is made then.
     fn create_page(&self, parent: Option<&str>, title: &str) -> Result<String, CreateError>;
+
+    /// Call `hook` after every saved edit, from the thread that saves (it must not wait for the reader). The default never
+    /// calls it.
+    fn on_saved(&self, _hook: SavedHook) {}
+}
+
+impl WikiSource {
+    /// Tell the window that an edit was saved.
+    pub(super) fn saved(&self) {
+        let hook = self
+            .on_saved
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
+        if let Some(hook) = hook {
+            hook();
+        }
+    }
 }
 
 /// `title` as one word of a path: letters and digits in lower case, other characters between them as one `-`.
@@ -85,6 +108,13 @@ pub fn page_path(parent: Option<&str>, title: &str) -> Option<String> {
 impl PageMaker for WikiSource {
     fn can_create(&self) -> bool {
         !self.read_only
+    }
+
+    fn on_saved(&self, hook: SavedHook) {
+        *self
+            .on_saved
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(hook);
     }
 
     fn create_page(&self, parent: Option<&str>, title: &str) -> Result<String, CreateError> {

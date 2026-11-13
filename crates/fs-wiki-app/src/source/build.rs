@@ -32,6 +32,7 @@ impl WikiSource {
             pages: None,
             bare: Arc::default(),
             heads: None,
+            on_saved: std::sync::Mutex::new(None),
         }
     }
 
@@ -56,6 +57,7 @@ impl WikiSource {
             pages: None,
             bare: Arc::default(),
             heads: None,
+            on_saved: std::sync::Mutex::new(None),
         }
     }
 
