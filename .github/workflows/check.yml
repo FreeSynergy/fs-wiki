@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   check:
-    uses: FreeSynergy/fs-release/.github/workflows/check.yml@main
+    uses: FreeSynergy/fs-release/.github/workflows/check.yml@v0.0.6
     with:
-      # Software Vulkan (lavapipe) for the tests that start the program and draw a picture (tests/start.rs); a runner has no GPU
-      apt-packages: "mesa-vulkan-drivers libvulkan1 fonts-dejavu-core fonts-noto-core"
+      # Software Vulkan (lavapipe) and fonts for the tests that start the program and draw a picture; a runner has no GPU
+      software-gpu: true

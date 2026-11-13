@@ -177,3 +177,42 @@ fn flow_6_a_subpage_lives_below_the_page_that_was_shown() {
     assert!(refused.contains("needs a page shown"), "{refused}");
     assert!(!pages(&refused).contains("orphan"), "{refused}");
 }
+
+/// How many rows of text the page tree of the picture of the last run holds: bands of rows with dark pixels in the sidebar
+/// (x 20..250, from y 150 down; the heading and the page count are above it).
+fn tree_rows(home: &Path) -> usize {
+    let decoder = png::Decoder::new(std::io::BufReader::new(
+        std::fs::File::open(home.join("shot.png")).unwrap(),
+    ));
+    let mut reading = decoder.read_info().unwrap();
+    let mut pixels = vec![0; reading.output_buffer_size().unwrap()];
+    let info = reading.next_frame(&mut pixels).unwrap();
+    let step = info.color_type.samples();
+    let dark_row = |y: u32| {
+        (20..250_u32).any(|x| {
+            let at = (y * info.width + x) as usize * step;
+            pixels[at..at + 3].iter().min().copied().unwrap_or(255) < 140
+        })
+    };
+    let (mut bands, mut inside) = (0, false);
+    for y in 150..info.height {
+        let dark = dark_row(y);
+        if dark && !inside {
+            bands += 1;
+        }
+        inside = dark;
+    }
+    bands
+}
+
+#[test]
+fn flow_6_the_tree_shows_the_subpage_under_its_parent_as_one_node() {
+    for frontend in ["a", "b"] {
+        let home = Home::new(&format!("w6tree-{frontend}"));
+        // The page and its subpage only: with the page tree before fs-components v0.0.14 this was three rows (the page
+        // "Handbook", the folder "handbook" and "Chapter one" in it); one node with its child is two.
+        let said = run(home.path(), frontend, &[], &["new:Handbook", "subpage:Chapter one"]);
+        assert!(pages(&said).contains("handbook/chapter-one.md"), "{said}");
+        assert_eq!(tree_rows(home.path()), 2, "{frontend}: the tree has one node and its child");
+    }
+}

@@ -23,3 +23,7 @@ test-access = ["gui", "fs-wiki-app/test-access"]
 [dependencies]
 fs-wiki-server = { path = "../fs-wiki-server" }
 fs-wiki-app = { path = "../fs-wiki-app", optional = true }
+
+[dev-dependencies]
+# Reads the picture of the window to count the rows of the page tree (already in the lock).
+png = "0.18"
