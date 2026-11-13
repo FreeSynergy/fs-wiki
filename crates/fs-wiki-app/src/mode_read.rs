@@ -12,7 +12,10 @@ use crate::nav::Nav;
 use crate::store_path::{data_dir, origins_file};
 use crate::variants::PageIndex;
 use crate::{FileOrigins, Wiki, WikiSource, import::CHECK_LIMIT, import_sources, words};
-use fs_components_workbenches::{Labels, Options, Picture, Step, launch, snapshot};
+use crate::face::Face;
+use crate::face_window::{Setup, window};
+use fs_components_app::{WindowOptions, launch};
+use fs_components_workbenches::{Labels, Picture, ReaderWidget, Step, register_fonts, snapshot};
 use fs_wiki_client::RpcTexts;
 
 use crate::args::Args;
@@ -63,7 +66,15 @@ pub fn run(args: &Args, texts: RpcTexts) -> Result<(), String> {
     if !args.edit {
         source = source.read_only();
     }
-    if args.frontend.is_some() {
+    let settings = (args.frontend.is_none() && args.snapshot.is_none())
+        .then(crate::frontend::settings)
+        .flatten();
+    let face = if args.snapshot.is_some() {
+        crate::frontend::picture_face(args)
+    } else {
+        crate::frontend::start_face(args, settings.as_ref())
+    };
+    if face.has_own_head() {
         source = source.bare_pages();
     }
     if !args.variants.is_empty() {
@@ -86,14 +97,26 @@ pub fn run(args: &Args, texts: RpcTexts) -> Result<(), String> {
             &args.lang.clone().unwrap_or_else(environment_language),
         );
     }
+    show(args, source, face, settings)
+}
+
+/// A picture (`--snapshot`) or the window, over the finished source.
+fn show(
+    args: &Args,
+    source: WikiSource,
+    face: Face,
+    settings: Option<PathBuf>,
+) -> Result<(), String> {
+    let bare = source.bare_switch();
     let source = Arc::new(source);
     let mut labels = Labels::default();
     labels.search = "Search pages".into();
-    let (layout, wiki_labels) = crate::frontend::choice(args);
+    let german = crate::frontend::is_german(args);
+    let wiki_labels = crate::frontend::words(german);
     if let Some(file) = &args.snapshot {
         let mut picture = Picture::new(source, args.size.0, args.size.1);
         picture.labels = labels;
-        picture.layout = layout;
+        picture.layout = face.layout();
         picture.wiki_labels = wiki_labels;
         picture.steps = args.steps.iter().filter_map(|s| step(s)).collect();
         let shot = snapshot(picture, file).map_err(|e| e.to_string())?;
@@ -104,12 +127,16 @@ pub fn run(args: &Args, texts: RpcTexts) -> Result<(), String> {
         );
         return Ok(());
     }
-    let mut options = Options::default();
-    options.title = "FreeSynergy Wiki".into();
-    options.labels = labels;
-    options.layout = layout;
-    options.wiki_labels = wiki_labels;
-    launch(&options, source).map_err(|e| e.to_string())
+    let reader = ReaderWidget::new(source, labels, None);
+    let setup = Setup {
+        labels: wiki_labels,
+        german,
+        bare,
+        settings,
+    };
+    register_fonts();
+    let app = window("FreeSynergy Wiki", reader, face, setup).map_err(|e| e.to_string())?;
+    launch(WindowOptions::default(), app).map_err(|e| e.to_string())
 }
 
 /// The pages with variants: the earlier ones from `<records>.pages`, brought in step with the texts, and written back.

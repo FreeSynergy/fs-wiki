@@ -1,31 +1,49 @@
-//! Which wiki frame (`--frontend a|b`) and the words in it.
+//! Which face the reading wiki starts with and the words in it.
 //!
-//! Pattern: Factory — the arguments in, a layout and the words of the interface language out (German or English, as the
-//! language bar's sentences in `lang_words.rs`).
+//! Pattern: Factory — the arguments and the remembered choice in, a face and the words of the interface language out
+//! (German or English, as the language bar's sentences in `lang_words.rs`).
 
-use fs_components_workbenches::{Layout, WikiLabels};
+use std::path::PathBuf;
+
+use fs_components_workbenches::WikiLabels;
 
 use crate::args::Args;
+use crate::face::{self, Face};
+use crate::store_path::data_dir;
 
-/// The layout asked for and its words; without `--frontend` the plain reader.
-pub(crate) fn choice(args: &Args) -> (Layout, WikiLabels) {
-    let layout = match args.frontend.as_deref() {
-        Some("a") => Layout::Confluence,
-        Some("b") => Layout::Notion,
-        _ => Layout::Classic,
-    };
-    let german = args
-        .lang
-        .as_deref()
-        .map_or_else(env_is_german, |l| l == "de");
-    (
-        layout,
-        if german {
-            german_words()
-        } else {
-            WikiLabels::default()
-        },
+/// The face to start with: `--frontend` when given (not remembered), else the remembered one, else the default.
+pub(crate) fn pick(over: Option<&str>, remembered: Option<Face>) -> Face {
+    over.and_then(Face::parse)
+        .or(remembered)
+        .unwrap_or(Face::DEFAULT)
+}
+
+/// The settings file of the face, when there is a data directory.
+pub(crate) fn settings() -> Option<PathBuf> {
+    data_dir().map(|d| face::settings_file(&d))
+}
+
+/// The face of a window: the override, else what the settings file holds.
+pub(crate) fn start_face(args: &Args, settings: Option<&PathBuf>) -> Face {
+    pick(
+        args.frontend.as_deref(),
+        settings.and_then(|f| face::load(f)),
     )
+}
+
+/// The face of a picture: only the override, else the plain reader (no setting is read, a picture is repeatable).
+pub(crate) fn picture_face(args: &Args) -> Face {
+    args.frontend
+        .as_deref()
+        .and_then(Face::parse)
+        .unwrap_or(Face::Classic)
+}
+
+/// Whether the interface is German: `--lang`, else the environment.
+pub(crate) fn is_german(args: &Args) -> bool {
+    args.lang
+        .as_deref()
+        .map_or_else(env_is_german, |l| l == "de")
 }
 
 fn env_is_german() -> bool {
@@ -34,6 +52,15 @@ fn env_is_german() -> bool {
         .filter_map(|v| std::env::var(v).ok())
         .find(|v| !v.is_empty())
         .is_some_and(|v| v.starts_with("de"))
+}
+
+/// The words of the wiki layouts.
+pub(crate) fn words(german: bool) -> WikiLabels {
+    if german {
+        german_words()
+    } else {
+        WikiLabels::default()
+    }
 }
 
 fn german_words() -> WikiLabels {
@@ -55,4 +82,17 @@ fn german_words() -> WikiLabels {
     w.block_hint = s("Schreiben, oder / für Befehle");
     w.page_count = s("{} Seiten");
     w
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_override_beats_the_remembered_face_which_beats_the_default() {
+        assert_eq!(pick(Some("b"), Some(Face::Classic)), Face::Notion);
+        assert_eq!(pick(Some("classic"), None), Face::Classic);
+        assert_eq!(pick(None, Some(Face::Notion)), Face::Notion);
+        assert_eq!(pick(None, None), Face::Confluence);
+    }
 }

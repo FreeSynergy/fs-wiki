@@ -46,7 +46,8 @@ pub struct Args {
     pub lang: Option<String>,
     /// The `mkdocs.yml` whose navigation orders the pages (`--nav`, or the one of `--docs-root`).
     pub nav: Option<PathBuf>,
-    /// The wiki frame of `--read` (`--frontend a|b`): `a` page tree, head and outline; `b` calm sidebar and blocks.
+    /// The face of `--read` for this run (`--frontend a|b|classic`): `a` page tree, head and outline; `b` calm sidebar
+    /// and blocks. None = the remembered face of the window's menu.
     pub frontend: Option<String>,
     /// `--index FILE` with `--read`: the heads (id, path, title, revision) of all texts are read from this file when it is there, else listed and written to it (listing the whole documentation takes minutes).
     pub index: Option<PathBuf>,
@@ -104,8 +105,8 @@ pub fn parse(args: &[String]) -> Result<Args, String> {
             "--index" => out.index = Some(PathBuf::from(value("--index")?)),
             "--frontend" => {
                 let v = value("--frontend")?;
-                if !["a", "b"].contains(&v.as_str()) {
-                    return Err(format!("--frontend wants a or b, not {v}"));
+                if crate::face::Face::parse(&v).is_none() {
+                    return Err(format!("--frontend wants a, b or classic, not {v}"));
                 }
                 out.frontend = Some(v);
             }
@@ -212,7 +213,9 @@ pub const HELP: &str = "fs-wiki-app: the wiki in a window (Admin view of pages, 
                       sources of one family with equal relative paths are ONE page (en/a.md and de/a.md)
   --origin-language <g>=<l>  the language a family's translations are made from (default en)
   --lang <l>          the language to read in first (default: that of the environment, else en)
-  --frontend a|b      with --read: a = page tree, head and outline; b = calm sidebar and block editor
+  --frontend a|b|classic  with --read: the face for this run (not remembered): a = page tree, head and outline;
+                      b = calm sidebar and block editor; classic = the plain reader. Without it the window
+                      starts with the face remembered from the menu View > Face (first start: a)
   --edit              with --read: the pages can be edited
   --index <file>      with --read: read the heads of all texts from this file (else list them once and write it)
   --nav <mkdocs.yml>  with --read: the navigation that orders the pages (and the .pages files in the folders)

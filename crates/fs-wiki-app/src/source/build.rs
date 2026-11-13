@@ -30,7 +30,7 @@ impl WikiSource {
             nav: crate::nav::Nav::default(),
             read_only: false,
             pages: None,
-            bare: false,
+            bare: Arc::default(),
             heads: None,
         }
     }
@@ -54,7 +54,7 @@ impl WikiSource {
             nav: crate::nav::Nav::default(),
             read_only: false,
             pages: None,
-            bare: false,
+            bare: Arc::default(),
             heads: None,
         }
     }
@@ -90,9 +90,14 @@ impl WikiSource {
 
     /// The frontend draws the language switch and the notices itself (from `page_info`): the text gets no language bar on top.
     #[must_use]
-    pub fn bare_pages(mut self) -> Self {
-        self.bare = true;
+    pub fn bare_pages(self) -> Self {
+        self.bare.store(true, std::sync::atomic::Ordering::Relaxed);
         self
+    }
+
+    /// The switch of `bare_pages`, for a window that changes its face while it runs (`true` = bare).
+    pub fn bare_switch(&self) -> Arc<std::sync::atomic::AtomicBool> {
+        Arc::clone(&self.bare)
     }
 
     /// Reading only: the pages cannot be edited or exported from the window.

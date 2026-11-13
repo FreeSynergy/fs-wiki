@@ -168,7 +168,7 @@ impl WikiSource {
         let mut doc = to_document(&entry.envelope.name, &entry.document);
         let mut top = Vec::new();
         // A frontend with its own head (language switch, state) shows these itself, from `page_info`.
-        if self.bare {
+        if self.bare.load(std::sync::atomic::Ordering::Relaxed) {
             doc.revision = Some(entry.revision.to_string());
             return Ok(Some(doc));
         }

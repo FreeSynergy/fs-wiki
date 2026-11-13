@@ -1,7 +1,20 @@
 # Changelog
 
-## Unreleased
-* Wiki frontends A and B (`--frontend a|b`), start from an index file (`--index`), language switch and state in the page head, text edit of language variants (page path maps to its text).
+## 0.0.8 (in progress)
+
+### English
+
+- **Faces, chosen in the window.** The reading wiki has a window with the menu View > Face: Classic, Confluence (A: page tree, head with language switch and state, outline), Notion (B: calm sidebar, big title, blocks, block editor with `--edit`). The choice is remembered in a small file in the data folder (written atomically; a missing or broken file means the default). A new installation starts with Confluence. `--frontend a|b|classic` overrides it for one run (not remembered). `--index FILE` starts from a file of the heads of all texts.
+- Built on fs-components v0.0.13 (all crates one tag, no local patch) and fs-interfaces v0.0.19 (Blinc fs-blinc-3.1).
+- **Limits.** The history shows only the current version; the UUIDv7 of a page is not shown; living components are not drawn (their fallback is); the editor has no `/` menu; the grey page symbol above the title in Notion stays until fs-components shows an emoji or nothing; the call `Texts::list` is slow on the whole documentation (use `--index` or `FS_WIKI_CALL_TIMEOUT`); `Texts.listHeads` comes with fs-interfaces v0.0.20.
+
+### Deutsch
+
+- **Gesichter, im Fenster gewählt.** Das Lesewiki hat ein Fenster mit dem Menü Ansicht > Gesicht: Classic, Confluence (A: Seitenbaum, Kopf mit Sprachumschalter und Zustand, Gliederung), Notion (B: ruhige Seitenleiste, großer Titel, Blöcke, Block-Editor mit `--edit`). Die Wahl wird in einer kleinen Datei im Datenordner gemerkt (atomar geschrieben; fehlende oder kaputte Datei heißt Standard). Eine Neuinstallation startet mit Confluence. `--frontend a|b|classic` überschreibt sie für einen Lauf (nicht gemerkt). `--index DATEI` startet aus einer Datei mit den Köpfen aller Texte.
+- Gebaut auf fs-components v0.0.13 (alle Crates ein Tag, kein lokaler Patch) und fs-interfaces v0.0.19 (Blinc fs-blinc-3.1).
+- **Grenzen.** Der Verlauf zeigt nur die aktuelle Fassung; die UUIDv7 einer Seite wird nicht angezeigt; lebende Components werden nicht gezeichnet (ihr Rückfall schon); der Editor hat kein `/`-Menü; das graue Seitensymbol über dem Titel in Notion bleibt, bis fs-components ein Emoji oder nichts zeigt; der Aufruf `Texts::list` ist auf der ganzen Dokumentation langsam (`--index` oder `FS_WIKI_CALL_TIMEOUT`); `Texts.listHeads` kommt mit fs-interfaces v0.0.20.
+
+(Earlier in this branch / Früher in diesem Zweig: wiki frontends A and B, language switch and state in the page head, text edit of language variants.)
 
 ## 0.0.7 (in progress)
 

@@ -8,7 +8,10 @@ What is different here: a text is stored as text plus layers, not as one flat fi
 
 ## What it can do today
 
-Latest tag: `v0.0.6`; `v0.0.7` is in preparation (fs-components v0.0.11: Blinc only through it, AltGr and the keys of other layouts type correctly).
+Latest tag: `v0.0.7`; `v0.0.8` is in preparation (fs-components v0.0.13: the wiki faces, chosen in the window).
+
+- **Faces.** `fs-wiki-app --read --docs-root <checkout>` opens a window whose menu View > Face (German: Ansicht > Gesicht) switches between Classic (the plain reader), Confluence (page tree left, head with language switch, outline right) and Notion (calm sidebar, big title, blocks). The choice is remembered (a small file `freesynergy/fs-wiki/face` in the data folder; a missing or broken file means the default). A new installation shows Confluence. `--frontend a|b|classic` overrides it for one run without remembering; `--edit` makes the pages editable; `--index FILE` reads the heads of all texts from a file (listing the whole documentation takes minutes).
+- **Limits of the faces.** The history shows only the current version; the page id (UUIDv7) is not shown; living components are not drawn (their Markdown fallback is); the editor has no `/` menu yet; the page icon above the title of Notion is still a grey page symbol (it should be an emoji of the page or empty space: that is a change of fs-components); `Texts.listHeads` (fast listing) comes with fs-interfaces v0.0.20.
 
 - Create, edit, move, delete and list texts by path; links, backlinks and search.
 - Move a text or a folder and rewrite the links to it.

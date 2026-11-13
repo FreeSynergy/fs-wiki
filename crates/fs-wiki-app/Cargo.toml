@@ -17,12 +17,12 @@ fs-wiki-core = { path = "../fs-wiki-core" }
 fs-wiki-client = { path = "../fs-wiki-client" }
 fs-objects = { git = "https://github.com/FreeSynergy/fs-objects", tag = "v0.0.1" }
 # One tag of fs-components for everything; Blinc comes only through it (`fs_components::blinc`), never as a dependency here.
-fs-components-widgets = { git = "https://github.com/FreeSynergy/fs-components", tag = "v0.0.12" }
-fs-components-workbenches = { git = "https://github.com/FreeSynergy/fs-components", tag = "v0.0.12" }
-fs-components-app = { git = "https://github.com/FreeSynergy/fs-components", tag = "v0.0.12" }
-fs-components-fields = { git = "https://github.com/FreeSynergy/fs-components", tag = "v0.0.12" }
-fs-components-styles = { git = "https://github.com/FreeSynergy/fs-components", tag = "v0.0.12" }
-fs-admin-frontend = { git = "https://github.com/FreeSynergy/fs-components", tag = "v0.0.12" }
+fs-components-widgets = { git = "https://github.com/FreeSynergy/fs-components", tag = "v0.0.13" }
+fs-components-workbenches = { git = "https://github.com/FreeSynergy/fs-components", tag = "v0.0.13" }
+fs-components-app = { git = "https://github.com/FreeSynergy/fs-components", tag = "v0.0.13" }
+fs-components-fields = { git = "https://github.com/FreeSynergy/fs-components", tag = "v0.0.13" }
+fs-components-styles = { git = "https://github.com/FreeSynergy/fs-components", tag = "v0.0.13" }
+fs-admin-frontend = { git = "https://github.com/FreeSynergy/fs-components", tag = "v0.0.13" }
 # The descriptions as the server sends them and as the frontend reads them: one fs-types, one source in the tree.
 fs-types = { git = "https://github.com/FreeSynergy/fs-interfaces", tag = "v0.0.19" }
 async-trait = "0.1"

@@ -15,6 +15,8 @@ pub mod args;
 mod check;
 pub mod drafts;
 mod drafts_orphans;
+pub mod face;
+pub mod face_window;
 mod frontend;
 pub mod gui;
 pub mod hash;
