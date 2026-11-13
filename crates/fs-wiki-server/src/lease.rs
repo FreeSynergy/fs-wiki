@@ -36,17 +36,19 @@ pub fn take_lease(args: Vec<OsString>) -> Result<(Option<PathBuf>, Vec<OsString>
     Ok((lease, rest))
 }
 
-/// Whether nobody holds the lease right now.
+/// Whether nobody holds the lease right now. A lease whose folder is gone cannot be held by a window that is still using
+/// this server (it made the folder), so it counts as unused: a server must not outlive the folder of its lease.
 #[must_use]
 pub fn unused(path: &Path) -> bool {
-    let Ok(file) = OpenOptions::new()
+    let file = match OpenOptions::new()
         .read(true)
         .write(true)
         .create(true)
         .truncate(false)
         .open(path)
-    else {
-        return false;
+    {
+        Ok(file) => file,
+        Err(e) => return e.kind() == std::io::ErrorKind::NotFound,
     };
     match file.try_lock() {
         Ok(()) => {
@@ -114,6 +116,19 @@ mod tests {
         assert!(!unused(&path));
         drop(held);
         assert!(unused(&path));
+    }
+
+    #[test]
+    fn a_lease_whose_folder_is_gone_is_unused_so_the_server_ends() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path().join("gone");
+        std::fs::create_dir(&folder).unwrap();
+        let path = folder.join("x.lease");
+        let held = hold(&path).unwrap();
+        assert!(!unused(&path));
+        std::fs::remove_dir_all(&folder).unwrap();
+        assert!(unused(&path), "no folder, no lease");
+        drop(held);
     }
 
     #[test]

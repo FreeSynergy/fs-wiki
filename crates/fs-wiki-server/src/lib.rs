@@ -12,6 +12,7 @@
 
 mod cursor;
 mod cursors;
+mod detach;
 mod errors;
 mod errors_v2;
 mod facts;

@@ -47,6 +47,8 @@ pub fn serve(args: impl IntoIterator<Item = OsString>) -> Result<(), ServeError>
         return Ok(());
     };
     if let Some(lease) = lease {
+        // A window started this server and goes away before it: nothing the window passed on stays open here.
+        crate::detach::close_inherited();
         // The window that started this server holds the lease; when none does, end as a signal would (Windows has no
         // signal to send, so the server is asked from inside).
         crate::lease::watch(lease, stop_self);

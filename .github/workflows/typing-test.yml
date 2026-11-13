@@ -41,7 +41,7 @@ jobs:
       - uses: FreeSynergy/fs-release/actions/typing-test@main
         with:
           app-binary: target/debug/fs-wiki
-          app-args: "--size 1000x640"
+          app-args: "--admin --size 1000x640"
           scenario: .github/typing-test/focus.sh
           name: fs-wiki
           layout: ${{ inputs.layout || 'de' }}
