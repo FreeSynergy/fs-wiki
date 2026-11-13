@@ -4,6 +4,9 @@
 //! save through the reader; the tree is made again by a thread after the save, so the picture is taken until the sidebar
 //! changes (at most a few seconds).
 
+// Linux only: the picture of the window needs a Vulkan adapter (software Vulkan in the Linux CI) and the fonts of that CI.
+#![cfg(target_os = "linux")]
+
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};

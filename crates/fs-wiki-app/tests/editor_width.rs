@@ -4,6 +4,9 @@
 //! `fs-components`): the editing page is drawn, the PNG is read, and the outer lines of the editor on a row through it are
 //! measured against the column. The picture is the same code path as the window's, drawn offscreen.
 
+// Linux only: the picture of the window needs a Vulkan adapter (software Vulkan in the Linux CI) and the fonts of that CI.
+#![cfg(target_os = "linux")]
+
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 
