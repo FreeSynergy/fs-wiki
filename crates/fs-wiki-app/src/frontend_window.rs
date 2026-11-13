@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use fs_components_app::{AppError, AppWidget, Element, Menu, MenuEntry, Screen, Status, Surface};
-use fs_components_workbenches::{ReaderWidget, WikiLabels, styles};
+use fs_components_workbenches::{Editing, ReaderWidget, WikiLabels, styles};
 
 use crate::frontend::{self, Frontend};
 use crate::page_words::{PageWords, create_error, page_words};
@@ -173,7 +173,7 @@ impl Switcher {
             .unwrap_or_else(PoisonError::into_inner)
             .clone();
         let (open, unsaved) =
-            widget.with_reader(|r| (r.current_path().map(str::to_owned), r.editing().is_some_and(|e| e.changed())));
+            widget.with_reader(|r| (r.current_path().map(str::to_owned), r.editing().is_some_and(Editing::changed)));
         let problem = |text: String| self.app.set_status(Some(Status::Problem(text)));
         if unsaved {
             return problem(words.finish_edit.into());

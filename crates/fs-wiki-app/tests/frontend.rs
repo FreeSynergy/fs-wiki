@@ -43,6 +43,7 @@ fn app(
         german,
         bare: Arc::clone(&bare),
         settings,
+        pages: None,
     };
     (window("Wiki", reader, shown, setup).expect("window"), bare)
 }

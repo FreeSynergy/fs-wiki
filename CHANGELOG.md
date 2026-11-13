@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.0.10 (in progress)
+
+### English
+
+- **Fix (finding B-W of the real test): the wiki window can be used.** "It looks good, but nothing can be made or pasted." Cause: the window was read only unless `--edit`, so no page had an Edit button; there was no "new page" anywhere (the Admin window asks for a typed path); no drafts were kept. Now the plain `fs-wiki` edits: every page has Edit (Confluence, Notion and Classic), typing and pasting (Ctrl+V) work in the editor, Save button or Ctrl+S saves, unsaved text is backed up as a draft, a saved page opens again and can be edited again. A new menu **Page** has **New page** and **New subpage**: the page is made at once (path from the parent and the title, text = the title as heading, a taken path gives a numbered title), opens in the editor, and the page tree is rebuilt. No name dialog yet (follow-up in `fs-components`: it has no text input a program can use without a Blinc type); the title is written in the editor. What cannot be done is said in the status line (read only, no page open for a subpage, save first, path taken, invalid path, server failure), not by a dead button; in a read only window the entries are locked and name the reason.
+- **New option `--read-only`** (the window only reads). A documentation read from folders (`--read` with sources) stays read only unless `--edit`.
+- `--snapshot` prints a `state:` line (page, editability, editor text, stored text, notice, pages) and understands the steps `new[:title]`, `subpage[:title]`, `save`, `cancel`.
+- Tests: `crates/fs-wiki/tests/workflows.rs` runs the flows make, type and paste, save, open again, edit and subpage on the real binary; `crates/fs-wiki-app/tests/page_menu.rs` drives the menu. Linux only, like the start tests. The key chord Ctrl+V itself is not driven (no window with input in the test); a paste is given to the editor as the whole new text.
+- Known gaps (follow-ups): a name dialog with the parent from the page tree; the refusals of the Admin window (path taken, conflict, not empty) still show as "unavailable" there.
+
+### Deutsch
+
+- **Fehlerbehebung (Befund B-W des echten Tests): das Wiki-Fenster ist benutzbar.** „Es sieht schön aus, aber man kann nichts anlegen oder einfügen.“ Ursache: das Fenster war ohne `--edit` nur lesend, keine Seite hatte einen Bearbeiten-Knopf; ein „Neue Seite“ gab es nirgends (das Admin-Fenster verlangt einen getippten Pfad); Entwürfe wurden nicht gesichert. Jetzt bearbeitet das einfache `fs-wiki`: jede Seite hat Bearbeiten (Confluence, Notion und Classic), Tippen und Einfügen (Strg+V) gehen im Editor, Speichern-Knopf oder Strg+S sichert, ungesicherter Text wird als Entwurf gesichert, eine gespeicherte Seite lässt sich wieder öffnen und bearbeiten. Ein neues Menü **Seite** hat **Neue Seite** und **Neue Unterseite**: die Seite wird sofort angelegt (Pfad aus Elternseite und Titel, Text = der Titel als Überschrift, ein belegter Pfad ergibt einen nummerierten Titel), öffnet im Editor, der Seitenbaum wird neu aufgebaut. Noch kein Namens-Dialog (Folgeauftrag in `fs-components`: es hat keine Texteingabe, die ein Programm ohne Blinc-Typ nutzen kann); der Titel wird im Editor geschrieben. Was nicht geht, steht in Worten in der Statuszeile (nur lesen, keine Seite offen für eine Unterseite, erst speichern, Pfad vergeben, ungültiger Pfad, Serverfehler), nicht als toter Knopf; in einem nur lesenden Fenster sind die Einträge gesperrt und nennen den Grund.
+- **Neue Option `--read-only`** (das Fenster liest nur). Eine aus Ordnern gelesene Dokumentation (`--read` mit Quellen) bleibt nur lesend, außer mit `--edit`.
+- `--snapshot` gibt eine Zeile `state:` aus (Seite, Bearbeitbarkeit, Editortext, gespeicherter Text, Hinweis, Seiten) und kennt die Schritte `new[:Titel]`, `subpage[:Titel]`, `save`, `cancel`.
+- Tests: `crates/fs-wiki/tests/workflows.rs` führt die Abläufe Anlegen, Tippen und Einfügen, Speichern, Wieder-Öffnen, Bearbeiten und Unterseite am echten Programm aus; `crates/fs-wiki-app/tests/page_menu.rs` steuert das Menü. Nur unter Linux wie die Starttests. Die Tastenkombination Strg+V selbst wird nicht ausgelöst (im Test gibt es kein Fenster mit Eingabe); ein Einfügen wird dem Editor als ganzer neuer Text gegeben.
+- Bekannte Lücken (Folgeaufträge): ein Namens-Dialog mit der Elternseite aus dem Seitenbaum; die Ablehnungen des Admin-Fensters (Pfad vergeben, Konflikt, nicht leer) erscheinen dort weiter als „unavailable“.
+
 ## 0.0.9 (in progress)
 
 ### English

@@ -18,13 +18,13 @@ pub(crate) fn steps(words: &[String], maker: &dyn PageMaker, german: bool) -> Ve
     for word in words {
         let made = match word.split_once(':').unwrap_or((word.as_str(), "")) {
             ("new", t) => Some((None, t)),
-            ("subpage", t) => match &open {
-                Some(parent) => Some((Some(parent.clone()), t)),
-                None => {
+            ("subpage", t) => {
+                let Some(parent) = open.clone() else {
                     eprintln!("fs-wiki-app: subpage needs a page shown first (open:<path>)");
                     continue;
-                }
-            },
+                };
+                Some((Some(parent), t))
+            }
             _ => None,
         };
         let Some((parent, t)) = made else {
