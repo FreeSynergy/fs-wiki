@@ -211,8 +211,17 @@ fn flow_6_the_tree_shows_the_subpage_under_its_parent_as_one_node() {
         let home = Home::new(&format!("w6tree-{frontend}"));
         // The page and its subpage only: with the page tree before fs-components v0.0.14 this was three rows (the page
         // "Handbook", the folder "handbook" and "Chapter one" in it); one node with its child is two.
-        let said = run(home.path(), frontend, &[], &["new:Handbook", "subpage:Chapter one"]);
+        let said = run(
+            home.path(),
+            frontend,
+            &[],
+            &["new:Handbook", "subpage:Chapter one"],
+        );
         assert!(pages(&said).contains("handbook/chapter-one.md"), "{said}");
-        assert_eq!(tree_rows(home.path()), 2, "{frontend}: the tree has one node and its child");
+        assert_eq!(
+            tree_rows(home.path()),
+            2,
+            "{frontend}: the tree has one node and its child"
+        );
     }
 }
