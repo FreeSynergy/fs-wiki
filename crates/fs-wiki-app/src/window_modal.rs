@@ -1,8 +1,8 @@
 //! The modal of the wiki window: a name asked for, or a question answered with a button.
 //!
 //! Pattern: State + Decorator — the window holds at most one modal in a slot shared with its surface; the surface draws the
-//! page and, over it, a dimmed layer with the modal in the middle. The dialogs are the `NameDialog` of `fs-components` and a
-//! question with two buttons built the same way; Enter and Escape reach them as broadcast keys. Blinc comes only through
+//! page and, over it, a dimmed layer with the modal in the middle. The dialogs are a name dialog (the words of the
+//! `NameDialog` of `fs-components`, its own layout) and a question with two buttons; Enter and Escape reach them as broadcast keys. Blinc comes only through
 //! `fs_components::blinc`.
 
 use std::sync::{Arc, Mutex, PoisonError};
@@ -13,7 +13,7 @@ use fs_components::blinc::layout::prelude::text;
 use fs_components::blinc::layout::widgets::overlay_stack::{
     CloseReason, OverlayBuilder, OverlayHandle,
 };
-use fs_components_widgets::name_dialog::NameDialog;
+use fs_components_primitives::SearchField;
 
 /// How the modal is drawn: called at every redraw (the state of the dialog lives outside the elements it draws).
 pub type View = Arc<dyn Fn() -> Div + Send + Sync>;
@@ -35,6 +35,8 @@ pub struct Modal {
     pub yes: Option<Act>,
     /// What no, Cancel and Escape do.
     pub no: Option<Act>,
+    /// A name dialog: what stands in its field now (for tests and for what asks).
+    pub field_text: Option<Arc<dyn Fn() -> String + Send + Sync>>,
 }
 
 /// The one modal of a window, or none. It is an entry of Blinc's overlay stack (kind modal: a dimmed backdrop, input blocked
@@ -108,6 +110,11 @@ impl ModalSlot {
             .is_some()
     }
 
+    /// What stands in the field of the name dialog now; none when no name dialog is shown.
+    pub fn field_text(&self) -> Option<String> {
+        self.current().and_then(|m| m.field_text).map(|f| f())
+    }
+
     /// Press yes of a question; false when none is shown.
     pub fn yes(&self) -> bool {
         self.current().and_then(|m| m.yes).map(|f| f()).is_some()
@@ -132,32 +139,77 @@ pub fn styles() -> String {
         "
 .fs-wiki-modal {{ display: flex; flex-direction: column; width: {MODAL_WIDTH}px; gap: var(--space-2); }}
 .fs-wiki-card {{ display: flex; flex-direction: column; width: 100%; gap: var(--space-2); padding: var(--space-4); border-radius: var(--radius-lg); background: var(--surface); border-width: 1px; border-color: var(--border); }}
-.fs-wiki-card .fs-nd {{ padding: 0px; border-width: 0px; }}
-.fs-wiki-modal-error {{ color: var(--error); font-size: var(--text-sm); padding-top: var(--space-1); }}
+.fs-wiki-focus {{ display: flex; border-width: 2px; border-color: var(--border-focus); border-radius: var(--radius-default); }}
+.fs-wiki-modal-error {{ color: var(--error); font-size: var(--text-sm); }}
 .fs-wiki-modal-body {{ color: var(--text-secondary); }}
 "
     )
 }
 
-/// The view of a name dialog with an error line under it, inside the same card (empty = none). A blank name on Enter is told
-/// here (the dialog itself just stays open).
-pub fn name_view(dialog: NameDialog, error: Arc<Mutex<String>>, blank: String) -> View {
+/// What a name dialog shows and does.
+pub struct NameCard {
+    /// The title (what the name is for).
+    pub title: String,
+    /// The field; it keeps what was typed, also after a refusal.
+    pub field: SearchField,
+    /// The reason a name was refused (empty = none); drawn directly under the field.
+    pub error: Arc<Mutex<String>>,
+    /// The word of the OK button.
+    pub ok_word: String,
+    /// The word of the Cancel button.
+    pub cancel_word: String,
+    /// What OK and Enter do.
+    pub on_ok: Act,
+    /// What Cancel does.
+    pub on_cancel: Act,
+}
+
+/// The view of a name dialog: title, field, the reason of a refusal directly under the field, the two buttons. It is drawn
+/// here and not by the `NameDialog` of fs-components because that one has no place between the field and the buttons for a
+/// line of its own (its words, `Labels`, are used). OK and Enter act alike, also on a blank name (the caller tells).
+pub fn name_view(card: NameCard) -> View {
+    let card = Arc::new(card);
     Arc::new(move || {
-        let said = error.lock().unwrap_or_else(PoisonError::into_inner).clone();
-        let (dialog_keys, blank_error, blank_text) =
-            (dialog.clone(), Arc::clone(&error), blank.clone());
-        let mut card = div().class("fs-wiki-card").child(dialog.build());
+        let said = card
+            .error
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
+        let (ok, cancel, keys_ok) = (
+            Arc::clone(&card.on_ok),
+            Arc::clone(&card.on_cancel),
+            Arc::clone(&card.on_ok),
+        );
+        let button = |tag: &str, word: &str, variant| {
+            ButtonBuilder::with_key(format!("fs-wiki-n-{tag}"), word.to_owned()).variant(variant)
+        };
+        let mut body = div()
+            .class("fs-wiki-card")
+            .child(text(card.title.clone()).class("fs-nd-title"))
+            .child(div().id("fs-wiki-n-field").child(card.field.build()));
         if !said.is_empty() {
-            card = card.child(text(said).class("fs-wiki-modal-error"));
+            body = body.child(text(said).class("fs-wiki-modal-error"));
         }
+        let buttons = div()
+            .class("fs-nd-buttons")
+            .child(
+                button("cancel", &card.cancel_word, ButtonVariant::Outline)
+                    .on_click(move |_| cancel())
+                    .build_component()
+                    .id("fs-wiki-n-cancel"),
+            )
+            .child(
+                button("ok", &card.ok_word, ButtonVariant::Primary)
+                    .on_click(move |_| ok())
+                    .build_component()
+                    .id("fs-wiki-n-ok"),
+            );
+        // Escape is the overlay's (it closes the modal and calls `no`); Enter is ours.
         div()
             .class("fs-wiki-modal")
-            .child(card.on_key_down(move |ctx| {
-                if ctx.key_code == KEY_ENTER && dialog_keys.text().trim().is_empty() {
-                    blank_error
-                        .lock()
-                        .unwrap_or_else(PoisonError::into_inner)
-                        .clone_from(&blank_text);
+            .child(body.child(buttons).on_key_down(move |ctx| {
+                if ctx.key_code == KEY_ENTER {
+                    keys_ok();
                 }
             }))
     })
@@ -192,10 +244,13 @@ pub fn question_view(q: Question) -> Modal {
         let buttons = div()
             .class("fs-nd-buttons")
             .child(
-                button("no", &q.no_word, ButtonVariant::Outline)
-                    .on_click(move |_| no())
-                    .build_component()
-                    .id("fs-wiki-q-no"),
+                // The safe button has the focus (Enter does it): the ring is drawn round it, in the focus colour of the theme.
+                div().class("fs-wiki-focus").child(
+                    button("no", &q.no_word, ButtonVariant::Outline)
+                        .on_click(move |_| no())
+                        .build_component()
+                        .id("fs-wiki-q-no"),
+                ),
             )
             .child(
                 button("yes", &q.yes_word, ButtonVariant::Destructive)
@@ -222,5 +277,6 @@ pub fn question_view(q: Question) -> Modal {
         submit: None,
         yes: Some(answer_yes),
         no: Some(answer_no),
+        field_text: None,
     }
 }

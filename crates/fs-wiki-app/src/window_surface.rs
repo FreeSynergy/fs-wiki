@@ -25,6 +25,7 @@ pub const EDITOR_STYLES: &str = "
 .fs-rd-editor { padding: 0; }
 .fs-rd-bar { padding-left: 0; padding-right: 0; }
 .fs-wk-a-top { display: none; height: 0px; }
+.fs-rd-bar .cn-button--primary + .cn-button--primary { background: var(--surface); color: var(--text-primary); border-width: 1px; border-color: var(--border); }
 .fs-wiki-bar { display: flex; flex-direction: row; align-items: center; gap: var(--space-4); width: 100%; }
 .fs-wiki-brand { display: flex; flex-direction: row; align-items: center; gap: var(--space-2); font-weight: 700; }
 ";

@@ -44,6 +44,7 @@ pub mod variants;
 pub mod wiki;
 pub mod window_menu;
 pub mod window_modal;
+mod window_names;
 mod window_pages;
 mod window_surface;
 pub mod words;

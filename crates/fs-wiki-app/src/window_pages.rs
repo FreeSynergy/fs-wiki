@@ -5,22 +5,21 @@
 //! result in the status line; a refused name stays in its dialog with the reason under it. Nothing is deleted without a
 //! question, and a delete is a move to the trash.
 
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, PoisonError};
 
 use fs_components_app::Status;
-use fs_components_widgets::name_dialog::{Labels, NameDialog, Purpose};
-use fs_components_words::Localized;
+use fs_components_widgets::name_dialog::Purpose;
 
 use crate::frontend_window::{
     PAGE_DELETE, PAGE_DISCARD, PAGE_NEW, PAGE_RENAME, PAGE_SUB, Switcher,
 };
-use crate::page_words::{create_error, create_error_named, page_words};
+use crate::page_words::{create_error, page_words};
 use crate::source::{CreateError, PageMaker};
-use crate::window_modal::{Modal, Question, Submit, name_view, question_view};
+use crate::window_modal::{Question, question_view};
 
 /// What a name asked for in the dialog is for.
 #[derive(Clone)]
-enum Named {
+pub(crate) enum Named {
     New,
     Sub(String),
     Rename(String),
@@ -51,13 +50,13 @@ impl Switcher {
     }
 
     /// Draw again (the menus are set again, which redraws everything) after the modal or the pages changed.
-    fn redraw(self: &Arc<Self>) {
+    pub(crate) fn redraw(self: &Arc<Self>) {
         if let Err(e) = self.install(self.shown()) {
             eprintln!("fs-wiki: the menus are not set ({e})");
         }
     }
 
-    fn close_modal(self: &Arc<Self>) {
+    pub(crate) fn close_modal(self: &Arc<Self>) {
         self.surface.modal.clear();
         self.redraw();
     }
@@ -91,41 +90,12 @@ impl Switcher {
         }
     }
 
-    fn ask_name(self: &Arc<Self>, purpose: Purpose, about: &str, initial: &str, named: Named) {
-        let words = Labels::for_locale(self.texts().locale());
-        let error = Arc::new(Mutex::new(String::new()));
-        let (me, fail) = (Arc::clone(self), Arc::clone(&error));
-        let submit: Submit = Arc::new(move |name| {
-            let result = if name.trim().is_empty() {
-                Err(CreateError::EmptyTitle)
-            } else {
-                me.apply_name(&named, name)
-            };
-            if let Err(e) = result {
-                *fail.lock().unwrap_or_else(PoisonError::into_inner) =
-                    create_error_named(&e, me.setup.german, name);
-                me.redraw();
-            }
-        });
-        let (on_name, on_cancel) = (Arc::clone(&submit), Arc::clone(self));
-        let dialog = NameDialog::new(&words, purpose, about)
-            .initial(initial)
-            .on_name(move |name| on_name(name))
-            .on_cancel(move || on_cancel.close_modal());
-        let blank = create_error(&CreateError::EmptyTitle, self.setup.german);
-        let cancel = Arc::clone(self);
-        self.surface.modal.set(Modal {
-            view: name_view(dialog.clone(), error, blank),
-            submit: Some(submit),
-            yes: None,
-            no: Some(Arc::new(move || cancel.close_modal())),
-        });
-        self.redraw();
-        dialog.focus();
-    }
-
     /// The name was taken in the dialog: do it; on success the dialog goes, on a refusal it stays (the caller says why).
-    fn apply_name(self: &Arc<Self>, named: &Named, name: &str) -> Result<(), CreateError> {
+    pub(crate) fn apply_name(
+        self: &Arc<Self>,
+        named: &Named,
+        name: &str,
+    ) -> Result<(), CreateError> {
         let maker = self.setup.pages.clone().ok_or(CreateError::ReadOnly)?;
         let widget = self.surface.current();
         let texts = self.texts();
