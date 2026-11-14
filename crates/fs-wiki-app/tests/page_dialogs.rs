@@ -16,12 +16,33 @@ fn a_subpage_is_made_below_the_open_page_and_a_taken_name_is_refused() {
     let r = rig(false);
     r.open("handbook.md");
     assert!(r.app.choose(PAGE_SUB));
+    assert_eq!(
+        r.modal.field_text().as_deref(),
+        Some(""),
+        "the field starts empty"
+    );
     assert!(
         r.modal.submit("Chapter one"),
         "taken: the dialog stays open"
     );
+    assert_eq!(
+        r.modal.field_text().as_deref(),
+        Some("Chapter one"),
+        "a refused name stays in the field, it is not cleared"
+    );
     assert_eq!(r.paths().len(), 3, "nothing was made");
-    assert!(r.modal.submit("Chapter two"));
+    // A taken name typed with blanks around it is taken as it is trimmed: refused the same way, field holds the trimmed name.
+    assert!(r.modal.submit("   Chapter one  "));
+    assert_eq!(r.modal.field_text().as_deref(), Some("Chapter one"));
+    assert_eq!(r.paths().len(), 3);
+    // A blank name: the dialog stays open and the field is empty.
+    assert!(r.modal.submit("   "));
+    assert_eq!(r.modal.field_text().as_deref(), Some(""));
+    assert!(
+        r.modal.submit("Chapter two"),
+        "still open: a good name is taken"
+    );
+    assert!(r.modal.field_text().is_none(), "now it is closed");
     assert!(r.paths().contains(&"handbook/chapter-two.md".to_owned()));
     assert_eq!(r.text("handbook/chapter-two.md"), "# Chapter two\n");
     assert!(
