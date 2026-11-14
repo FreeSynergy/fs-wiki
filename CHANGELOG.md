@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.0.12 (in progress)
+
+### English
+
+- **Finding of the user test 2026-11-14, cause checked here:** the text model and the Markdown reader and writer of this repository are correct for the user's text (headings, a paragraph with `~struck~`, `~~struck~~`, `_italic_`, `*italic*`, a table with `:---:`, `:---` and `---:`, a checkbox in a table cell, a task list): the column alignment and the task state are in the model and in the blocks the reader gets (`fs-wiki-app/tests/gfm_fixture.rs`), and the text comes back **byte for byte** (`fs-text/tests/gfm_fixture.rs`, new corpus file `user-gfm-2026-11-14.md`, also covered by the corpus round trip). The five findings (Enter in the Notion editor, the `/` menu, wrapping in the Confluence editor, alignment and checkboxes in the view) lie in fs-components, fixed in **fs-components 0.0.19**; this repository only needs the new tag.
+- Stated plainly: a block that is not touched keeps its text as written, also when another block is edited. A block that is edited itself is written by the writer alone, which writes strike-through as `~~x~~` (`~x~` is read as strike-through and written as `~~x~~`); tested and stated in the test. A checkbox in a table cell is **our extension** (GFM has task items in lists only): the cell stays the text `[ ]` / `[x]` in the model and in the file; only the reader draws it as a box.
+- To do at the lift to fs-components v0.0.19 (not in this commit, the pin stays v0.0.17 until the tag exists): raise the pin of all `fs-components*` dependencies to v0.0.19, and in `fs-wiki-app/src/ui_texts.rs` set `w.slash = SlashLabels::for_locale(&self.locale)` (the words of the `/` menu come in German and English from fs-components; no new text in this repository).
+
+### Deutsch
+
+- **Befund des Nutzertests vom 14.11., Ursache hier geprüft:** das Textmodell und der Markdown-Leser und -Schreiber dieses Repositories sind für den Text des Nutzers richtig (Überschriften, ein Absatz mit `~durch~`, `~~durch~~`, `_kursiv_`, `*kursiv*`, eine Tabelle mit `:---:`, `:---` und `---:`, eine Checkbox in einer Tabellenzelle, eine Aufgabenliste): Spaltenausrichtung und Aufgabenstatus stehen im Modell und in den Blöcken, die der Leser bekommt (`fs-wiki-app/tests/gfm_fixture.rs`), und der Text kommt **Byte für Byte** zurück (`fs-text/tests/gfm_fixture.rs`, neue Korpusdatei `user-gfm-2026-11-14.md`, auch im Korpus-Round-trip). Die fünf Befunde (Enter im Notion-Editor, das `/`-Menü, Umbruch im Confluence-Editor, Ausrichtung und Checkboxen in der Ansicht) liegen in fs-components und sind in **fs-components 0.0.19** behoben; dieses Repository braucht nur das neue Tag.
+- Ehrlich: ein Block, den niemand anfasst, behält seinen Text, wie er geschrieben ist, auch wenn ein anderer Block bearbeitet wird. Ein Block, der selbst bearbeitet wird, wird vom Schreiber allein geschrieben, und der schreibt Durchgestrichenes als `~~x~~` (`~x~` wird als Durchgestrichen gelesen und als `~~x~~` geschrieben); getestet und im Test benannt. Eine Checkbox in einer Tabellenzelle ist **unsere Erweiterung** (GFM kennt Aufgaben nur in Listen): die Zelle bleibt im Modell und in der Datei der Text `[ ]` / `[x]`; nur der Leser zeichnet sie als Kästchen.
+- Beim Heben auf fs-components v0.0.19 zu tun (nicht in diesem Commit, der Pin bleibt v0.0.17, bis das Tag existiert): den Pin aller `fs-components*`-Abhängigkeiten auf v0.0.19 heben und in `fs-wiki-app/src/ui_texts.rs` `w.slash = SlashLabels::for_locale(&self.locale)` setzen (die Wörter des `/`-Menüs kommen auf Deutsch und Englisch aus fs-components; kein neuer Text in diesem Repository).
+
 ## 0.0.11 (in progress)
 
 ### English

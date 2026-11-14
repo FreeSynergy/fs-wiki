@@ -1730,7 +1730,7 @@ dependencies = [
 
 [[package]]
 name = "fs-text"
-version = "0.0.11"
+version = "0.0.12"
 dependencies = [
  "proptest",
  "pulldown-cmark 0.13.6",
@@ -1760,7 +1760,7 @@ dependencies = [
 
 [[package]]
 name = "fs-wiki"
-version = "0.0.11"
+version = "0.0.12"
 dependencies = [
  "fs-wiki-app",
  "fs-wiki-server",
@@ -1769,7 +1769,7 @@ dependencies = [
 
 [[package]]
 name = "fs-wiki-app"
-version = "0.0.11"
+version = "0.0.12"
 dependencies = [
  "async-trait",
  "cap-fs-ext",
@@ -1806,7 +1806,7 @@ dependencies = [
 
 [[package]]
 name = "fs-wiki-client"
-version = "0.0.11"
+version = "0.0.12"
 dependencies = [
  "async-trait",
  "capnp",
@@ -1826,7 +1826,7 @@ dependencies = [
 
 [[package]]
 name = "fs-wiki-core"
-version = "0.0.11"
+version = "0.0.12"
 dependencies = [
  "async-trait",
  "chrono",
@@ -1845,7 +1845,7 @@ dependencies = [
 
 [[package]]
 name = "fs-wiki-server"
-version = "0.0.11"
+version = "0.0.12"
 dependencies = [
  "async-trait",
  "capnp",
@@ -1865,7 +1865,7 @@ dependencies = [
 
 [[package]]
 name = "fs-wiki-testserver"
-version = "0.0.11"
+version = "0.0.12"
 dependencies = [
  "fs-interfaces 0.0.1 (git+https://github.com/FreeSynergy/fs-interfaces?tag=v0.0.19)",
  "fs-objects",
