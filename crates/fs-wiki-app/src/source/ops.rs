@@ -29,8 +29,15 @@ pub fn check_name(title: &str) -> Result<String, CreateError> {
     {
         return Err(CreateError::BadChars);
     }
-    path_word(&title).ok_or(CreateError::NoLetter)?;
+    if path_word(&title).ok_or(CreateError::NoLetter)? == "index" {
+        return Err(CreateError::ReservedName);
+    }
     Ok(title)
+}
+
+/// Whether `path` is an index page (`index.md`, `x/index.md`), which has the name of its folder. `reindex.md` is none.
+fn is_index(path: &str) -> bool {
+    path == "index.md" || path.ends_with("/index.md")
 }
 
 /// The path of the page `path` under the name `title`: the same folder, the word of the title.
@@ -87,6 +94,25 @@ pub fn retitle(markdown: &str, old: &str, new: &str) -> String {
     out
 }
 
+/// The reason inside an error, for a sentence that goes on.
+fn why(e: &CreateError) -> String {
+    match e {
+        CreateError::Failed(w) | CreateError::Invalid(w) | CreateError::Taken(w) => w.clone(),
+        other => format!("{other:?}"),
+    }
+}
+
+/// A delete that stopped after `done` subpages: what was moved stays in the trash.
+fn half(done: usize, e: CreateError) -> CreateError {
+    if done == 0 {
+        return e;
+    }
+    CreateError::Half(format!(
+        "{done} subpages are in the trash, the rest was not moved ({})",
+        why(&e)
+    ))
+}
+
 impl WikiSource {
     fn runs<T>(
         &self,
@@ -137,7 +163,7 @@ impl WikiSource {
     /// The pages below `path` (its folder), not the page itself.
     fn below(&self, path: &str) -> Vec<fs_wiki_core::TextEntry> {
         let folder = folder_of(Some(path));
-        if folder.is_empty() || path.ends_with("index.md") {
+        if folder.is_empty() || is_index(path) {
             return Vec::new();
         }
         let prefix = format!("{folder}/");
@@ -153,7 +179,7 @@ impl WikiSource {
     /// Rename: see the module's comment.
     pub(super) fn rename(&self, path: &str, title: &str) -> Result<String, CreateError> {
         self.may_change(path)?;
-        if path.ends_with("index.md") {
+        if is_index(path) {
             return Err(CreateError::IndexPage);
         }
         let title = check_name(title)?;
@@ -172,13 +198,21 @@ impl WikiSource {
             if has_children
                 && let Err(e) = self.runs(self.texts.move_folder(&old_folder, &new_folder))
             {
-                // The page goes back: the rename is all or nothing.
-                let _ = self.runs(self.texts.move_to(entry.id, path));
-                return Err(e);
+                // The page goes back: the rename is all or nothing; if it cannot go back, the person is told where it is.
+                return Err(match self.runs(self.texts.move_to(entry.id, path)) {
+                    Ok(_) => e,
+                    Err(back) => CreateError::Half(format!(
+                        "the page is now at {new_path}, its subpages are still at {old_folder}/ ({})",
+                        why(&back)
+                    )),
+                });
             }
         }
         self.write_title(&new_path, &old_title, &title)
-            .map_err(CreateError::Partial)?;
+            .map_err(|why| CreateError::Partial {
+                path: new_path.clone(),
+                why,
+            })?;
         self.saved();
         Ok(new_path)
     }
@@ -210,48 +244,17 @@ impl WikiSource {
             .map_err(|e| CreateError::Failed(e.to_string()))?;
         let mut count = 0;
         for child in self.below(path) {
-            self.runs(self.texts.trash(child.id))?;
+            self.runs(self.texts.trash(child.id))
+                .map_err(|e| half(count, e))?;
             count += 1;
         }
-        self.runs(self.texts.trash(entry.id))?;
+        self.runs(self.texts.trash(entry.id))
+            .map_err(|e| half(count, e))?;
         self.saved();
         Ok(count + 1)
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_name_is_checked_before_anything_is_asked() {
-        assert_eq!(check_name("  Hand   book ").as_deref(), Ok("Hand book"));
-        assert_eq!(check_name("   "), Err(CreateError::EmptyTitle));
-        assert_eq!(check_name("a/b"), Err(CreateError::BadChars));
-        assert_eq!(check_name("a\\b"), Err(CreateError::BadChars));
-        assert_eq!(check_name("a\u{7}b"), Err(CreateError::BadChars));
-        assert_eq!(check_name("?!"), Err(CreateError::NoLetter));
-    }
-
-    #[test]
-    fn a_page_stays_in_its_folder_when_renamed() {
-        assert_eq!(sibling("a.md", "New Name").as_deref(), Some("new-name.md"));
-        assert_eq!(sibling("x/y/a.md", "B").as_deref(), Some("x/y/b.md"));
-    }
-
-    #[test]
-    fn the_title_of_the_text_follows_the_name() {
-        assert_eq!(retitle("# Old\n\ntext\n", "Old", "New"), "# New\n\ntext\n");
-        assert_eq!(retitle("text\n", "Old", "New"), "# New\n\ntext\n");
-        assert_eq!(retitle("\n# Old\nx\n", "Old", "New"), "\n# New\nx\n");
-        // With a title in the front matter the heading changes only when it said the old title.
-        assert_eq!(
-            retitle("---\ntitle: Old\n---\n# Old\nx\n", "Old", "N \"q\""),
-            "---\ntitle: \"N \\\"q\\\"\"\n---\n# N \"q\"\nx\n"
-        );
-        assert_eq!(
-            retitle("---\ntitle: Old\n---\n# Else\nx\n", "Old", "New"),
-            "---\ntitle: \"New\"\n---\n# Else\nx\n"
-        );
-    }
-}
+#[path = "ops_tests.rs"]
+mod tests;

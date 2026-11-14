@@ -32,8 +32,17 @@ pub enum CreateError {
     NotFound(String),
     /// The page has language variants; they are not changed in the window.
     Variants,
-    /// The page was renamed (moved), but its title in the text could not be changed; the reason.
-    Partial(String),
+    /// The page was renamed (moved to `path`), but its title in the text could not be changed.
+    Partial {
+        /// Where the page is now.
+        path: String,
+        /// The reason.
+        why: String,
+    },
+    /// Only part of the change was done (a move that could not be taken back, some pages of a delete); the reason.
+    Half(String),
+    /// The name is `index`, which makes a page the index page of its folder.
+    ReservedName,
     /// The page is an index page (`x/index.md`), which has the name of its folder.
     IndexPage,
     /// The path (and all numbered ones) is taken.

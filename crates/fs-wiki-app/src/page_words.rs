@@ -68,12 +68,51 @@ pub fn create_error(error: &CreateError, german: bool) -> String {
         CreateError::EmptyTitle => t.plain("err-empty"),
         CreateError::NoLetter => t.plain("err-no-letter"),
         CreateError::BadChars => t.plain("err-chars"),
-        CreateError::Taken(path) => t.say("err-taken", &[("path", path)]),
+        CreateError::Taken(path) => t.say("err-taken", &[("name", &name_of(path))]),
         CreateError::Invalid(why) => t.say("err-invalid", &[("why", why)]),
         CreateError::Failed(why) => t.say("err-failed", &[("why", why)]),
         CreateError::NotFound(path) => t.say("err-not-found", &[("path", path)]),
         CreateError::IndexPage => t.plain("err-index"),
         CreateError::Variants => t.plain("err-variants"),
-        CreateError::Partial(why) => t.say("err-partial", &[("why", why)]),
+        CreateError::Partial { path, why } => t.say("err-partial", &[("path", path), ("why", why)]),
+        CreateError::Half(why) => t.say("err-half", &[("why", why)]),
+        CreateError::ReservedName => t.plain("err-reserved"),
+    }
+}
+
+/// The name a path stands for, for a sentence: its last word without `.md` (the dialog says the typed name instead).
+fn name_of(path: &str) -> String {
+    let last = path.rsplit('/').next().unwrap_or(path);
+    last.strip_suffix(".md").unwrap_or(last).to_owned()
+}
+
+/// [`create_error`] where the person typed `name`: a taken name is told with that name, not with the path made from it.
+pub fn create_error_named(error: &CreateError, german: bool, name: &str) -> String {
+    match error {
+        CreateError::Taken(_) => UiTexts::new(german).say("err-taken", &[("name", name)]),
+        other => create_error(other, german),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_half_done_change_is_told_with_where_things_are_and_a_taken_name_with_the_name() {
+        let partial = CreateError::Partial {
+            path: "new.md".into(),
+            why: "conflict".into(),
+        };
+        assert!(create_error(&partial, false).contains("now at new.md"));
+        assert!(create_error(&partial, true).contains("liegt jetzt unter new.md"));
+        assert!(create_error(&CreateError::Half("x".into()), false).starts_with("Only part"));
+        assert_eq!(
+            create_error_named(&CreateError::Taken("a/notes.md".into()), true, "Notes"),
+            "Eine Seite „Notes“ gibt es schon."
+        );
+        assert!(
+            !create_error(&CreateError::Failed("w".into()), false).contains("Nothing was changed")
+        );
     }
 }

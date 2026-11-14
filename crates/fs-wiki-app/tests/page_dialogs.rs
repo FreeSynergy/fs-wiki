@@ -4,115 +4,12 @@
 //! Pattern: Integration test over the public API, no window is drawn (no graphics needed); the dialogs are answered through
 //! the slot of the modal, which calls what the buttons and keys call.
 
-mod common;
+mod page_rig;
 
-use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
+use fs_components_app::Status;
+use fs_wiki_app::frontend_window::{PAGE_DELETE, PAGE_DISCARD, PAGE_NEW, PAGE_RENAME, PAGE_SUB};
+use page_rig::rig;
 use std::time::{Duration, Instant};
-
-use fs_components_app::{AppWidget, Status};
-use fs_components_workbenches::{Labels, Reader, ReaderWidget, WikiLabels};
-use fs_wiki_app::WikiSource;
-use fs_wiki_app::frontend::Frontend;
-use fs_wiki_app::frontend_window::{
-    PAGE_DELETE, PAGE_DISCARD, PAGE_NEW, PAGE_RENAME, PAGE_SUB, Setup, window_with_modal,
-};
-use fs_wiki_app::source::PageMaker;
-use fs_wiki_app::window_modal::ModalSlot;
-use fs_wiki_core::{Paging, Texts};
-use tokio::runtime::Runtime;
-
-struct Rig {
-    rt: Runtime,
-    wiki: Arc<dyn Texts>,
-    app: AppWidget,
-    reader: ReaderWidget,
-    modal: Arc<ModalSlot>,
-    _fixture: Arc<common::Fixture>,
-}
-
-fn rig(german: bool) -> Rig {
-    let (rt, fixture) = common::wiki();
-    let wiki = fixture.wiki().texts();
-    for (path, text) in [
-        ("handbook.md", "# Handbook\n\nThe handbook.\n"),
-        ("handbook/chapter-one.md", "# Chapter one\n\nFirst.\n"),
-        ("notes.md", "# Notes\n\nA note.\n"),
-    ] {
-        rt.block_on(wiki.create(path, text)).unwrap();
-    }
-    let source = Arc::new(WikiSource::new(
-        Arc::clone(&wiki),
-        rt.handle().clone(),
-        vec![],
-    ));
-    let maker: Arc<dyn PageMaker> = source.clone();
-    let reader = ReaderWidget::new(source, Labels::default(), None);
-    reader.with_reader(Reader::refresh_entries);
-    let setup = Setup {
-        labels: WikiLabels::default(),
-        german,
-        bare: Arc::new(AtomicBool::new(false)),
-        settings: None,
-        pages: Some(maker),
-    };
-    let (app, modal) =
-        window_with_modal("Wiki", reader.clone(), Frontend::Confluence, setup).unwrap();
-    Rig {
-        rt,
-        wiki,
-        app,
-        reader,
-        modal,
-        _fixture: fixture,
-    }
-}
-
-impl Rig {
-    fn paths(&self) -> Vec<String> {
-        let all = self
-            .rt
-            .block_on(self.wiki.list("", Paging::default()))
-            .unwrap();
-        let mut paths: Vec<String> = all.into_iter().map(|t| t.path).collect();
-        paths.sort();
-        paths
-    }
-
-    fn open(&self, path: &str) {
-        self.reader.with_reader(|r| r.open(path));
-        // The window sees the reader now and then; an entry chosen before that would still be locked.
-        let began = Instant::now();
-        while began.elapsed() < Duration::from_secs(5) {
-            let rename_open = self.app.with_shell(|s| {
-                s.menus()
-                    .iter()
-                    .flat_map(|m| m.entries.iter())
-                    .any(|e| e.id == PAGE_RENAME && !e.disabled)
-            });
-            if rename_open {
-                return;
-            }
-            std::thread::sleep(Duration::from_millis(50));
-        }
-    }
-
-    fn status(&self) -> Option<Status> {
-        self.app.with_shell(|s| s.status().cloned())
-    }
-
-    fn text(&self, path: &str) -> String {
-        self.rt
-            .block_on(async {
-                let entry = self.wiki.get_by_path(path).await.ok()??;
-                self.wiki
-                    .export_text(entry.id, fs_wiki_core::MARKDOWN)
-                    .await
-                    .ok()
-            })
-            .unwrap_or_default()
-    }
-}
 
 #[test]
 fn a_subpage_is_made_below_the_open_page_and_a_taken_name_is_refused() {

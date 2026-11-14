@@ -77,7 +77,7 @@ impl Surface for ReaderSurface {
     }
 
     fn styles(&self) -> String {
-        format!("{}{}{EDITOR_STYLES}", styles(), window_modal::STYLES)
+        format!("{}{}{EDITOR_STYLES}", styles(), window_modal::styles())
     }
 
     /// Confluence: one line on top with the name, the search and the menus (the shell's title bar and the layout's own top
@@ -91,7 +91,7 @@ impl Surface for ReaderSurface {
             .child(
                 div()
                     .class("fs-wiki-brand")
-                    .child(icon(Glyph::FileText, 22.0, Tone::Accent))
+                    .child(icon(Glyph::FileText, BRAND_ICON, Tone::Accent))
                     .child(text(&self.program).no_wrap()),
             )
             .child(div().w(SEARCH_WIDTH).child(self.search.build()));
@@ -106,3 +106,5 @@ impl Surface for ReaderSurface {
 const BAR_HEIGHT: f32 = 52.0;
 /// The width of the search field in the bar.
 const SEARCH_WIDTH: f32 = 360.0;
+/// The size of the program icon in the bar (the size the layout's own bar used).
+const BRAND_ICON: f32 = 22.0;

@@ -159,8 +159,8 @@ mod tests {
     fn a_hole_is_filled_and_no_word_is_missing() {
         let de = UiTexts::new(true);
         assert_eq!(
-            de.say("err-taken", &[("path", "a.md")]),
-            "Unter a.md gibt es schon eine Seite."
+            de.say("err-taken", &[("name", "A")]),
+            "Eine Seite „A“ gibt es schon."
         );
         // A missing id would come back as itself; none of the ids the window asks for may.
         let ids = [

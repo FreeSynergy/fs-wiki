@@ -14,7 +14,7 @@ use fs_components_words::Localized;
 use crate::frontend_window::{
     PAGE_DELETE, PAGE_DISCARD, PAGE_NEW, PAGE_RENAME, PAGE_SUB, Switcher,
 };
-use crate::page_words::{create_error, page_words};
+use crate::page_words::{create_error, create_error_named, page_words};
 use crate::source::{CreateError, PageMaker};
 use crate::window_modal::{Modal, Question, Submit, name_view, question_view};
 
@@ -103,7 +103,7 @@ impl Switcher {
             };
             if let Err(e) = result {
                 *fail.lock().unwrap_or_else(PoisonError::into_inner) =
-                    create_error(&e, me.setup.german);
+                    create_error_named(&e, me.setup.german, name);
                 me.redraw();
             }
         });
@@ -139,7 +139,29 @@ impl Switcher {
                 (path.clone(), texts.say("msg-created", &[("path", &path)]))
             }
             Named::Rename(old) => {
-                let path = maker.rename_page(old, name)?;
+                let path = match maker.rename_page(old, name) {
+                    Ok(path) => path,
+                    // The page moved but its title was not written, or only part of it was done: the dialog does not stay
+                    // on the old path; it goes, the page tree is read again and the person is told how it stands.
+                    Err(e @ (CreateError::Partial { .. } | CreateError::Half(_))) => {
+                        let at = match &e {
+                            CreateError::Partial { path, .. } => Some(path.clone()),
+                            _ => None,
+                        };
+                        widget.with_reader(|r| {
+                            r.refresh_entries();
+                            if let Some(at) = &at {
+                                r.open(at);
+                            }
+                        });
+                        self.relayout(self.shown());
+                        self.surface.modal.clear();
+                        self.problem(create_error(&e, self.setup.german));
+                        self.redraw();
+                        return Ok(());
+                    }
+                    Err(e) => return Err(e),
+                };
                 (path.clone(), texts.say("msg-renamed", &[("path", &path)]))
             }
         };

@@ -119,32 +119,47 @@ impl ModalSlot {
     }
 }
 
-/// The style sheet of the modal: theme variables only.
-pub const STYLES: &str = "
-.fs-wiki-modal { display: flex; flex-direction: column; width: 420px; gap: var(--space-2); }
-.fs-wiki-modal-error { color: var(--error); background: var(--surface); border-width: 1px; border-color: var(--border-error); font-size: var(--text-sm); padding: var(--space-2); border-radius: var(--radius-default); }
-.fs-wiki-modal-body { color: var(--text-secondary); }
-";
+/// The key codes of Enter and Escape as the events of Blinc carry them.
+const KEY_ENTER: u32 = 13;
+const KEY_ESCAPE: u32 = 27;
+/// The width of a dialog (the `NameDialog` of fs-components has `max-width: 420px` too; there is no token for it).
+const MODAL_WIDTH: u32 = 420;
 
-/// The view of a name dialog with an error line under it (empty = none). A blank name on Enter is told here (the dialog
-/// itself just stays open).
+/// The style sheet of the modal: theme variables, and the one width above. The name dialog is drawn inside a card of our own
+/// (so the error line is inside the card, with room around it); its own card is flattened there.
+pub fn styles() -> String {
+    format!(
+        "
+.fs-wiki-modal {{ display: flex; flex-direction: column; width: {MODAL_WIDTH}px; gap: var(--space-2); }}
+.fs-wiki-card {{ display: flex; flex-direction: column; width: 100%; gap: var(--space-2); padding: var(--space-4); border-radius: var(--radius-lg); background: var(--surface); border-width: 1px; border-color: var(--border); }}
+.fs-wiki-card .fs-nd {{ padding: 0px; border-width: 0px; }}
+.fs-wiki-modal-error {{ color: var(--error); font-size: var(--text-sm); padding-top: var(--space-1); }}
+.fs-wiki-modal-body {{ color: var(--text-secondary); }}
+"
+    )
+}
+
+/// The view of a name dialog with an error line under it, inside the same card (empty = none). A blank name on Enter is told
+/// here (the dialog itself just stays open).
 pub fn name_view(dialog: NameDialog, error: Arc<Mutex<String>>, blank: String) -> View {
     Arc::new(move || {
         let said = error.lock().unwrap_or_else(PoisonError::into_inner).clone();
         let (dialog_keys, blank_error, blank_text) =
             (dialog.clone(), Arc::clone(&error), blank.clone());
-        let mut column = div().class("fs-wiki-modal").child(dialog.build());
+        let mut card = div().class("fs-wiki-card").child(dialog.build());
         if !said.is_empty() {
-            column = column.child(text(said).class("fs-wiki-modal-error"));
+            card = card.child(text(said).class("fs-wiki-modal-error"));
         }
-        column.on_key_down(move |ctx| {
-            if ctx.key_code == 13 && dialog_keys.text().trim().is_empty() {
-                blank_error
-                    .lock()
-                    .unwrap_or_else(PoisonError::into_inner)
-                    .clone_from(&blank_text);
-            }
-        })
+        div()
+            .class("fs-wiki-modal")
+            .child(card.on_key_down(move |ctx| {
+                if ctx.key_code == KEY_ENTER && dialog_keys.text().trim().is_empty() {
+                    blank_error
+                        .lock()
+                        .unwrap_or_else(PoisonError::into_inner)
+                        .clone_from(&blank_text);
+                }
+            }))
     })
 }
 
@@ -170,7 +185,7 @@ pub fn question_view(q: Question) -> Modal {
     let (answer_yes, answer_no) = (Arc::clone(&q.on_yes), Arc::clone(&q.on_no));
     let view: View = Arc::new(move || {
         let (yes, no) = (Arc::clone(&q.on_yes), Arc::clone(&q.on_no));
-        let (keys_yes, keys_no) = (Arc::clone(&q.on_yes), Arc::clone(&q.on_no));
+        let keys_no = Arc::clone(&q.on_no);
         let button = |tag: &str, word: &str, variant| {
             ButtonBuilder::with_key(format!("fs-wiki-q-{tag}"), word.to_owned()).variant(variant)
         };
@@ -183,7 +198,7 @@ pub fn question_view(q: Question) -> Modal {
                     .id("fs-wiki-q-no"),
             )
             .child(
-                button("yes", &q.yes_word, ButtonVariant::Primary)
+                button("yes", &q.yes_word, ButtonVariant::Destructive)
                     .on_click(move |_| yes())
                     .build_component()
                     .id("fs-wiki-q-yes"),
@@ -196,8 +211,8 @@ pub fn question_view(q: Question) -> Modal {
                 .child(text(q.body.clone()).class("fs-wiki-modal-body"))
                 .child(buttons)
                 .on_key_down(move |ctx| match ctx.key_code {
-                    13 => keys_yes(),
-                    27 => keys_no(),
+                    // Enter does NOT do the destructive thing: the focus is on the safe button.
+                    KEY_ENTER | KEY_ESCAPE => keys_no(),
                     _ => {}
                 }),
         )

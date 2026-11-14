@@ -8,7 +8,7 @@
 // Linux only: the picture of the window needs a Vulkan adapter (software Vulkan in the Linux CI) and the fonts of that CI.
 #![cfg(target_os = "linux")]
 
-mod common;
+mod admin_common;
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -25,6 +25,7 @@ use fs_wiki_app::frontend_window::{
 };
 use fs_wiki_app::source::PageMaker;
 use fs_wiki_app::ui_texts::UiTexts;
+use fs_wiki_core::Texts;
 
 const HANDBOOK: &str = "# Handbook\n\nWelcome to the handbook. It has several parts and says where to start.\n\n## Getting started\n\nInstall the program, start the server, open the window.\n\n- one list item\n- another list item\n- a third one\n\n### Details\n\nA little more about the first steps, in a paragraph of its own.\n\n## Reference\n\nThe closing words of the handbook.\n";
 
@@ -88,8 +89,9 @@ fn the_wiki_window_in_both_frontends_and_languages() {
     ] {
         for german in [false, true] {
             let lang = if german { "de" } else { "en" };
-            let (rt, fixture) = common::wiki();
-            let texts = fixture.wiki().texts();
+            let w = admin_common::wiki();
+            let rt = &w.rt;
+            let texts: Arc<dyn Texts> = w.texts.clone();
             for (path, text) in [
                 ("handbook.md", HANDBOOK),
                 (
@@ -145,6 +147,30 @@ fn the_wiki_window_in_both_frontends_and_languages() {
             }
             reader.with_reader(Reader::begin_edit);
             picture(&app, &dir, &name("6-bearbeiten"));
+            if german {
+                // The states after the changes: renamed (with its subpage), deleted, and what the trash shows.
+                reader.with_reader(|r| {
+                    r.cancel_edit();
+                    r.cancel_edit();
+                    r.open("handbook.md");
+                });
+                wait_menu(&app, PAGE_SUB);
+                assert!(app.choose(PAGE_RENAME));
+                assert!(modal.submit("Manual"));
+                picture(&app, &dir, &name("8-nach-umbenennen"));
+                reader.with_reader(|r| r.open("notes.md"));
+                wait_menu(&app, PAGE_DELETE);
+                assert!(app.choose(PAGE_DELETE));
+                assert!(modal.yes());
+                picture(&app, &dir, &name("9-nach-loeschen"));
+                if short == "confluence" {
+                    let registry = rt.block_on(w.texts.types()).unwrap();
+                    let admin =
+                        fs_wiki_app::admin::shell_in(&registry, &w.ctx, "source", true).unwrap();
+                    assert!(admin.select("TrashEntry"));
+                    picture(&admin, &dir, "admin-de-10-papierkorb");
+                }
+            }
         }
     }
 }
