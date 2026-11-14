@@ -11,7 +11,7 @@ use std::sync::atomic::AtomicBool;
 use std::time::{Duration, Instant};
 
 use fs_components_app::{AppWidget, Status};
-use fs_components_workbenches::{Labels, Reader, ReaderWidget, WikiLabels};
+use fs_components_workbenches::{Reader, ReaderWidget};
 use fs_wiki_app::WikiSource;
 use fs_wiki_app::frontend::Frontend;
 use fs_wiki_app::frontend_window::{PAGE_RENAME, Setup, window_with_modal};
@@ -45,10 +45,14 @@ pub fn rig(german: bool) -> Rig {
         vec![],
     ));
     let maker: Arc<dyn PageMaker> = source.clone();
-    let reader = ReaderWidget::new(source, Labels::default(), None);
+    let reader = ReaderWidget::new(
+        source,
+        fs_wiki_app::ui_texts::UiTexts::new(german).reader_labels(),
+        None,
+    );
     reader.with_reader(Reader::refresh_entries);
     let setup = Setup {
-        labels: WikiLabels::default(),
+        labels: fs_wiki_app::ui_texts::UiTexts::new(german).wiki_labels(),
         german,
         bare: Arc::new(AtomicBool::new(false)),
         settings: None,
@@ -117,4 +121,9 @@ impl Rig {
         self.rt.block_on(self.wiki.create(path, text)).unwrap();
         self.reader.with_reader(Reader::refresh_entries);
     }
+}
+
+/// The real wiki of the fixture, for tests that build their own source.
+pub fn common_wiki() -> (Runtime, Arc<common::Fixture>) {
+    common::wiki()
 }

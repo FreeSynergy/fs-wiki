@@ -6,7 +6,7 @@
 //! no id exists in one language only. The words the older tables (`lang_words.rs`, `words.rs`) hold are to follow.
 
 use fs_components_mf2::{Mf2Texts, Source};
-use fs_components_widgets::TitleLabels;
+use fs_components_widgets::{SlashLabels, TitleLabels};
 use fs_components_words::{Args, Locale, Localized, TextId, Words};
 use fs_components_workbenches::{Labels, WikiLabels};
 
@@ -86,8 +86,7 @@ impl UiTexts {
             .to_owned()
     }
 
-    /// The page count for exactly one page, with `{}` for the number (`{} page`): what `WikiLabels::page_count_one` gets
-    /// once the program is on fs-components 0.0.19.
+    /// The page count for exactly one page, with `{}` for the number (`{} page`): `WikiLabels::page_count_one`.
     pub fn page_count_one(&self) -> String {
         let args = Args::new().count("n", 1).text("hole", "{}");
         self.texts
@@ -120,12 +119,15 @@ impl UiTexts {
         w.block_hint = self.plain("wk-block-hint");
         w.title_hint = TitleLabels::for_locale(&self.locale).placeholder;
         w.page_count = self.page_count_other();
+        w.page_count_one = self.page_count_one();
+        w.slash = SlashLabels::for_locale(&self.locale);
         w
     }
 
     /// The words of the reader (the plain frontend, the editor, the notices).
     pub fn reader_labels(&self) -> Labels {
         let mut l = Labels::default();
+        l.tasks_locked = self.plain("rd-tasks-locked");
         for (field, id) in [
             (&mut l.search, "rd-search"),
             (&mut l.back, "rd-back"),
@@ -210,6 +212,28 @@ mod tests {
         );
         assert!(sub(&en, 2).contains("(2 pages in all)"), "{}", sub(&en, 2));
         assert!(sub(&en, 1).contains("(1 page in all)"), "{}", sub(&en, 1));
+    }
+
+    /// The wiki keeps its own words (they are its texts), but they must say what fs-components says for the same language:
+    /// a difference is a drift between the two sets of files and shows here.
+    #[test]
+    fn the_wiki_words_equal_those_of_fs_components() {
+        for german in [false, true] {
+            let (ui, locale) = (
+                UiTexts::new(german),
+                Locale::parse(if german { "de" } else { "en" }).unwrap(),
+            );
+            assert_eq!(
+                ui.wiki_labels(),
+                WikiLabels::for_locale(&locale),
+                "wiki layout words, german {german}"
+            );
+            assert_eq!(
+                ui.reader_labels(),
+                Labels::for_locale(&locale),
+                "reader words, german {german}"
+            );
+        }
     }
 
     #[test]

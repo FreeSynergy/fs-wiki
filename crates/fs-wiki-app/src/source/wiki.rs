@@ -204,6 +204,24 @@ impl DocumentSource for WikiSource {
         !self.read_only && path != PROBLEMS_PATH
     }
 
+    /// Ticking a box is an ordinary change: the same right as editing, the same refusals (`read_only`, the problems page).
+    fn can_tick(&self, path: &str) -> bool {
+        self.can_edit(path)
+    }
+
+    fn set_task(
+        &self,
+        path: &str,
+        index: usize,
+        done: bool,
+        revision: Option<&str>,
+    ) -> Result<(), SourceError> {
+        if !self.can_tick(path) {
+            return Err(SourceError::unsupported("this page cannot be changed"));
+        }
+        self.tick(path, index, done, revision)
+    }
+
     fn source_text(&self, path: &str) -> Result<EditableText, SourceError> {
         let entry = self.entry(&self.text_for(path))?;
         let text = self
