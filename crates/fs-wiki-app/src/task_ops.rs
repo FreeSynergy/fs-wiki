@@ -14,17 +14,17 @@ use fs_text::{BlockKind, Container, Document, Op};
 #[derive(Debug, PartialEq, Eq)]
 pub struct NoSuchBox(pub usize);
 
-/// The task state of a cell text: `Some(done)` for `[ ]`, `[x]`, `[X]` alone or followed by a space.
-fn cell_task(cell: &str) -> Option<bool> {
-    let done = match cell.get(..3)? {
+/// The box a cell starts with: (characters before the bracket, the state). The forms are `[ ]`, `[x]`, `[X]` and, as typed in
+/// a list, `- [ ]`, `- [x]`; the box is alone or followed by a space (the same rule as `fs_components_widgets::cell_box`).
+fn cell_task(cell: &str) -> Option<(usize, bool)> {
+    let lead = if cell.starts_with("- ") { 2 } else { 0 };
+    let done = match cell.get(lead..lead + 3)? {
         "[ ]" => false,
         "[x]" | "[X]" => true,
         _ => return None,
     };
-    cell[3..]
-        .is_empty()
-        .then_some(done)
-        .or_else(|| cell[3..].starts_with(' ').then_some(done))
+    let rest = &cell[lead + 3..];
+    (rest.is_empty() || rest.starts_with(' ')).then_some((lead, done))
 }
 
 /// The operations that set box number `index` to `done`; none when it already has that state.
@@ -40,15 +40,15 @@ pub fn tick_ops(doc: &Document, index: usize, done: bool) -> Result<Vec<Op>, NoS
             let mut at = 0;
             for line in text.split('\n') {
                 for cell in line.split('\t') {
-                    if let Some(now) = cell_task(cell) {
+                    if let Some((lead, now)) = cell_task(cell) {
                         if n == index {
                             return Ok(if now == done {
                                 Vec::new()
                             } else {
                                 vec![Op::Edit {
                                     block: block.id,
-                                    start: at + 1,
-                                    end: at + 2,
+                                    start: at + lead + 1,
+                                    end: at + lead + 2,
                                     insert: if done { "x" } else { " " }.to_owned(),
                                     restore: None,
                                 }]

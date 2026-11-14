@@ -59,3 +59,14 @@ fn nested_items_and_items_with_several_blocks_are_counted_once() {
     let (out, _) = ticked(md, 3, true);
     assert_eq!(out, md.replace("- [ ] c", "- [x] c"));
 }
+
+/// The cell of the user test: `- [ ] Test?` in a table cell is a box; only its x changes, the bytes around it stay.
+#[test]
+fn a_cell_with_a_list_marker_is_a_box_and_only_its_x_changes() {
+    let md = "| Name | Test |\n| --- | --- |\n| Kal | - [ ] Test? |\n| Ada | - [x] |\n";
+    let (out, ops) = ticked(md, 0, true);
+    assert_eq!(ops.len(), 1);
+    assert_eq!(out, md.replace("- [ ] Test?", "- [x] Test?"));
+    let (out, _) = ticked(md, 1, false);
+    assert_eq!(out, md.replace("- [x] |", "- [ ] |"));
+}
