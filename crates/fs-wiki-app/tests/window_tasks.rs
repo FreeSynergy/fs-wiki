@@ -14,7 +14,6 @@ use fs_components::blinc::layout::prelude::RenderTree;
 use fs_components_workbenches::{DocumentSource, WikiLabels};
 use fs_wiki_app::WikiSource;
 use fs_wiki_app::ui_texts::UiTexts;
-use fs_wiki_core::Texts;
 use page_rig::rig;
 
 const TEXT: &str = "# Tasks\n\n| a | b |\n| --- | --- |\n| x | [ ] |\n\n- [ ] one\n- [x] two\n";
@@ -44,9 +43,7 @@ fn click(tree: &mut RenderTree, id: &str) {
 fn shot(r: &page_rig::Rig, name: &str) {
     if let Some(dir) = std::env::var_os("FS_WIKI_SHOTS") {
         std::fs::create_dir_all(&dir).unwrap();
-        let _ = r
-            .app
-            .picture(1000, 520, &std::path::Path::new(&dir).join(name));
+        let _ = r.window_picture(1000, 520, &std::path::Path::new(&dir).join(name));
     }
 }
 
@@ -60,15 +57,6 @@ fn revisions(r: &page_rig::Rig, path: &str) -> usize {
             .items
             .len()
     })
-}
-
-/// One test at a time may set Blinc up (process-wide state); the picture of the window sets it up like a window does.
-static ONE_AT_A_TIME: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
-fn serial() -> std::sync::MutexGuard<'static, ()> {
-    ONE_AT_A_TIME
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 fn opened_tree(r: &page_rig::Rig) -> RenderTree {
@@ -85,7 +73,7 @@ fn opened_tree(r: &page_rig::Rig) -> RenderTree {
 
 #[test]
 fn a_click_on_a_checkbox_stores_one_change_and_only_the_box_changes() {
-    let _g = serial();
+    let _g = page_rig::serial();
     let r = rig(true);
     r.make("tasks.md", TEXT);
     r.open("tasks.md");
@@ -118,7 +106,7 @@ fn a_click_on_a_checkbox_stores_one_change_and_only_the_box_changes() {
 
 #[test]
 fn without_the_right_to_change_the_page_the_boxes_are_locked_and_nothing_is_stored() {
-    let _g = serial();
+    let _g = page_rig::serial();
     let r = rig(false);
     let _ = opened_tree(&r);
     let (rt, fixture) = page_rig::common_wiki();
@@ -179,7 +167,7 @@ const USER_TABLE: &str = "# Tabelle\n\n| Name | Test | Beschreibung |\n| --- | -
 
 #[test]
 fn the_table_of_the_user_test_does_not_break_in_the_window() {
-    let _g = serial();
+    let _g = page_rig::serial();
     let r = rig(true);
     r.make("tabelle.md", USER_TABLE);
     r.open("tabelle.md");
@@ -187,7 +175,7 @@ fn the_table_of_the_user_test_does_not_break_in_the_window() {
         std::env::var_os("FS_WIKI_SHOTS").map_or_else(std::env::temp_dir, std::path::PathBuf::from);
     std::fs::create_dir_all(&dir).unwrap();
     let file = dir.join("wiki-0012-tabelle-mitte.png");
-    if r.app.picture(1400, 700, &file).is_err() {
+    if r.window_picture(1400, 700, &file).is_err() {
         eprintln!("skipped: no graphics");
         return;
     }

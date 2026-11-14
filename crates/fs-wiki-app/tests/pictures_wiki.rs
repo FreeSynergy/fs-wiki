@@ -74,7 +74,7 @@ fn composed(app: &fs_components_app::AppWidget, w: f32, h: f32) -> Div {
 
 fn picture(app: &fs_components_app::AppWidget, dir: &std::path::Path, name: &str) {
     let file = dir.join(format!("{name}.png"));
-    let canvas = Canvas::new(1100, 700, app.styles());
+    let canvas = Canvas::new(1100, 700, app.styles()).with_window_styles();
     draw_to_png(&canvas, |w, h| composed(app, w, h), || {}, &file).expect("picture");
     assert!(std::fs::metadata(&file).unwrap().len() > 2000, "{name}");
 }

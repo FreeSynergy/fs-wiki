@@ -127,3 +127,40 @@ impl Rig {
 pub fn common_wiki() -> (Runtime, Arc<common::Fixture>) {
     common::wiki()
 }
+
+impl Rig {
+    /// The picture of the window with the styles the program has: Blinc's default look of its own widgets goes ahead of the
+    /// theme's rules (`Canvas::with_window_styles`), as the runner of a window does (`blinc_app` `windowed.rs`, `ua_styles::install`).
+    /// `AppWidget::picture` does not; its pictures show an unticked checkbox as a bare tick.
+    pub fn window_picture(
+        &self,
+        width: u32,
+        height: u32,
+        file: &std::path::Path,
+    ) -> Result<(), String> {
+        let canvas = fs_components_render::Canvas::new(width, height, self.app.styles())
+            .with_window_styles();
+        fs_components_render::draw_to_png(&canvas, |w, h| self.app.build(w, h), || {}, file)
+            .map_err(|e| e.to_string())
+    }
+}
+
+/// One test at a time may set Blinc up (process-wide state).
+pub fn serial() -> std::sync::MutexGuard<'static, ()> {
+    static ONE_AT_A_TIME: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    ONE_AT_A_TIME
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+impl Rig {
+    /// Set Blinc up the way a window does (the picture of the window does it), and the notifier of changed signals.
+    pub fn warm_up(&self) {
+        let warm = std::env::temp_dir().join(format!("fs-wiki-warm-{}.png", std::process::id()));
+        let _ = self.app.picture(1000, 700, &warm);
+        let _ = std::fs::remove_file(&warm);
+        fs_components::blinc::core::reactive::set_stateful_deps_notifier(|ids| {
+            fs_components::blinc::layout::check_stateful_deps(ids);
+        });
+    }
+}
