@@ -29,7 +29,9 @@ msg-frontend-not-kept = The frontend could not be remembered.
 
 dlg-delete-title = Delete {$title}?
 dlg-delete-body = The page moves to the trash. It can be restored from there.
-dlg-delete-body-sub = The page and its subpages ({$count} pages in all) move to the trash. They can be restored from there.
+dlg-delete-body-sub =
+  .input {$count :number}
+  .match $count one {{The page and its subpages ({$count} page in all) move to the trash. They can be restored from there.}} * {{The page and its subpages ({$count} pages in all) move to the trash. They can be restored from there.}}
 dlg-delete-yes = Delete
 dlg-discard-title = Discard the draft of {$title}?
 dlg-discard-body = What you typed is not saved and will be lost.
@@ -66,7 +68,9 @@ wk-edit = Edit
 wk-share = Share
 wk-block-hint = Type, or press / for commands
 wk-title-hint = Untitled
-wk-page-count = {$hole} pages
+wk-page-count =
+  .input {$n :number}
+  .match $n one {{{$hole} page}} * {{{$hole} pages}}
 
 rd-search = Search pages
 rd-back = Back
@@ -83,6 +87,7 @@ rd-discard-confirm = You have unsaved changes. Press Cancel again to discard the
 rd-saved = Saved.
 rd-no-changes = Nothing was changed.
 rd-not-saved = Not saved: {$hole}
+rd-tasks-locked = You cannot change this page, so its checkboxes are locked.
 rd-cannot-edit = Cannot edit this: {$hole}
 rd-not-exported = Not exported: {$hole}
 rd-overwrite-confirm = {$hole} Press Export again to replace it.

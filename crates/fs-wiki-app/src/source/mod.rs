@@ -14,6 +14,7 @@ mod ops;
 mod pages;
 mod problems;
 mod resolve;
+mod tick;
 mod wiki;
 
 pub use create::{CreateError, PageMaker, SavedHook};

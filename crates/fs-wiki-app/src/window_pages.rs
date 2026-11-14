@@ -162,7 +162,7 @@ impl Switcher {
         let body = if subs == 0 {
             t.plain("dlg-delete-body")
         } else {
-            t.say("dlg-delete-body-sub", &[("count", &(subs + 1).to_string())])
+            t.say_count("dlg-delete-body-sub", subs as u64 + 1, &[])
         };
         let (yes, no, path) = (Arc::clone(self), Arc::clone(self), path.to_owned());
         let title_told = title.to_owned();

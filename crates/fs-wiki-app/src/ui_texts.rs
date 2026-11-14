@@ -57,6 +57,45 @@ impl UiTexts {
         self.texts.say(&TextId::new(id), &args).text().to_owned()
     }
 
+    /// The sentence `id` for the number `n` (its plural form), its holes filled with `values` (`(name, text)`); the number
+    /// is `$count` in the message.
+    pub fn say_count(&self, id: &str, n: u64, values: &[(&str, &str)]) -> String {
+        let args = values
+            .iter()
+            .fold(Args::new().count("count", n), |args, (name, value)| {
+                args.text(name, *value)
+            });
+        self.texts.say(&TextId::new(id), &args).text().to_owned()
+    }
+
+    /// How many pages there are, said for `n` (`0 pages`, `1 page`, `2 pages`; German `Seite` and `Seiten`).
+    pub fn pages_said(&self, n: u64) -> String {
+        let args = Args::new().count("n", n).text("hole", n.to_string());
+        self.texts
+            .say(&TextId::new("wk-page-count"), &args)
+            .text()
+            .to_owned()
+    }
+
+    /// The page count for every number but one, with the two characters `{}` for the number (`{} pages`).
+    fn page_count_other(&self) -> String {
+        let args = Args::new().count("n", 2).text("hole", "{}");
+        self.texts
+            .say(&TextId::new("wk-page-count"), &args)
+            .text()
+            .to_owned()
+    }
+
+    /// The page count for exactly one page, with `{}` for the number (`{} page`): what `WikiLabels::page_count_one` gets
+    /// once the program is on fs-components 0.0.19.
+    pub fn page_count_one(&self) -> String {
+        let args = Args::new().count("n", 1).text("hole", "{}");
+        self.texts
+            .say(&TextId::new("wk-page-count"), &args)
+            .text()
+            .to_owned()
+    }
+
     /// The sentence `id` with the two characters `{}` in the place of its one hole: the form `fs-components` fills itself.
     fn holey(&self, id: &str) -> String {
         self.say(id, &[("hole", "{}")])
@@ -80,7 +119,7 @@ impl UiTexts {
         w.share = self.plain("wk-share");
         w.block_hint = self.plain("wk-block-hint");
         w.title_hint = TitleLabels::for_locale(&self.locale).placeholder;
-        w.page_count = self.holey("wk-page-count");
+        w.page_count = self.page_count_other();
         w
     }
 
@@ -138,6 +177,39 @@ mod tests {
     #[test]
     fn every_id_is_in_german_and_english_with_the_same_holes() {
         assert_eq!(fs_components_mf2::check_pairs(TEXTS), Vec::<String>::new());
+    }
+
+    /// Finding W3 of 2026-11-14: "1 Seiten". Every text that shows a number says one and many differently.
+    #[test]
+    fn count_texts_say_one_and_many_in_both_languages() {
+        let (de, en) = (UiTexts::new(true), UiTexts::new(false));
+        let said = |t: &UiTexts| (t.pages_said(0), t.pages_said(1), t.pages_said(2));
+        assert_eq!(
+            said(&de),
+            ("0 Seiten".into(), "1 Seite".into(), "2 Seiten".into())
+        );
+        assert_eq!(
+            said(&en),
+            ("0 pages".into(), "1 page".into(), "2 pages".into())
+        );
+        assert_eq!(
+            (de.page_count_one().as_str(), en.page_count_one().as_str()),
+            ("{} Seite", "{} page")
+        );
+        // The delete question counts the page and its subpages.
+        let sub = |t: &UiTexts, n| t.say_count("dlg-delete-body-sub", n, &[]);
+        assert!(
+            sub(&de, 2).contains("insgesamt 2 Seiten"),
+            "{}",
+            sub(&de, 2)
+        );
+        assert!(
+            sub(&de, 1).contains("insgesamt 1 Seite)"),
+            "{}",
+            sub(&de, 1)
+        );
+        assert!(sub(&en, 2).contains("(2 pages in all)"), "{}", sub(&en, 2));
+        assert!(sub(&en, 1).contains("(1 page in all)"), "{}", sub(&en, 1));
     }
 
     #[test]

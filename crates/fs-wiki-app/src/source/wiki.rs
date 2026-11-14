@@ -58,11 +58,11 @@ pub struct WikiSource {
     pub(super) on_saved: Mutex<Option<super::create::SavedHook>>,
 }
 
-fn failed(e: &dyn std::fmt::Display) -> SourceError {
+pub(super) fn failed(e: &dyn std::fmt::Display) -> SourceError {
     SourceError::failed(e.to_string())
 }
 
-fn revision_of(entry: &TextEntry) -> String {
+pub(super) fn revision_of(entry: &TextEntry) -> String {
     entry.revision.to_string()
 }
 

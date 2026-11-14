@@ -39,6 +39,7 @@ pub mod server;
 pub mod source;
 pub mod store_path;
 pub mod sync;
+pub mod task_ops;
 pub mod ui_texts;
 pub mod variants;
 pub mod wiki;

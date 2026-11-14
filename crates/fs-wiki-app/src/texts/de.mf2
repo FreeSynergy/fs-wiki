@@ -29,7 +29,9 @@ msg-frontend-not-kept = Das Frontend konnte nicht gemerkt werden.
 
 dlg-delete-title = {$title} löschen?
 dlg-delete-body = Die Seite kommt in den Papierkorb. Von dort lässt sie sich zurückholen.
-dlg-delete-body-sub = Die Seite und ihre Unterseiten (insgesamt {$count} Seiten) kommen in den Papierkorb. Von dort lassen sie sich zurückholen.
+dlg-delete-body-sub =
+  .input {$count :number}
+  .match $count one {{Die Seite und ihre Unterseiten (insgesamt {$count} Seite) kommen in den Papierkorb. Von dort lassen sie sich zurückholen.}} * {{Die Seite und ihre Unterseiten (insgesamt {$count} Seiten) kommen in den Papierkorb. Von dort lassen sie sich zurückholen.}}
 dlg-delete-yes = Löschen
 dlg-discard-title = Entwurf von {$title} verwerfen?
 dlg-discard-body = Was du getippt hast, ist nicht gespeichert und geht verloren.
@@ -66,7 +68,9 @@ wk-edit = Bearbeiten
 wk-share = Teilen
 wk-block-hint = Schreiben, oder / für Befehle
 wk-title-hint = Ohne Titel
-wk-page-count = {$hole} Seiten
+wk-page-count =
+  .input {$n :number}
+  .match $n one {{{$hole} Seite}} * {{{$hole} Seiten}}
 
 rd-search = Seiten suchen
 rd-back = Zurück
@@ -83,6 +87,7 @@ rd-discard-confirm = Es gibt ungespeicherte Änderungen. Noch einmal Abbrechen d
 rd-saved = Gespeichert.
 rd-no-changes = Nichts wurde geändert.
 rd-not-saved = Nicht gespeichert: {$hole}
+rd-tasks-locked = Du kannst diese Seite nicht ändern, deshalb sind ihre Kästchen gesperrt.
 rd-cannot-edit = Das lässt sich nicht bearbeiten: {$hole}
 rd-not-exported = Nicht exportiert: {$hole}
 rd-overwrite-confirm = {$hole} Noch einmal Exportieren drücken, um sie zu ersetzen.
